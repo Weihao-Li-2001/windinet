@@ -1,0 +1,139 @@
+# Inverse building layout optimization via differentiable surrogate.
+#
+# Optimises building positions to improve pedestrian wind comfort (PWC)
+# using WinDiNet as a differentiable surrogate model.
+
+# --- Surrogate model ---
+# Checkpoints are downloaded automatically from huggingface.co/rabischof/windinet.
+# To use local files, set the paths to absolute paths.
+surrogate:
+  dit_checkpoint: "dit"
+  scalar_checkpoint: "scalar_embedding"
+  vae_checkpoint: "vae_decoder"
+  field_size_m: 1100.0
+  num_inference_steps: 1
+
+# --- Building layout ---
+footprint:
+  # REQUIRED: path to initial building layout JSON.
+  #
+  # The JSON file defines axis-aligned rectangular buildings with the format:
+  #   {
+  #     "bounds": {"extents": [x0, x1, y0, y1, z0, z1]},
+  #     "blocks": [
+  #       {"extents": [x0, x1, y0, y1, z0, z1], "trainable": false},
+  #       {"extents": [x0, x1, y0, y1, z0, z1], "trainable": true},
+  #       ...
+  #     ]
+  #   }
+  #
+  # Each block has:
+  #   - "extents": bounding box [xmin, xmax, ymin, ymax, ...] in metres
+  #   - "trainable": true if the optimizer is allowed to move this building,
+  #                  false to keep it fixed in place
+  #
+  # The optimizer adjusts only the centre positions (cx, cy) of trainable
+  # buildings. Building sizes (width, height) remain fixed.
+  # An example layout is provided in examples/inverse_optimization/
+  footprint_json_path: "examples/inverse_optimization/example_layout.json"
+
+  # Subdivision factor for building shape deformation.
+  # subdivide=1: rigid mode — buildings translate as solid boxes.
+  # subdivide=2+: morph mode — each building is split into sub-blocks
+  #   that can move independently, allowing shape changes. Use
+  #   w_cohesion to keep sub-blocks together.
+  subdivide: 1
+
+# --- Inlet conditions ---
+# Each entry is [u_speed_mps, v_speed_mps] — the freestream velocity
+# at the domain inlet. The optimizer evaluates the PWC loss for each
+# inlet and combines them with equal weight (or custom inlet_weights).
+#
+# Examples:
+#   Single westerly wind at 15 m/s:
+#     inlets:
+#       - [15.0, 0.0]
+#
+#   Two inlets (west + north) for joint optimization:
+#     inlets:
+#       - [15.0, 0.0]
+#       - [0.0, 10.0]
+#     inlet_weights: [0.6, 0.4]   # optional, defaults to equal
+inlets:
+  - [15.0, 0.0]
+inlet_weights: null
+
+# --- Objective region ---
+# Rectangle [x0, y0, x1, y1] in pixel coordinates (256x256 domain)
+# defining where pedestrian wind comfort is evaluated.
+# Only fluid pixels inside this rectangle contribute to the PWC loss.
+# Set to null to evaluate over the entire domain.
+# The values below match the paper setting for the example layout
+# (examples/inverse_optimization/example_layout.json).
+objective_rect: [90, 140, 120, 160]
+
+# Number of initial frames to discard before evaluating the objective.
+# The first few frames may contain transient artefacts from the
+# conditioning frame; skipping them gives cleaner loss signals.
+transient_frames: 10
+
+# --- PWC loss ---
+# Pedestrian Wind Comfort loss: three sigmoid-smoothed exceedance
+# fractions that penalise unsafe, uncomfortable, or stagnant conditions.
+#
+# At each (pixel, timestep), the wind speed is compared against three
+# thresholds using soft sigmoid gates with temperature `tau`:
+#
+#   danger:     sigma((speed - danger_threshold) / tau)   → should be near 0
+#   comfort:    sigma((speed - comfort_threshold) / tau)   → should be near 0
+#   stagnation: sigma((stagnation_threshold - speed) / tau) → should be near 0
+#
+# Lower tau makes the sigmoid sharper (closer to a step function).
+# The total loss is:  w_danger * E[danger] + w_comfort * E[comfort] + w_stagnation * E[stagnation]
+#
+# Typical values (from Lawson wind comfort criteria):
+#   danger_threshold:     15 m/s (structural safety / walking hazard)
+#   comfort_threshold:    5 m/s  (pedestrian discomfort for sitting/standing)
+#   stagnation_threshold: 1 m/s  (poor ventilation / heat island risk)
+pwc:
+  tau: 1.0
+  danger_threshold: 15.0
+  comfort_threshold: 5.0
+  stagnation_threshold: 1.0
+  w_danger: 10.0
+  w_comfort: 1.0
+  w_stagnation: 1.0
+
+# --- Regularization ---
+regularization:
+  # Penalises displacement of building centres from the initial layout.
+  # Prevents buildings from drifting too far during optimization.
+  w_move: 0.0001
+
+  # Penalises gaps between sub-blocks of the same building (morph mode).
+  # Only relevant when subdivide > 1. Higher values keep sub-blocks
+  # tightly packed; lower values allow more shape deformation.
+  # Rigid mode (subdivide=1): set w_cohesion=0.001
+  # Morph mode (subdivide=2):  set w_cohesion=0.1, cohesion_hinge=5.0
+  w_cohesion: 0.001
+  cohesion_hinge: 0.0
+
+# --- Optimization ---
+optimization:
+  n_steps: 200
+  lr: 1.0
+  optimizer: "adam"
+  device: "cuda"
+
+# --- Domain ---
+domain:
+  H: 256
+  W: 256
+  tau: 2.0    # soft footprint temperature (controls building edge sharpness)
+
+# --- Logging ---
+logging:
+  plot_every: 1
+  write_csv_every: 25
+  print_every: 1
+  runs_root: "outputs/inverse"

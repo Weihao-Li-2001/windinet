@@ -1,0 +1,88 @@
+# VAE decoder finetuning with physics-informed losses.
+# Produces the vae_physics checkpoint used at inference time.
+#
+# Reference: Section 3.2 of arXiv:2603.21210
+#
+# Usage:
+#   python scripts/finetune_vae.py configs/finetune_vae.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+data:
+  # REQUIRED: path to wind simulation data.
+  # Expected structure: data_root/<sample_id>/fields.npz + meta.json
+  data_root: "/space/jperini/wind_dataset/dataset/train"
+
+  # Velocity normalisation constant. Velocities are divided by this value
+  # to map them into approximately [-1, 1].
+  wind_norm: 30.0
+
+  # Number of simulations held out for VRMSE evaluation at end of each epoch.
+  eval_sims: 10
+
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  epochs: 10
+  batch_size: 1
+
+  # Effective batch size = batch_size * gradient_accumulation_steps * num_gpus.
+  # With bs=1, grad_acc=32, 1 GPU: effective batch = 32.
+  gradient_accumulation_steps: 32
+
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+
+  # Linear LR warmup before cosine annealing.
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+
+  # Save a GT | Reconstruction | Error video every N optimizer steps (0=disabled).
+  vis_every_steps: 100
+
+# Physics-informed loss configuration.
+#
+# Total loss = L_data + lambda_div * L_div + lambda_wall * L_wall + L_footprint
+#
+# L_data:  Distance-weighted MSE on u/v channels. Fluid pixels near building
+#          boundaries receive ~(1 + distance_alpha) times the weight of far-field
+#          pixels, with Gaussian falloff controlled by distance_sigma.
+#
+# L_div:   Incompressibility constraint. Penalises du/dx + dv/dy != 0 in fluid.
+#
+# L_wall:  Wall no-penetration. Penalises normal velocity at building boundaries.
+#          wall_band controls the thickness of the wall region in pixels.
+#
+# L_footprint: All-channel MSE (u, v, building mask) — ensures the building
+#              mask channel is also reconstructed accurately. Added automatically.
+#
+# warmup_frames: Physics losses (div, wall) are only applied after this many
+#                simulation frames. Early frames may have transient artefacts
+#                from the conditioning frame, so skipping them stabilises training.
+loss:
+  distance_alpha: 2.0
+  distance_sigma: 20.0
+  lambda_div: 10.0
+  lambda_wall: 10.0
+  wall_band: 2
+  warmup_frames: 56
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # Save every N epochs. Set to 1 to save after every epoch.
+  interval: 1
+  keep_last_n: 3
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "decoder", "physics-loss"]
+
+seed: 42
+output_dir: "outputs/vae"
