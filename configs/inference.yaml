@@ -1,0 +1,42 @@
+# WinDiNet inference configuration.
+#
+# Usage:
+#   python scripts/inference.py configs/inference.yaml \
+#       --input_dir examples/footprints/ \
+#       --out_dir predictions/
+#
+# Checkpoints are downloaded automatically from HuggingFace on first run.
+# To use local files, set the paths below to absolute paths.
+
+# --- Checkpoints ---
+# Logical names ("dit", "scalar_embedding", "vae_decoder") are resolved
+# automatically from huggingface.co/rabischof/windinet.
+# You can also specify local file paths here.
+checkpoint: "dit"
+scalar_checkpoint: "scalar_embedding"
+vae_checkpoint: "vae_decoder"
+
+# --- Model ---
+model_source: "LTXV_2B_0.9.6_DEV"
+
+# --- Generation ---
+num_inference_steps: 2     # denoising steps (2 is sufficient for the distilled model)
+guidance_scale: 1.0        # classifier-free guidance scale (1.0 = no guidance)
+num_frames: 113            # total frames including conditioning frame (output = 112)
+seed: 42
+
+# --- Velocity encoding ---
+# Wind velocities are encoded as RGB values in [0, 1] via:
+#   rgb = (velocity / mag_cap_mps + 1) / 2
+# mag_cap_mps sets the maximum representable wind speed.
+mag_cap_mps: 30.0
+
+# --- Scalar conditioning ---
+# Must match the ranges used during training.
+scalar_conditioning:
+  scalar_names: ["inlet_speed_mps", "field_size_m"]
+  scalar_ranges:
+    inlet_speed_mps: [0.1, 20.0]
+    field_size_m: [900.0, 1400.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
