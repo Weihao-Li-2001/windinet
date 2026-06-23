@@ -12,14 +12,14 @@ model:
 data:
   # REQUIRED: path to wind simulation data.
   # Expected structure: data_root/<sample_id>/fields.npz + meta.json
-  data_root: "/space/jperini/wind_dataset/dataset/train"
+  data_root: "/home/woodm/master_thesis/windinet/datasets"
 
   # Velocity normalisation constant. Velocities are divided by this value
   # to map them into approximately [-1, 1].
   wind_norm: 30.0
 
   # Number of simulations held out for VRMSE evaluation at end of each epoch.
-  eval_sims: 10
+  eval_sims: 1
 
   num_dataloader_workers: 4
 
