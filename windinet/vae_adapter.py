@@ -1,3 +1,5 @@
+# checked and changed
+
 """
 VAE physics adapter for wind field encoding/decoding.
 
@@ -50,7 +52,7 @@ class InAdapter(nn.Module):
         if self.k == 0:
             return x_n
         y = self.proj2(self.act(self.proj1(x_n)))
-        return torch.tanh(y * torch.pi)
+        return torch.tanh(y) # * torch.pi
 
 
 class OutAdapter(nn.Module):
@@ -69,7 +71,7 @@ class OutAdapter(nn.Module):
         if self.k == 0:
             return x_rgb
         y = self.proj2(self.act(self.proj1(x_rgb)))
-        return torch.tanh(y * torch.pi)
+        return torch.tanh(y) #  * torch.pi
 
 
 class AdaptedVAE(nn.Module):
@@ -154,7 +156,12 @@ def _load_safetensors_vae(ckpt_path: str | Path):
 
     # Parse metadata strings back to proper types
     import ast
-    channels = ast.literal_eval(metadata.get("channels", "['u', 'v', 'b']"))
+    channels = ast.literal_eval(
+        metadata.get(
+            "channels",
+            "['density','momentum_x','momentum_y','pressure']",
+        )
+    )
     n = int(metadata.get("n", len(channels)))
     k = int(metadata.get("k", "0"))
     activation = metadata.get("activation", "gelu")
@@ -199,7 +206,7 @@ def load_adapted_vae(
         else:
             ckpt = _load_pt_vae(path)
 
-    channels = list((ckpt or {}).get("channels", ["u", "v", "b"]))
+    channels = list((ckpt or {}).get("channels", ["density", "momentum_x", "momentum_y", "pressure"]))
     n = int((ckpt or {}).get("n", len(channels)))
     k = int((ckpt or {}).get("k", 0))
     activation = str((ckpt or {}).get("activation", "gelu"))

@@ -41,8 +41,24 @@ from torch.utils.data import DataLoader, Subset
 
 from windinet.config import VaeTrainerConfig
 from windinet.inference.model_loader import load_vae
-from windinet.training.losses import physics_loss, vrmse
-from windinet.training.wind_data import WindFieldDataset, build_conditioning_video
+
+from windinet.losses import (
+    reconstruction_losses,
+    SSIMLoss,
+)
+
+from windinet.loss_weighting import (
+    build_loss_weighting,
+    GradNorm,
+)
+
+from windinet.loss_weighting.utils import (
+    compute_grad_norms,
+)
+
+from windinet.training.losses_old import vrmse
+
+from windinet.training.shockwave_data import ShockWaveDataset, build_shockwave_video
 from windinet.utils import logger
 
 IS_MAIN_PROCESS = os.environ.get("LOCAL_RANK", "0") == "0"
@@ -56,6 +72,17 @@ class VaeTrainer:
         self._load_vae()
         self._collect_trainable_params()
         self._init_wandb()
+
+        self.ssim_loss = SSIMLoss(
+            channels=4,
+            window_size=11,
+            sigma=1.5,
+        ).to(self._accelerator.device)
+
+
+        self.loss_weighter = build_loss_weighting(
+            config.loss_weighting
+        )
 
     # ------------------------------------------------------------------
     # Model setup
@@ -126,7 +153,7 @@ class VaeTrainer:
         set_seed(cfg.seed)
 
         # Data
-        full_dataset = WindFieldDataset(cfg.data.data_root, wind_norm=cfg.data.wind_norm)
+        full_dataset = ShockWaveDataset(cfg.data.data_root)
         n_eval = min(cfg.data.eval_sims, len(full_dataset))
         n_train = len(full_dataset) - n_eval
         train_set = Subset(full_dataset, list(range(n_train)))
@@ -210,6 +237,20 @@ class VaeTrainer:
                 running_loss = 0.0
                 count = 0
 
+                loss_sum = {
+                    "rmse":0.0,
+                    "h1":0.0,
+                    "ssim":0.0,
+                    "mlw":0.0,
+                }
+
+                grad_norm_sum = {
+                    "rmse":0.0,
+                    "h1":0.0,
+                    "ssim":0.0,
+                    "mlw":0.0,
+                }
+
                 task = train_progress.add_task(
                     f"Epoch {epoch}", total=len(train_loader),
                     epoch=epoch, loss=0.0, lr=cfg.optimization.learning_rate,
@@ -218,36 +259,52 @@ class VaeTrainer:
                 optimizer.zero_grad(set_to_none=True)
 
                 for i, batch in enumerate(train_loader):
-                    x = build_conditioning_video(batch, device=device)
+                    x = build_shockwave_video(batch, device=device)
                     recon, orig_F = self._forward_pass(x)
                     x_target = x[:, :, :orig_F]
 
-                    # Footprint: batch["b"] is [B, 1, H, W], 0=building, 1=fluid
-                    footprint = batch["b"].to(device=device, dtype=torch.float32)[:, 0]  # [B, H, W]
-
-                    # Physics loss on u/v channels
-                    uv_pred = recon[:, :2]  # [B, 2, F, H, W]
-                    uv_target = x_target[:, :2]
                     warmup = cfg.loss.warmup_frames + 1  # +1 for conditioning frame
 
-                    losses = physics_loss(
-                        uv_pred, uv_target, footprint,
-                        distance_alpha=cfg.loss.distance_alpha,
-                        distance_sigma=cfg.loss.distance_sigma,
-                        lambda_div=cfg.loss.lambda_div,
-                        lambda_wall=cfg.loss.lambda_wall,
-                        wall_band=cfg.loss.wall_band,
-                        warmup_frames=warmup,
+                    losses = reconstruction_losses(
+                        pred=recon,
+                        target=x_target,
+                        ssim_module=self.ssim_loss,
                     )
 
-                    # Add all-channel reconstruction loss (including building mask)
-                    losses["footprint"] = F.mse_loss(recon, x_target)
-                    losses["total"] = losses["total"] + losses["footprint"]
+                    grad_norms = None
 
-                    loss = losses["total"] / cfg.optimization.gradient_accumulation_steps
+
+                    if isinstance(
+                        self.loss_weighter,
+                        GradNorm
+                    ):
+
+                        grad_norms = compute_grad_norms(
+                            losses=losses,
+                            parameters=self._trainable_params,
+                        )
+                    
+                    for k,v in losses.items():
+                        loss_sum[k] += v.item()
+
+                    if grad_norms is not None:
+
+                        for k,v in grad_norms.items():
+
+                            grad_norm_sum[k] += v
+
+                    weights = self.loss_weighter.get_weights()
+
+
+                    total_loss = sum(
+                        weights[name] * value
+                        for name, value in losses.items()
+                    )
+
+                    loss = total_loss / cfg.optimization.gradient_accumulation_steps
                     self._accelerator.backward(loss)
 
-                    running_loss += losses["total"].item()
+                    running_loss += total_loss.item()
                     count += 1
 
                     do_step = ((i + 1) % cfg.optimization.gradient_accumulation_steps == 0) or (i == len(train_loader) - 1)
@@ -272,9 +329,12 @@ class VaeTrainer:
                             lr = optimizer.param_groups[0]["lr"]
                             avg = running_loss / max(count, 1)
                             self._accelerator.print(
-                                f"epoch {epoch} step {global_opt_step}  loss={avg:.6f}  lr={lr:.2e}"
-                                f"  [data={losses['data'].item():.4f} div={losses['div'].item():.4f}"
-                                f" wall={losses['wall'].item():.4f}]"
+                                f"epoch {epoch} step {global_opt_step}  "
+                                f"loss={avg:.6f}  lr={lr:.2e}"
+                                f"  [rmse={losses['rmse'].item():.4f} "
+                                f"h1={losses['h1'].item():.4f} "
+                                f"ssim={losses['ssim'].item():.4f} "
+                                f"mlw={losses['mlw'].item():.4f}]"
                             )
 
                     if IS_MAIN_PROCESS:
@@ -284,8 +344,45 @@ class VaeTrainer:
                             lr=optimizer.param_groups[0]["lr"],
                         )
 
+                epoch_losses = {
+                    k: v / count
+                    for k,v in loss_sum.items()
+                }
+
+                epoch_grad_norms = None
+
+
+                if isinstance(
+                    self.loss_weighter,
+                    GradNorm
+                ):
+
+                    epoch_grad_norms = {
+                        k:v/max(count,1)
+                        for k,v in grad_norm_sum.items()
+                    }
+
+                self.loss_weighter.update(
+                    losses=epoch_losses,
+                    grad_norms=epoch_grad_norms,
+                )
+
+                weights = self.loss_weighter.get_weights()
+
+                logger.info(
+                    "Loss weights: "
+                    + ", ".join(
+                        [
+                            f"{k}={v:.4f}"
+                            for k, v in weights.items()
+                        ]
+                    )
+                )
+
                 # End of epoch: eval + checkpoint
+
                 train_progress.remove_task(task)
+                
 
                 if IS_MAIN_PROCESS:
                     avg_loss = running_loss / max(count, 1)
@@ -321,7 +418,7 @@ class VaeTrainer:
         decoder.eval()
         vals = []
         for batch in eval_loader:
-            x = build_conditioning_video(batch, device=device)
+            x = build_shockwave_video(batch, device=device)
             recon, orig_F = self._forward_pass(x)
             vals.append(vrmse(recon[:, :, :orig_F], x[:, :, :orig_F]))
         decoder.train()
@@ -330,32 +427,34 @@ class VaeTrainer:
     @torch.no_grad()
     def _save_visualization(self, eval_loader: DataLoader, device: torch.device, step: int) -> None:
         """Save GT | Reconstruction | Error video for the first eval sample."""
-        from windinet.visualization import render_error_video
+        logger.info("Visualization not implemented for BubbleDiNet yet.")
+        return
+        # from windinet.visualization import render_error_video
 
-        decoder = self._get_decoder()
-        decoder.eval()
+        # decoder = self._get_decoder()
+        # decoder.eval()
 
-        batch = next(iter(eval_loader))
-        x = build_conditioning_video(batch, device=device)
-        recon, orig_F = self._forward_pass(x)
-        x = x[:, :, :orig_F]
-        recon = recon[:, :, :orig_F]
+        # batch = next(iter(eval_loader))
+        # x = build_shockwave_video(batch, device=device)
+        # recon, orig_F = self._forward_pass(x)
+        # x = x[:, :, :orig_F]
+        # recon = recon[:, :, :orig_F]
 
-        # Convert from [-1, 1] normalised to m/s
-        wind_norm = self._config.data.wind_norm
-        u_gt = x[0, 0, 1:].cpu().numpy() * wind_norm  # skip conditioning frame
-        v_gt = x[0, 1, 1:].cpu().numpy() * wind_norm
-        u_pred = recon[0, 0, 1:].cpu().numpy() * wind_norm
-        v_pred = recon[0, 1, 1:].cpu().numpy() * wind_norm
-        bmask = x[0, 2, 1].cpu().numpy() < 0  # b channel: -1=building, +1=fluid
+        # # Convert from [-1, 1] normalised to m/s
+        # wind_norm = self._config.data.wind_norm
+        # u_gt = x[0, 0, 1:].cpu().numpy() * wind_norm  # skip conditioning frame
+        # v_gt = x[0, 1, 1:].cpu().numpy() * wind_norm
+        # u_pred = recon[0, 0, 1:].cpu().numpy() * wind_norm
+        # v_pred = recon[0, 1, 1:].cpu().numpy() * wind_norm
+        # bmask = x[0, 2, 1].cpu().numpy() < 0  # b channel: -1=building, +1=fluid
 
-        vis_dir = Path(self._config.output_dir) / "vis"
-        vis_dir.mkdir(parents=True, exist_ok=True)
-        path = vis_dir / f"step_{step:06d}.mp4"
-        render_error_video(u_gt, v_gt, u_pred, v_pred, bmask, path)
-        logger.info(f"Visualization saved: {path.relative_to(self._config.output_dir)}")
+        # vis_dir = Path(self._config.output_dir) / "vis"
+        # vis_dir.mkdir(parents=True, exist_ok=True)
+        # path = vis_dir / f"step_{step:06d}.mp4"
+        # render_error_video(u_gt, v_gt, u_pred, v_pred, bmask, path)
+        # logger.info(f"Visualization saved: {path.relative_to(self._config.output_dir)}")
 
-        decoder.train()
+        # decoder.train()
 
     # ------------------------------------------------------------------
     # Checkpointing (safetensors, compatible with load_adapted_vae)
@@ -370,8 +469,8 @@ class VaeTrainer:
 
         metadata = {
             "format": "ltx-decoder-plus-adapters-v1",
-            "channels": str(["u", "v", "b"]),
-            "n": "3",
+            "channels": str(["density", "momentum_x", "momentum_y","pressure"]),
+            "n": "4",
             "k": "0",
             "activation": "gelu",
             "default_temb": "0.0",

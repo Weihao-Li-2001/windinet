@@ -1,16 +1,22 @@
-#!/usr/bin/env python3
+# checked and changed
+
 """
-Preprocess wind field simulations into latents for diffusion transformer training.
+Preprocess ShockWave simulations into latent representations for diffusion transformer training.
 
-Loads raw CFD data (fields.npz + meta.json), encodes through the LTX-Video VAE,
-and saves latent tensors and scalar conditioning values as .pt files.
+Loads raw CFD simulations from an HDF5 dataset, encodes each sample through the
+LTX-Video VAE, and saves latent tensors together with scalar conditioning values
+as `.pt` files.
 
-Expected input directory structure::
+Expected input dataset::
 
     data_root/
-        <sample_id>/
-            fields.npz      # keys: u_fields [T,H,W], v_fields [T,H,W], bldg_mask [H,W]
-            meta.json        # must contain: wind_speed_mps, city_diameter_m
+        train.h5 (or val.h5 / test.h5)
+            <sample_id>/
+                density        [T, H, W]
+                momentum_x     [T, H, W]
+                momentum_y     [T, H, W]
+                pressure       [T, H, W]
+                metadata such as gamma
 
 Output structure (compatible with PrecomputedDataset)::
 
@@ -19,7 +25,7 @@ Output structure (compatible with PrecomputedDataset)::
         scalars/<sample_id>.pt     # {scalars, scalar_names}
 
 Usage:
-    python scripts/preprocess_dataset.py /data/wind_dataset/train \\
+    python scripts/preprocess_dataset.py /data/shockwave_dataset/train.h5 \
         --output-dir /data/preprocessed
 """
 
@@ -39,7 +45,13 @@ from rich.progress import (
 
 from windinet.inference.model_loader import load_vae, LtxvModelVersion
 from windinet.latent_utils import encode_video
-from windinet.training.wind_data import WindFieldDataset, build_conditioning_video, extract_scalars
+
+from windinet.training.shockwave_data import (
+    ShockWaveDataset,
+    build_shockwave_video,
+    extract_scalars,
+)
+
 from windinet.utils import logger
 
 console = Console()
@@ -54,14 +66,14 @@ def main(
         default="LTXV_2B_0.9.6_DEV",
         help="LTX-Video model version for VAE encoding",
     ),
-    num_sim_frames: int = typer.Option(
-        default=112,
-        help="Number of simulation frames to use (112 + 1 conditioning = 113 total)",
-    ),
+    # num_sim_frames: int = typer.Option(
+    #     default=112,
+    #     help="Number of simulation frames to use (112 + 1 conditioning = 113 total)",
+    # ),
     device: str = typer.Option(default="cuda", help="Device for VAE encoding"),
     max_samples: int = typer.Option(default=0, help="Limit number of samples (0 = all)"),
     scalar_names: str = typer.Option(
-        default="inlet_speed_mps,field_size_m",
+        default="gamma",
         help="Comma-separated scalar conditioning names to extract",
     ),
 ) -> None:
@@ -75,7 +87,7 @@ def main(
     parsed_scalar_names = [s.strip() for s in scalar_names.split(",")]
 
     # Load dataset
-    dataset = WindFieldDataset(data_root, num_sim_frames=num_sim_frames)
+    dataset = ShockWaveDataset(data_root)
     if max_samples > 0:
         dataset.ids = dataset.ids[:max_samples]
     logger.info(f"Found {len(dataset)} samples in {data_root}")
@@ -113,7 +125,10 @@ def main(
 
             try:
                 # Build conditioning video and encode
-                video = build_conditioning_video(sample, device=torch.device(device))  # [1, 3, F, H, W]
+                video = build_shockwave_video(
+                    sample,
+                    device=torch.device(device)
+                )  # [1, 4, F, H, W]
                 video = video.permute(0, 2, 1, 3, 4)  # [1, F, C, H, W] for encode_video
 
                 with torch.no_grad():

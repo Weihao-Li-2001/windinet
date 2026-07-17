@@ -1,3 +1,5 @@
+# checked 
+
 # Based on LTX-Video-Trainer by Lightricks (Apache 2.0).
 # https://github.com/Lightricks/LTX-Video-Trainer
 # Modified: removed text conditioning data sources, scalar-only.

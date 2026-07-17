@@ -16,7 +16,14 @@ data:
 
   # Velocity normalisation constant. Velocities are divided by this value
   # to map them into approximately [-1, 1].
-  wind_norm: 30.0
+  dataset_config: "configs/euler_mq_128_only_train.yaml"
+
+  # Normalization strategy
+  normalization:
+    mode: "disabled"      # options: disabled | zscore | minmax
+
+  # only used when mode == minmax
+  minmax_range: [-1.0, 1.0]
 
   # Number of simulations held out for VRMSE evaluation at end of each epoch.
   eval_sims: 1
