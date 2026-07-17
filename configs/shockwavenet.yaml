@@ -1,0 +1,59 @@
+# checked and changed
+
+# ShockWaveNet training configuration — scalar-only mode (no text conditioning)
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [0.1, 20.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 10000
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: false
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  # REQUIRED: update this to your preprocessed data path
+  preprocessed_data_root: "/data/shockwave_preprocessed"
+  num_dataloader_workers: 0
+
+checkpoints:
+  interval: 156
+  keep_last_n: -1
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only"]
+
+seed: 42
+output_dir: "outputs/shockwave_dit"
