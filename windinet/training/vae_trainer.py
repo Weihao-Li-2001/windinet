@@ -57,6 +57,11 @@ from windinet.loss_weighting.utils import (
 )
 
 from windinet.training.shockwave_data import ShockWaveDataset, build_shockwave_video
+from windinet.training.vae_visualization import (
+    denormalize_fields,
+    save_metrics_history,
+    save_reconstruction_panels,
+)
 from windinet.utils import logger
 
 IS_MAIN_PROCESS = os.environ.get("LOCAL_RANK", "0") == "0"
@@ -158,7 +163,26 @@ class VaeTrainer:
 
     def _collect_trainable_params(self) -> None:
         self._trainable_params = [p for p in self._vae.parameters() if p.requires_grad]
-        logger.debug(f"Trainable params: {sum(p.numel() for p in self._trainable_params):,}")
+        vae = self._unwrap_vae()
+        base_vae = vae.vae if isinstance(vae, AdaptedVAE) else vae
+        encoder_trainable = sum(p.numel() for p in base_vae.encoder.parameters() if p.requires_grad)
+        if encoder_trainable:
+            raise RuntimeError(f"VAE encoder must be frozen, but {encoder_trainable:,} parameters are trainable")
+
+        decoder_trainable = sum(p.numel() for p in self._get_decoder().parameters() if p.requires_grad)
+        in_adapter_trainable = (
+            sum(p.numel() for p in vae.in_adapter.parameters() if p.requires_grad)
+            if isinstance(vae, AdaptedVAE) else 0
+        )
+        out_adapter_trainable = (
+            sum(p.numel() for p in vae.out_adapter.parameters() if p.requires_grad)
+            if isinstance(vae, AdaptedVAE) else 0
+        )
+        logger.info(
+            "Trainable parameters: "
+            f"encoder=0, decoder={decoder_trainable:,}, "
+            f"in_adapter={in_adapter_trainable:,}, out_adapter={out_adapter_trainable:,}"
+        )
 
     def _set_trainable_modules_mode(self, training: bool) -> None:
         self._get_decoder().train(training)
@@ -293,6 +317,7 @@ class VaeTrainer:
 
         global_opt_step = 0
         saved_path = None
+        metrics_history: list[dict[str, float]] = []
 
         logger.info("Starting VAE decoder finetuning...")
 
@@ -399,14 +424,6 @@ class VaeTrainer:
                         optimizer.zero_grad(set_to_none=True)
                         global_opt_step += 1
 
-                        # Visualization: GT | Reconstruction | Error video
-                        if (
-                            IS_MAIN_PROCESS
-                            and cfg.optimization.vis_every_steps > 0
-                            and global_opt_step % cfg.optimization.vis_every_steps == 0
-                        ):
-                            self._save_visualization(eval_loader, device, global_opt_step)
-
                         if IS_MAIN_PROCESS and global_opt_step % 10 == 0:
                             lr = optimizer.param_groups[0]["lr"]
                             avg = running_loss / max(count, 1)
@@ -468,16 +485,44 @@ class VaeTrainer:
 
                 if IS_MAIN_PROCESS:
                     avg_loss = running_loss / max(count, 1)
-                    ev = self._eval_vrmse(eval_loader, device)
+                    val_metrics = self._evaluate(eval_loader, device)
                     lr = optimizer.param_groups[0]["lr"]
-                    logger.info(f"Epoch {epoch}: loss={avg_loss:.6f}  VRMSE={ev:.6f}  lr={lr:.2e}")
+                    logger.info(
+                        f"Epoch {epoch}: train_loss={avg_loss:.6f}  "
+                        f"val_loss={val_metrics['total_loss']:.6f}  "
+                        f"val_VRMSE={val_metrics['vrmse']:.6f}  lr={lr:.2e}"
+                    )
+
+                    metrics_row = {
+                        "epoch": epoch,
+                        "learning_rate": lr,
+                        "train_total_loss": avg_loss,
+                        "val_total_loss": val_metrics["total_loss"],
+                        "val_vrmse": val_metrics["vrmse"],
+                        **{f"train_{name}": value for name, value in epoch_losses.items()},
+                        **{
+                            f"val_{name}": val_metrics[name]
+                            for name in ("rmse", "h1", "ssim", "mlw")
+                        },
+                    }
+                    metrics_history.append(metrics_row)
+                    csv_path, curve_path = save_metrics_history(metrics_history, cfg.output_dir)
+                    logger.info(
+                        f"Metrics updated: {csv_path.relative_to(cfg.output_dir)}, "
+                        f"{curve_path.relative_to(cfg.output_dir)}"
+                    )
 
                     self._log_metrics({
                         "epoch": epoch,
                         "epoch/train_loss": avg_loss,
-                        "epoch/eval_vrmse": ev,
+                        "epoch/val_loss": val_metrics["total_loss"],
+                        "epoch/eval_vrmse": val_metrics["vrmse"],
                         "epoch/learning_rate": lr,
                     })
+
+                    vis_cfg = cfg.visualization
+                    if vis_cfg.enabled and epoch % vis_cfg.interval_epochs == 0:
+                        self._save_visualization(eval_loader, device, epoch)
 
                     if cfg.checkpoints.interval and epoch % cfg.checkpoints.interval == 0:
                         saved_path = self._save_checkpoint(epoch, global_opt_step)
@@ -495,9 +540,12 @@ class VaeTrainer:
         return saved_path
 
     @torch.no_grad()
-    def _eval_vrmse(self, eval_loader: DataLoader, device: torch.device) -> float:
+    def _evaluate(self, eval_loader: DataLoader, device: torch.device) -> dict[str, float]:
+        """Evaluate the same reconstruction objective used for training plus VRMSE."""
         self._set_trainable_modules_mode(False)
-        vals = []
+        sums = {"total_loss": 0.0, "vrmse": 0.0, "rmse": 0.0, "h1": 0.0, "ssim": 0.0, "mlw": 0.0}
+        count = 0
+        weights = self.loss_weighter.get_weights()
         for batch in eval_loader:
             orig_F = batch["density"].shape[1]
             x = build_shockwave_video(
@@ -508,41 +556,72 @@ class VaeTrainer:
                 normalization_clip=self._config.data.normalization_clip,
             )
             recon, _ = self._forward_pass(x)
-            vals.append(vrmse(recon[:, :, :orig_F], x[:, :, :orig_F]))
+            target = x[:, :, :orig_F]
+            recon = recon[:, :, :orig_F]
+            losses = reconstruction_losses(
+                pred=recon,
+                target=target,
+                ssim_module=self.ssim_loss,
+                wavelet=self._config.loss.wavelet,
+                spatial_level=self._config.loss.spatial_level,
+                temporal_level=self._config.loss.temporal_level,
+                mlw_beta=self._config.loss.mlw_beta,
+                mlw_eps=self._config.loss.mlw_eps,
+            )
+            sums["total_loss"] += float(sum(weights[name] * value for name, value in losses.items()).item())
+            sums["vrmse"] += vrmse(recon, target)
+            for name, value in losses.items():
+                sums[name] += float(value.item())
+            count += 1
         self._set_trainable_modules_mode(True)
-        return sum(vals) / max(1, len(vals))
+        return {name: value / max(1, count) for name, value in sums.items()}
 
     @torch.no_grad()
-    def _save_visualization(self, eval_loader: DataLoader, device: torch.device, step: int) -> None:
-        """Save GT | Reconstruction | Error video for the first eval sample."""
-        logger.info("Visualization not implemented for BubbleDiNet yet.")
-        return
-        # from windinet.visualization import render_error_video
-
-        # decoder = self._get_decoder()
-        # decoder.eval()
-
-        # batch = next(iter(eval_loader))
-        # x = build_shockwave_video(batch, device=device)
-        # recon, orig_F = self._forward_pass(x)
-        # x = x[:, :, :orig_F]
-        # recon = recon[:, :, :orig_F]
-
-        # # Convert from [-1, 1] normalised to m/s
-        # wind_norm = self._config.data.wind_norm
-        # u_gt = x[0, 0, 1:].cpu().numpy() * wind_norm  # skip conditioning frame
-        # v_gt = x[0, 1, 1:].cpu().numpy() * wind_norm
-        # u_pred = recon[0, 0, 1:].cpu().numpy() * wind_norm
-        # v_pred = recon[0, 1, 1:].cpu().numpy() * wind_norm
-        # bmask = x[0, 2, 1].cpu().numpy() < 0  # b channel: -1=building, +1=fluid
-
-        # vis_dir = Path(self._config.output_dir) / "vis"
-        # vis_dir.mkdir(parents=True, exist_ok=True)
-        # path = vis_dir / f"step_{step:06d}.mp4"
-        # render_error_video(u_gt, v_gt, u_pred, v_pred, bmask, path)
-        # logger.info(f"Visualization saved: {path.relative_to(self._config.output_dir)}")
-
-        # decoder.train()
+    def _save_visualization(self, eval_loader: DataLoader, device: torch.device, epoch: int) -> None:
+        """Render fixed validation samples at configured physical frame numbers."""
+        cfg = self._config
+        vis_cfg = cfg.visualization
+        self._set_trainable_modules_mode(False)
+        saved_count = 0
+        for sample_index, batch in enumerate(eval_loader):
+            if sample_index >= vis_cfg.num_samples:
+                break
+            orig_F = batch["density"].shape[1]
+            x = build_shockwave_video(
+                batch,
+                device=device,
+                channel_mean=cfg.data.channel_mean,
+                channel_std=cfg.data.channel_std,
+                normalization_clip=cfg.data.normalization_clip,
+            )
+            recon, _ = self._forward_pass(x)
+            target = denormalize_fields(
+                x[:, :, :orig_F],
+                cfg.data.channel_mean,
+                cfg.data.channel_std,
+                cfg.data.normalization_clip,
+            )
+            prediction = denormalize_fields(
+                recon[:, :, :orig_F],
+                cfg.data.channel_mean,
+                cfg.data.channel_std,
+                cfg.data.normalization_clip,
+            )
+            sample_id_value = batch.get("id", [f"sample_{sample_index:04d}"])
+            sample_id = str(sample_id_value[0] if isinstance(sample_id_value, (list, tuple)) else sample_id_value)
+            paths = save_reconstruction_panels(
+                prediction=prediction[0],
+                target=target[0],
+                sample_id=sample_id,
+                epoch=epoch,
+                frame_numbers=vis_cfg.frame_numbers,
+                channel_names=cfg.adapter.channels,
+                output_dir=cfg.output_dir,
+                dpi=vis_cfg.dpi,
+            )
+            saved_count += len(paths)
+        self._set_trainable_modules_mode(True)
+        logger.info(f"Saved {saved_count} validation reconstruction PNGs for epoch {epoch}")
 
     # ------------------------------------------------------------------
     # Checkpointing (safetensors, compatible with load_adapted_vae)

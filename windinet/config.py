@@ -221,7 +221,6 @@ class VaeOptimizationConfig(ConfigBaseModel):
     weight_decay: float = Field(default=0.0)
     warmup_steps: int = Field(default=50, description="Linear warmup optimizer steps")
     warmup_start_factor: float = Field(default=0.01)
-    vis_every_steps: int = Field(default=0, description="Visualize GT|Reconstruction|Error every N optimizer steps (0=disabled)")
     enable_gradient_checkpointing: bool = Field(default=True)
 
 
@@ -260,6 +259,23 @@ class LossWeightingConfig(ConfigBaseModel):
         return self
 
 
+class VaeVisualizationConfig(ConfigBaseModel):
+    """Periodic reconstruction plots for a fixed validation subset."""
+
+    enabled: bool = Field(default=True)
+    interval_epochs: int = Field(default=1, ge=1)
+    num_samples: int = Field(default=2, ge=1)
+    frame_numbers: list[int] = Field(default=[25, 50, 75, 100], min_length=1)
+    dpi: int = Field(default=150, ge=72)
+
+    @field_validator("frame_numbers")
+    @classmethod
+    def validate_frame_numbers(cls, values: list[int]) -> list[int]:
+        if any(value < 1 for value in values):
+            raise ValueError("visualization frame_numbers are one-based and must be >= 1")
+        return values
+
+
 class VaeTrainerConfig(ConfigBaseModel):
     """Configuration for shockwave VAE decoder-and-adapter finetuning."""
 
@@ -269,6 +285,7 @@ class VaeTrainerConfig(ConfigBaseModel):
     optimization: VaeOptimizationConfig = Field(default_factory=VaeOptimizationConfig)
     loss: VaeReconstructionLossConfig = Field(default_factory=VaeReconstructionLossConfig)
     loss_weighting: LossWeightingConfig = Field(default_factory=LossWeightingConfig)
+    visualization: VaeVisualizationConfig = Field(default_factory=VaeVisualizationConfig)
     acceleration: AccelerationConfig = Field(default_factory=AccelerationConfig)
     checkpoints: CheckpointsConfig = Field(default_factory=CheckpointsConfig)
     wandb: WandbConfig = Field(default_factory=WandbConfig)
