@@ -1,12 +1,11 @@
 # Based on finetune_decoder.py from the WinDiNet development codebase.
 # Refactored to use Accelerate for DDP, pydantic configs, and the windinet package.
 
-"""
-VAE decoder finetuning with physics-informed losses.
+"""Shockwave CFD VAE finetuning with trainable channel adapters.
 
-Freezes the VAE encoder and trains only the decoder to improve
-reconstruction fidelity for wind velocity fields. The physics loss
-enforces incompressibility and wall boundary conditions.
+The pretrained LTX-Video encoder is frozen. The decoder and the 4->3 / 3->4
+adapters are trained using reconstruction, gradient, structural, and wavelet
+losses on normalized HDF5 simulation fields.
 """
 
 import math
@@ -41,6 +40,7 @@ from torch.utils.data import DataLoader, Subset
 
 from windinet.config import VaeTrainerConfig
 from windinet.inference.model_loader import load_vae
+from windinet.vae_adapter import AdaptedVAE, load_adapted_vae
 
 from windinet.losses import (
     reconstruction_losses,
@@ -56,12 +56,19 @@ from windinet.loss_weighting.utils import (
     compute_grad_norms,
 )
 
-from windinet.training.losses_old import vrmse
-
 from windinet.training.shockwave_data import ShockWaveDataset, build_shockwave_video
 from windinet.utils import logger
 
 IS_MAIN_PROCESS = os.environ.get("LOCAL_RANK", "0") == "0"
+
+
+@torch.no_grad()
+def vrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> float:
+    """Variance-normalized RMSE, averaged over the batch."""
+    diff = (pred - target).float()
+    mse = diff.square().mean(dim=(1, 2, 3, 4))
+    variance = target.float().var(dim=(1, 2, 3, 4), unbiased=False)
+    return float(torch.sqrt(mse / (variance + eps)).mean().item())
 
 
 class VaeTrainer:
@@ -89,29 +96,71 @@ class VaeTrainer:
     # ------------------------------------------------------------------
 
     def _load_vae(self) -> None:
-        """Load the VAE, freeze encoder, unfreeze decoder."""
+        """Load the VAE, freeze encoder, and unfreeze decoder/adapters."""
         self._vae = load_vae(self._config.model.model_source, dtype=torch.float32)
+
+        adapter_cfg = self._config.adapter
+        if adapter_cfg.enabled:
+            self._vae, meta = load_adapted_vae(
+                self._vae,
+                ckpt_path=adapter_cfg.checkpoint,
+                device="cpu",
+                dtype=torch.float32,
+                channels=adapter_cfg.channels,
+                k=adapter_cfg.hidden_channels,
+                activation=adapter_cfg.activation,
+                default_temb=adapter_cfg.default_temb,
+            )
+            logger.info(
+                "VAE adapters enabled: "
+                f"channels={meta['channels']}, hidden_channels={meta['k']}, "
+                f"activation={meta['activation']}"
+            )
+            self._adapter_meta = meta
+        else:
+            self._adapter_meta = None
 
         # Freeze everything
         for p in self._vae.parameters():
             p.requires_grad_(False)
 
-        # Unfreeze decoder only
+        # Unfreeze decoder and, when enabled, both channel adapters.
         decoder = self._get_decoder()
         for p in decoder.parameters():
             p.requires_grad_(True)
 
+        if isinstance(self._vae, AdaptedVAE):
+            self._vae.in_adapter.requires_grad_(True)
+            self._vae.out_adapter.requires_grad_(True)
+
+        # Keep the frozen encoder deterministic; only explicitly trainable
+        # modules are switched back to training mode in the epoch loop.
+        self._vae.eval()
+
         logger.info(f"VAE loaded. Decoder params: {sum(p.numel() for p in decoder.parameters()):,}")
 
+    def _unwrap_vae(self) -> nn.Module:
+        return self._accelerator.unwrap_model(self._vae)
+
     def _get_decoder(self) -> nn.Module:
+        vae = self._unwrap_vae()
+        if isinstance(vae, AdaptedVAE):
+            return vae.vae.decoder
         for name in ("decoder", "vae_decoder"):
-            if hasattr(self._vae, name) and isinstance(getattr(self._vae, name), nn.Module):
-                return getattr(self._vae, name)
-        return self._vae
+            if hasattr(vae, name) and isinstance(getattr(vae, name), nn.Module):
+                return getattr(vae, name)
+        return vae
 
     def _collect_trainable_params(self) -> None:
-        self._trainable_params = [p for p in self._get_decoder().parameters() if p.requires_grad]
+        self._trainable_params = [p for p in self._vae.parameters() if p.requires_grad]
         logger.debug(f"Trainable params: {sum(p.numel() for p in self._trainable_params):,}")
+
+    def _set_trainable_modules_mode(self, training: bool) -> None:
+        self._get_decoder().train(training)
+        vae = self._unwrap_vae()
+        if isinstance(vae, AdaptedVAE):
+            vae.in_adapter.train(training)
+            vae.out_adapter.train(training)
 
     # ------------------------------------------------------------------
     # VAE encode / decode
@@ -132,7 +181,12 @@ class VaeTrainer:
         std = self._vae.latents_std.view(1, -1, 1, 1, 1).to(latents.device, latents.dtype)
         sf = float(getattr(self._vae.config, "scaling_factor", 1.0))
         z = latents * std / sf + mean
-        temb = torch.zeros((z.shape[0], 1, 1, 1, 1), device=z.device, dtype=z.dtype)
+        temb = torch.full(
+            (z.shape[0],),
+            self._config.adapter.default_temb,
+            device=z.device,
+            dtype=z.dtype,
+        )
         return self._vae.decode(z, temb=temb, return_dict=True).sample
 
     def _forward_pass(self, x: torch.Tensor) -> tuple[torch.Tensor, int]:
@@ -153,9 +207,16 @@ class VaeTrainer:
         set_seed(cfg.seed)
 
         # Data
-        full_dataset = ShockWaveDataset(cfg.data.data_root)
+        full_dataset = ShockWaveDataset(
+            cfg.data.data_root,
+            num_sim_frames=cfg.data.num_sim_frames,
+        )
         n_eval = min(cfg.data.eval_sims, len(full_dataset))
         n_train = len(full_dataset) - n_eval
+        if n_train < 1 or n_eval < 1:
+            raise ValueError(
+                f"Need at least one training and one evaluation sample; got {n_train} train, {n_eval} eval"
+            )
         train_set = Subset(full_dataset, list(range(n_train)))
         eval_set = Subset(full_dataset, list(range(n_train, n_train + n_eval)))
 
@@ -225,7 +286,6 @@ class VaeTrainer:
             train_progress = MagicMock()
             live = nullcontext()
 
-        decoder = self._get_decoder()
         global_opt_step = 0
         saved_path = None
 
@@ -233,7 +293,7 @@ class VaeTrainer:
 
         with live:
             for epoch in range(1, cfg.optimization.epochs + 1):
-                decoder.train()
+                self._set_trainable_modules_mode(True)
                 running_loss = 0.0
                 count = 0
 
@@ -259,16 +319,27 @@ class VaeTrainer:
                 optimizer.zero_grad(set_to_none=True)
 
                 for i, batch in enumerate(train_loader):
-                    x = build_shockwave_video(batch, device=device)
-                    recon, orig_F = self._forward_pass(x)
+                    orig_F = batch["density"].shape[1]
+                    x = build_shockwave_video(
+                        batch,
+                        device=device,
+                        channel_mean=cfg.data.channel_mean,
+                        channel_std=cfg.data.channel_std,
+                        normalization_clip=cfg.data.normalization_clip,
+                    )
+                    recon, _ = self._forward_pass(x)
                     x_target = x[:, :, :orig_F]
-
-                    warmup = cfg.loss.warmup_frames + 1  # +1 for conditioning frame
+                    recon = recon[:, :, :orig_F]
 
                     losses = reconstruction_losses(
                         pred=recon,
                         target=x_target,
                         ssim_module=self.ssim_loss,
+                        wavelet=cfg.loss.wavelet,
+                        spatial_level=cfg.loss.spatial_level,
+                        temporal_level=cfg.loss.temporal_level,
+                        mlw_beta=cfg.loss.mlw_beta,
+                        mlw_eps=cfg.loss.mlw_eps,
                     )
 
                     grad_norms = None
@@ -414,14 +485,20 @@ class VaeTrainer:
 
     @torch.no_grad()
     def _eval_vrmse(self, eval_loader: DataLoader, device: torch.device) -> float:
-        decoder = self._get_decoder()
-        decoder.eval()
+        self._set_trainable_modules_mode(False)
         vals = []
         for batch in eval_loader:
-            x = build_shockwave_video(batch, device=device)
-            recon, orig_F = self._forward_pass(x)
+            orig_F = batch["density"].shape[1]
+            x = build_shockwave_video(
+                batch,
+                device=device,
+                channel_mean=self._config.data.channel_mean,
+                channel_std=self._config.data.channel_std,
+                normalization_clip=self._config.data.normalization_clip,
+            )
+            recon, _ = self._forward_pass(x)
             vals.append(vrmse(recon[:, :, :orig_F], x[:, :, :orig_F]))
-        decoder.train()
+        self._set_trainable_modules_mode(True)
         return sum(vals) / max(1, len(vals))
 
     @torch.no_grad()
@@ -464,21 +541,42 @@ class VaeTrainer:
         save_dir = Path(self._config.output_dir) / "checkpoints"
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        decoder = self._accelerator.unwrap_model(self._get_decoder())
-        tensors = {f"decoder.{k}": v for k, v in decoder.state_dict().items()}
+        vae = self._unwrap_vae()
+        decoder = self._get_decoder()
+        tensors = {
+            f"decoder.{k}": v.detach().cpu().contiguous()
+            for k, v in decoder.state_dict().items()
+        }
+
+        adapter_cfg = self._config.adapter
+        if isinstance(vae, AdaptedVAE):
+            tensors.update({
+                f"in_adapter.{k}": v.detach().cpu().contiguous()
+                for k, v in vae.in_adapter.state_dict().items()
+            })
+            tensors.update({
+                f"out_adapter.{k}": v.detach().cpu().contiguous()
+                for k, v in vae.out_adapter.state_dict().items()
+            })
 
         metadata = {
             "format": "ltx-decoder-plus-adapters-v1",
-            "channels": str(["density", "momentum_x", "momentum_y","pressure"]),
-            "n": "4",
-            "k": "0",
-            "activation": "gelu",
-            "default_temb": "0.0",
+            "channels": str(vae.channels if isinstance(vae, AdaptedVAE) else adapter_cfg.channels),
+            "n": str(len(vae.channels) if isinstance(vae, AdaptedVAE) else len(adapter_cfg.channels)),
+            "k": str(vae.k if isinstance(vae, AdaptedVAE) else 0),
+            "activation": str(
+                self._adapter_meta["activation"] if self._adapter_meta else adapter_cfg.activation
+            ),
+            "default_temb": str(vae.default_temb if isinstance(vae, AdaptedVAE) else adapter_cfg.default_temb),
+            "normalization": "clipped_zscore",
+            "channel_mean": str(self._config.data.channel_mean),
+            "channel_std": str(self._config.data.channel_std),
+            "normalization_clip": str(self._config.data.normalization_clip),
             "epoch": str(epoch),
             "step": str(step),
         }
 
-        filename = f"vae_physics_epoch{epoch:03d}.safetensors"
+        filename = f"vae_shockwave_epoch{epoch:03d}.safetensors"
         path = save_dir / filename
         save_file(tensors, path, metadata=metadata)
         logger.info(f"VAE checkpoint saved: {path.relative_to(self._config.output_dir)}")

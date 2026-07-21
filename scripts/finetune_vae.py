@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""WinDiNet -- Finetune the VAE decoder with physics-informed losses.
+"""WinDiNet -- Finetune the VAE decoder with designed losses.
 
 Usage:
     python scripts/finetune_vae.py configs/finetune_vae.yaml
@@ -16,7 +16,7 @@ console = Console()
 app = typer.Typer(
     pretty_exceptions_enable=False,
     no_args_is_help=True,
-    help="Finetune the VAE decoder with physics-informed losses.",
+    help="Finetune the VAE decoder with designed losses.",
 )
 
 
