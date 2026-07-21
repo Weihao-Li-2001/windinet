@@ -52,9 +52,6 @@ optimization:
   warmup_start_factor: 0.01
   enable_gradient_checkpointing: true
 
-  # Save a GT | Reconstruction | Error video every N optimizer steps (0=disabled).
-  vis_every_steps: 0
-
 loss_weighting:
   strategy: "fixed"
   weights:
@@ -70,6 +67,14 @@ loss:
   temporal_level: 2
   mlw_beta: 10.0
   mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 2
+  # One-based physical frame numbers.
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
 
 acceleration:
   mixed_precision_mode: "bf16"
