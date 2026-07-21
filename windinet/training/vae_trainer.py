@@ -133,6 +133,11 @@ class VaeTrainer:
             self._vae.in_adapter.requires_grad_(True)
             self._vae.out_adapter.requires_grad_(True)
 
+        if self._config.optimization.enable_gradient_checkpointing:
+            base_vae = self._vae.vae if isinstance(self._vae, AdaptedVAE) else self._vae
+            base_vae.enable_gradient_checkpointing()
+            logger.info("VAE gradient checkpointing enabled")
+
         # Keep the frozen encoder deterministic; only explicitly trainable
         # modules are switched back to training mode in the epoch loop.
         self._vae.eval()
@@ -372,8 +377,14 @@ class VaeTrainer:
                         for name, value in losses.items()
                     )
 
-                    loss = total_loss / cfg.optimization.gradient_accumulation_steps
-                    self._accelerator.backward(loss)
+                    # Accelerator.backward already divides by its configured
+                    # gradient_accumulation_steps. Compensate only for a final
+                    # short accumulation group (e.g. 5 batches with grad_acc=4).
+                    grad_acc = cfg.optimization.gradient_accumulation_steps
+                    group_start = (i // grad_acc) * grad_acc
+                    group_size = min(grad_acc, len(train_loader) - group_start)
+                    backward_loss = total_loss * (grad_acc / group_size)
+                    self._accelerator.backward(backward_loss)
 
                     running_loss += total_loss.item()
                     count += 1

@@ -222,6 +222,7 @@ class VaeOptimizationConfig(ConfigBaseModel):
     warmup_steps: int = Field(default=50, description="Linear warmup optimizer steps")
     warmup_start_factor: float = Field(default=0.01)
     vis_every_steps: int = Field(default=0, description="Visualize GT|Reconstruction|Error every N optimizer steps (0=disabled)")
+    enable_gradient_checkpointing: bool = Field(default=True)
 
 
 class VaeAdapterConfig(ConfigBaseModel):
