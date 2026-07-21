@@ -175,24 +175,38 @@ class FlowMatchingConfig(ConfigBaseModel):
 # ---------------------------------------------------------------------------
 
 
-class PhysicsLossConfig(ConfigBaseModel):
-    """Physics-informed loss weights for VAE decoder finetuning."""
+class VaeReconstructionLossConfig(ConfigBaseModel):
+    """Parameters for shockwave reconstruction loss components."""
 
-    distance_alpha: float = Field(default=2.0, description="Wall proximity weight amplification")
-    distance_sigma: float = Field(default=20.0, description="Gaussian falloff distance for wall weighting (pixels)")
-    lambda_div: float = Field(default=10.0, description="Divergence (incompressibility) loss weight")
-    lambda_wall: float = Field(default=10.0, description="Wall no-penetration loss weight")
-    wall_band: int = Field(default=2, description="Wall mask dilation in pixels")
-    warmup_frames: int = Field(default=56, description="Physics losses only apply after this many frames")
+    wavelet: str = Field(default="db2")
+    spatial_level: int | None = Field(default=2, ge=1)
+    temporal_level: int | None = Field(default=2, ge=1)
+    mlw_beta: float = Field(default=10.0, ge=0.0)
+    mlw_eps: float = Field(default=1e-6, gt=0.0)
 
 
 class VaeDataConfig(ConfigBaseModel):
     """Dataset configuration for VAE decoder finetuning."""
 
-    data_root: str = Field(description="Path to wind simulation data (root/<id>/fields.npz)")
-    wind_norm: float = Field(default=30.0, description="Wind speed normalisation constant (m/s)")
+    data_root: str = Field(description="Path to the shockwave HDF5 file")
     eval_sims: int = Field(default=10, description="Number of simulations held out for VRMSE evaluation")
     num_dataloader_workers: int = Field(default=4, ge=0)
+    num_sim_frames: int | None = Field(default=None, ge=1, description="Optional frame limit for debugging")
+    channel_mean: list[float] = Field(description="Per-channel training-set means")
+    channel_std: list[float] = Field(description="Per-channel training-set standard deviations")
+    normalization_clip: float = Field(
+        default=5.0,
+        gt=0.0,
+        description="Map mean +/- this many standard deviations to [-1, 1]",
+    )
+
+    @model_validator(mode="after")
+    def validate_normalization_stats(self):
+        if len(self.channel_mean) != 4 or len(self.channel_std) != 4:
+            raise ValueError("channel_mean and channel_std must each contain four values")
+        if any(value <= 0 for value in self.channel_std):
+            raise ValueError("all channel_std values must be positive")
+        return self
 
 
 class VaeOptimizationConfig(ConfigBaseModel):
@@ -210,13 +224,50 @@ class VaeOptimizationConfig(ConfigBaseModel):
     vis_every_steps: int = Field(default=0, description="Visualize GT|Reconstruction|Error every N optimizer steps (0=disabled)")
 
 
+class VaeAdapterConfig(ConfigBaseModel):
+    """Input/output channel adapters used while finetuning the VAE."""
+
+    enabled: bool = Field(default=False, description="Wrap the VAE with trainable input/output adapters")
+    checkpoint: str | Path | None = Field(default=None, description="Optional adapter/decoder checkpoint to resume from")
+    channels: list[str] = Field(
+        default=["density", "momentum_x", "momentum_y", "pressure"],
+        min_length=1,
+    )
+    hidden_channels: int = Field(default=32, ge=1, description="Adapter hidden width (checkpoint metadata wins when resuming)")
+    activation: Literal["relu", "silu", "swish", "gelu", "tanh"] = "gelu"
+    default_temb: float = Field(default=0.0)
+
+
+class LossWeightingConfig(ConfigBaseModel):
+    """Composition strategy for the shockwave reconstruction losses."""
+
+    strategy: Literal["fixed", "gradnorm", "softadapt"] = "fixed"
+    weights: dict[str, float] = Field(
+        default={"rmse": 1.0, "h1": 0.5, "ssim": 0.2, "mlw": 0.05},
+    )
+    loss_names: list[str] = Field(default=["rmse", "h1", "ssim", "mlw"])
+    alpha: float = Field(default=1.5, gt=0.0)
+    weight_lr: float = Field(default=0.025, gt=0.0)
+    temperature: float = Field(default=0.1, gt=0.0)
+
+    @model_validator(mode="after")
+    def validate_loss_names(self):
+        expected = {"rmse", "h1", "ssim", "mlw"}
+        configured = set(self.weights if self.strategy == "fixed" else self.loss_names)
+        if configured != expected:
+            raise ValueError(f"loss weighting must configure exactly {sorted(expected)}")
+        return self
+
+
 class VaeTrainerConfig(ConfigBaseModel):
-    """Configuration for VAE decoder finetuning with physics-informed losses."""
+    """Configuration for shockwave VAE decoder-and-adapter finetuning."""
 
     model: ModelConfig = Field(default_factory=ModelConfig)
+    adapter: VaeAdapterConfig = Field(default_factory=VaeAdapterConfig)
     data: VaeDataConfig = Field(default_factory=VaeDataConfig)
     optimization: VaeOptimizationConfig = Field(default_factory=VaeOptimizationConfig)
-    loss: PhysicsLossConfig = Field(default_factory=PhysicsLossConfig)
+    loss: VaeReconstructionLossConfig = Field(default_factory=VaeReconstructionLossConfig)
+    loss_weighting: LossWeightingConfig = Field(default_factory=LossWeightingConfig)
     acceleration: AccelerationConfig = Field(default_factory=AccelerationConfig)
     checkpoints: CheckpointsConfig = Field(default_factory=CheckpointsConfig)
     wandb: WandbConfig = Field(default_factory=WandbConfig)

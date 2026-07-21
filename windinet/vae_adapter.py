@@ -173,6 +173,11 @@ def _load_safetensors_vae(ckpt_path: str | Path):
         "in_adapter": in_sd,
         "out_adapter": out_sd,
     }
+    if metadata.get("normalization"):
+        ckpt["normalization"] = metadata["normalization"]
+        ckpt["channel_mean"] = ast.literal_eval(metadata["channel_mean"])
+        ckpt["channel_std"] = ast.literal_eval(metadata["channel_std"])
+        ckpt["normalization_clip"] = float(metadata["normalization_clip"])
     if decoder_sd:
         ckpt["decoder"] = decoder_sd
     return ckpt
@@ -189,6 +194,9 @@ def load_adapted_vae(
     device: str = "cuda",
     dtype: torch.dtype = torch.float32,
     *,
+    channels: list[str] | None = None,
+    k: int | None = None,
+    activation: str | None = None,
     default_temb: float = AdaptedVAE.DEFAULT_INFERENCE_TEMB,
     verbose: bool = True,
 ) -> tuple[AdaptedVAE, dict[str, Any]]:
@@ -206,10 +214,10 @@ def load_adapted_vae(
         else:
             ckpt = _load_pt_vae(path)
 
-    channels = list((ckpt or {}).get("channels", ["density", "momentum_x", "momentum_y", "pressure"]))
+    channels = list((ckpt or {}).get("channels", channels or ["density", "momentum_x", "momentum_y", "pressure"]))
     n = int((ckpt or {}).get("n", len(channels)))
-    k = int((ckpt or {}).get("k", 0))
-    activation = str((ckpt or {}).get("activation", "gelu"))
+    k = int((ckpt or {}).get("k", 0 if k is None else k))
+    activation = str((ckpt or {}).get("activation", activation or "gelu"))
     has_decoder = isinstance((ckpt or {}).get("decoder", None), dict)
 
     if default_temb == AdaptedVAE.DEFAULT_INFERENCE_TEMB and ckpt is not None:
@@ -247,4 +255,7 @@ def load_adapted_vae(
         "decoder_loaded": bool(ckpt is not None and has_decoder),
         "default_temb": float(default_temb),
     }
+    for key in ("normalization", "channel_mean", "channel_std", "normalization_clip"):
+        if ckpt is not None and key in ckpt:
+            meta[key] = ckpt[key]
     return model, meta

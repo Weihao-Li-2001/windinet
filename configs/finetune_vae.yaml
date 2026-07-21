@@ -3,15 +3,26 @@
 #
 # Reference: Section 3.2 of arXiv:2603.21210
 #
+
 # Usage:
 #   python scripts/finetune_vae.py configs/finetune_vae.yaml
 
 model:
-  model_source: "LTXV_2B_0.9.6_DEV"
+  model_source: "LTXV_2B_0.9.6_ # model_source: "LTXV_2B_0.9.6_DEV"
+
+# Train 4-channel CFD data through the RGB VAE using lightweight 1x1x1
+# input/output adapters. The base encoder remains frozen; decoder and both
+# adapters are optimized and saved together.
+adapter:
+  enabled: true
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  hidden_channels: 32
+  activation: "gelu"
+  default_temb: 0.0
 
 data:
-  # REQUIRED: path to wind simulation data.
-  # Expected structure: data_root/<sample_id>/fields.npz + meta.json
+  # REQUIRED: HDF5 file containing one group per simulation.
   data_root: "/home/woodm/master_thesis/windinet/datasets"
 
   # Velocity normalisation constant. Velocities are divided by this value

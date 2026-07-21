@@ -20,7 +20,6 @@ from pathlib import Path
 
 import h5py
 import torch
-import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -57,6 +56,9 @@ class ShockWaveDataset(Dataset):
         num_sim_frames: int | None = None,
     ):
         self.h5_path = Path(h5_path)
+
+        if not self.h5_path.is_file():
+            raise FileNotFoundError(f"Shockwave HDF5 file not found: {self.h5_path}")
 
         self.file = None
 
@@ -151,6 +153,9 @@ class ShockWaveDataset(Dataset):
 def build_shockwave_video(
     sample: dict[str, Tensor],
     device: torch.device,
+    channel_mean: list[float] | None = None,
+    channel_std: list[float] | None = None,
+    normalization_clip: float = 5.0,
 ) -> Tensor:
     """Build a 4-channel shockwave video [B, 4, F, H, W].
 
@@ -200,6 +205,11 @@ def build_shockwave_video(
         ],
         dim=1,
     )  # [B, 4, F, H, W]
+
+    if channel_mean is not None and channel_std is not None:
+        mean = x.new_tensor(channel_mean).view(1, 4, 1, 1, 1)
+        std = x.new_tensor(channel_std).view(1, 4, 1, 1, 1)
+        x = ((x - mean) / (std * normalization_clip)).clamp(-1.0, 1.0)
 
     x = pad_frames_8n1(x)
 
