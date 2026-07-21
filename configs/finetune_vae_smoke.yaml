@@ -30,19 +30,19 @@ data:
   num_sim_frames: null
 
   # Number of simulations held out for VRMSE evaluation at end of each epoch.
-  eval_sims: 675
+  eval_sims: 8
 
-  num_dataloader_workers: 4
+  num_dataloader_workers: 2
 
 optimization:
   learning_rate: 5e-5
   min_learning_rate: 1e-6
-  epochs: 10
+  epochs: 1
   batch_size: 1
 
   # Effective batch size = batch_size * gradient_accumulation_steps * num_gpus.
-  # With bs=1, grad_acc=16, 2 GPUs: effective batch = 32.
-  gradient_accumulation_steps: 16
+  # With bs=1, grad_acc=32, 1 GPU: effective batch = 32.
+  gradient_accumulation_steps: 1
 
   max_grad_norm: 5.0
   weight_decay: 0.0
@@ -53,17 +53,12 @@ optimization:
   enable_gradient_checkpointing: true
 
 loss_weighting:
-  # RMSE + SSIM only. MLW's large, noisy wavelet gradients destabilized training
-  # (SoftAdapt un-suppressed it and reconstruction collapsed), and H1 (~1e-3) was
-  # effectively inert. RMSE is the primary target (aligned with the val VRMSE
-  # metric); SSIM at 0.3 keeps structure without overpowering RMSE. Terms with
-  # weight 0.0 are still computed but contribute no loss/gradient.
   strategy: "fixed"
   weights:
     rmse: 1.0
-    h1: 0.0
-    ssim: 0.3
-    mlw: 0.0
+    h1: 0.5
+    ssim: 0.2
+    mlw: 0.05
 
 # Shockwave reconstruction loss parameters. Scalar weights are configured above.
 loss:
@@ -75,7 +70,7 @@ loss:
 
 visualization:
   enabled: true
-  interval_epochs: 1
+  interval_epochs: 5
   num_samples: 2
   # One-based physical frame numbers.
   frame_numbers: [25, 50, 75, 100]
@@ -96,4 +91,4 @@ wandb:
   tags: ["vae", "decoder", "adapter", "shockwave-cfd"]
 
 seed: 42
-output_dir: "outputs/vae"
+output_dir: "outputs/vae_smoke"
