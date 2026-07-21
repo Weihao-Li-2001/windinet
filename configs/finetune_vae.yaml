@@ -1,14 +1,11 @@
-# VAE decoder finetuning with physics-informed losses.
-# Produces the vae_physics checkpoint used at inference time.
-#
-# Reference: Section 3.2 of arXiv:2603.21210
-#
+# Shockwave CFD VAE finetuning with input/output channel adapters.
+# Produces a decoder-plus-adapters checkpoint used at inference time.
 
 # Usage:
 #   python scripts/finetune_vae.py configs/finetune_vae.yaml
 
 model:
-  model_source: "LTXV_2B_0.9.6_ # model_source: "LTXV_2B_0.9.6_DEV"
+  model_source: "LTXV_2B_0.9.6_DEV"
 
 # Train 4-channel CFD data through the RGB VAE using lightweight 1x1x1
 # input/output adapters. The base encoder remains frozen; decoder and both
@@ -22,19 +19,15 @@ adapter:
   default_temb: 0.0
 
 data:
-  # REQUIRED: HDF5 file containing one group per simulation.
-  data_root: "/home/woodm/master_thesis/windinet/datasets"
+  # HDF5 file containing one group per simulation.
+  data_root: "/home/woodm/master_thesis/windinet/datasets/train.h5"
 
-  # Velocity normalisation constant. Velocities are divided by this value
-  # to map them into approximately [-1, 1].
-  dataset_config: "configs/euler_mq_128_only_train.yaml"
-
-  # Normalization strategy
-  normalization:
-    mode: "disabled"      # options: disabled | zscore | minmax
-
-  # only used when mode == minmax
-  minmax_range: [-1.0, 1.0]
+  # Full train.h5 statistics in adapter channel order. Normalization:
+  # clip((x - mean) / (normalization_clip * std), -1, 1).
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
 
   # Number of simulations held out for VRMSE evaluation at end of each epoch.
   eval_sims: 1
@@ -57,36 +50,26 @@ optimization:
   # Linear LR warmup before cosine annealing.
   warmup_steps: 50
   warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
 
   # Save a GT | Reconstruction | Error video every N optimizer steps (0=disabled).
-  vis_every_steps: 100
+  vis_every_steps: 0
 
-# Physics-informed loss configuration.
-#
-# Total loss = L_data + lambda_div * L_div + lambda_wall * L_wall + L_footprint
-#
-# L_data:  Distance-weighted MSE on u/v channels. Fluid pixels near building
-#          boundaries receive ~(1 + distance_alpha) times the weight of far-field
-#          pixels, with Gaussian falloff controlled by distance_sigma.
-#
-# L_div:   Incompressibility constraint. Penalises du/dx + dv/dy != 0 in fluid.
-#
-# L_wall:  Wall no-penetration. Penalises normal velocity at building boundaries.
-#          wall_band controls the thickness of the wall region in pixels.
-#
-# L_footprint: All-channel MSE (u, v, building mask) — ensures the building
-#              mask channel is also reconstructed accurately. Added automatically.
-#
-# warmup_frames: Physics losses (div, wall) are only applied after this many
-#                simulation frames. Early frames may have transient artefacts
-#                from the conditioning frame, so skipping them stabilises training.
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 0.5
+    ssim: 0.2
+    mlw: 0.05
+
+# Shockwave reconstruction loss parameters. Scalar weights are configured above.
 loss:
-  distance_alpha: 2.0
-  distance_sigma: 20.0
-  lambda_div: 10.0
-  lambda_wall: 10.0
-  wall_band: 2
-  warmup_frames: 56
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
 
 acceleration:
   mixed_precision_mode: "bf16"
@@ -100,7 +83,7 @@ checkpoints:
 wandb:
   enabled: false
   project: "windinet"
-  tags: ["vae", "decoder", "physics-loss"]
+  tags: ["vae", "decoder", "adapter", "shockwave-cfd"]
 
 seed: 42
 output_dir: "outputs/vae"
