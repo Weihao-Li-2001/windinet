@@ -128,42 +128,57 @@ def _wavelet_loss_temporal(
     """
 
 
-    pred_coeffs = ptwt.wavedec(
-        pred,
-        wavelet=wavelet,
-        level=level,
-        axis=2,
-    )
+    B, C, T, H, W = pred.shape
 
-    target_coeffs = ptwt.wavedec(
-        target,
-        wavelet=wavelet,
-        level=level,
-        axis=2,
-    )
+    # ptwt.wavedec(axis=2) internally flattens the non-time dims (B*C*H*W) into
+    # the batch and launches a CUDA kernel with that many blocks. Once the count
+    # reaches the 65535 grid-dimension limit (e.g. 128x128 -> B*C*H*W = 65536)
+    # the launch fails with "invalid configuration argument". Flatten explicitly
+    # and process in sub-batch chunks below the limit; accumulate sum/count per
+    # detail level so the result equals the un-chunked mean and autograd is kept.
+    pred_flat = pred.permute(0, 1, 3, 4, 2).reshape(-1, T)
+    target_flat = target.permute(0, 1, 3, 4, 2).reshape(-1, T)
 
+    N = pred_flat.shape[0]
+    chunk = 32768  # < 65535 CUDA grid limit
 
-    loss = torch.tensor(
-        0.0,
-        device=pred.device,
-        dtype=pred.dtype,
-    )
+    level_sums: list[torch.Tensor] = []
+    level_counts: list[int] = []
 
+    for start in range(0, N, chunk):
+        pred_coeffs = ptwt.wavedec(
+            pred_flat[start:start + chunk],
+            wavelet=wavelet,
+            level=level,
+            axis=-1,
+        )
+        target_coeffs = ptwt.wavedec(
+            target_flat[start:start + chunk],
+            wavelet=wavelet,
+            level=level,
+            axis=-1,
+        )
 
-    # Ignore low-frequency approximation
-    for pred_detail, target_detail in zip(
-        pred_coeffs[1:],
-        target_coeffs[1:],
-    ):
-
-        loss += torch.mean(
-            torch.abs(
+        # Ignore low-frequency approximation (index 0).
+        for idx, (pred_detail, target_detail) in enumerate(
+            zip(pred_coeffs[1:], target_coeffs[1:])
+        ):
+            diff = torch.abs(
                 torch.log2(pred_detail.abs() + eps)
                 -
                 torch.log2(target_detail.abs() + eps)
             )
-        )
+            if idx < len(level_sums):
+                level_sums[idx] = level_sums[idx] + diff.sum()
+                level_counts[idx] += diff.numel()
+            else:
+                level_sums.append(diff.sum())
+                level_counts.append(diff.numel())
 
+
+    loss = torch.zeros((), device=pred.device, dtype=pred.dtype)
+    for level_sum, level_count in zip(level_sums, level_counts):
+        loss = loss + level_sum / level_count
 
     return loss
 

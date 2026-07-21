@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 import rich
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
@@ -225,6 +226,21 @@ class VaeTrainer:
         recon = self._decode(latents)
         return recon[:, :, :orig_F], orig_F
 
+    def _sync_grads(self) -> None:
+        """Average trainable-parameter gradients across processes.
+
+        The VAE is deliberately not wrapped in DDP (see ``train``), because the
+        training path calls ``vae.encode``/``vae.decode`` directly rather than
+        ``forward``. Gradients are therefore all-reduced by hand once per
+        optimizer step. All-reduce is linear, so summing the accumulated grads
+        and dividing by the world size matches DDP's per-microbatch averaging.
+        """
+        world_size = self._accelerator.num_processes
+        for p in self._trainable_params:
+            if p.grad is not None:
+                dist.all_reduce(p.grad, op=dist.ReduceOp.SUM)
+                p.grad.div_(world_size)
+
     # ------------------------------------------------------------------
     # Training loop
     # ------------------------------------------------------------------
@@ -246,8 +262,16 @@ class VaeTrainer:
             raise ValueError(
                 f"Need at least one training and one evaluation sample; got {n_train} train, {n_eval} eval"
             )
-        train_set = Subset(full_dataset, list(range(n_train)))
-        eval_set = Subset(full_dataset, list(range(n_train, n_train + n_eval)))
+        # Randomize the split. The HDF5 groups are sorted by the physical
+        # parameter gamma, so a contiguous tail slice would put entire gamma
+        # regimes (e.g. gamma=1.76) exclusively in eval -- turning validation
+        # into an extrapolation test and starving training of those regimes.
+        # Shuffle with a fixed seed so both splits span all regimes and the
+        # partition stays reproducible across runs.
+        split_generator = torch.Generator().manual_seed(cfg.seed)
+        perm = torch.randperm(len(full_dataset), generator=split_generator).tolist()
+        train_set = Subset(full_dataset, perm[:n_train])
+        eval_set = Subset(full_dataset, perm[n_train:n_train + n_eval])
 
         train_loader = DataLoader(
             train_set,
@@ -260,13 +284,24 @@ class VaeTrainer:
 
         logger.info(f"Dataset: {n_train} train, {n_eval} eval samples")
 
-        # Optimizer + scheduler
+        # Optimizer
         optimizer = torch.optim.AdamW(
             self._trainable_params,
             lr=cfg.optimization.learning_rate,
             weight_decay=cfg.optimization.weight_decay,
         )
 
+        # Prepare with Accelerate. The VAE is intentionally NOT wrapped in DDP:
+        # the training path calls vae.encode()/decode() directly, which a
+        # DistributedDataParallel wrapper does not expose, and DDP would only
+        # sync gradients through .forward() anyway. Instead we move it to the
+        # device, apply mixed precision via accelerator.autocast(), and
+        # all-reduce the trainable gradients manually at each optimizer step.
+        self._vae.to(self._accelerator.device)
+        optimizer = self._accelerator.prepare(optimizer)
+        train_loader = self._accelerator.prepare(train_loader)
+
+        # Size the LR schedule from the per-process (sharded) loader length.
         steps_per_epoch = math.ceil(len(train_loader) / cfg.optimization.gradient_accumulation_steps)
         total_opt_steps = max(1, cfg.optimization.epochs * steps_per_epoch)
         warmup_steps = min(cfg.optimization.warmup_steps, total_opt_steps)
@@ -290,11 +325,6 @@ class VaeTrainer:
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=total_opt_steps, eta_min=cfg.optimization.min_learning_rate,
             )
-
-        # Prepare with Accelerate
-        self._vae = self._accelerator.prepare(self._vae)
-        optimizer = self._accelerator.prepare(optimizer)
-        train_loader = self._accelerator.prepare(train_loader)
 
         Path(cfg.output_dir).mkdir(parents=True, exist_ok=True)
         self._save_config()
@@ -357,7 +387,11 @@ class VaeTrainer:
                         channel_std=cfg.data.channel_std,
                         normalization_clip=cfg.data.normalization_clip,
                     )
-                    recon, _ = self._forward_pass(x)
+                    with self._accelerator.autocast():
+                        recon, _ = self._forward_pass(x)
+                    # Match Accelerate's convert_outputs_to_fp32: losses (e.g. the
+                    # SSIM conv) run in fp32, so cast the autocast output back.
+                    recon = recon.float()
                     x_target = x[:, :, :orig_F]
                     recon = recon[:, :, :orig_F]
 
@@ -416,6 +450,8 @@ class VaeTrainer:
 
                     do_step = ((i + 1) % cfg.optimization.gradient_accumulation_steps == 0) or (i == len(train_loader) - 1)
                     if do_step:
+                        if self._accelerator.num_processes > 1:
+                            self._sync_grads()
                         if cfg.optimization.max_grad_norm > 0:
                             self._accelerator.clip_grad_norm_(self._trainable_params, cfg.optimization.max_grad_norm)
 
@@ -555,7 +591,9 @@ class VaeTrainer:
                 channel_std=self._config.data.channel_std,
                 normalization_clip=self._config.data.normalization_clip,
             )
-            recon, _ = self._forward_pass(x)
+            with self._accelerator.autocast():
+                recon, _ = self._forward_pass(x)
+            recon = recon.float()
             target = x[:, :, :orig_F]
             recon = recon[:, :, :orig_F]
             losses = reconstruction_losses(
@@ -594,7 +632,9 @@ class VaeTrainer:
                 channel_std=cfg.data.channel_std,
                 normalization_clip=cfg.data.normalization_clip,
             )
-            recon, _ = self._forward_pass(x)
+            with self._accelerator.autocast():
+                recon, _ = self._forward_pass(x)
+            recon = recon.float()
             target = denormalize_fields(
                 x[:, :, :orig_F],
                 cfg.data.channel_mean,
