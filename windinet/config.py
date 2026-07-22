@@ -213,6 +213,11 @@ class VaeOptimizationConfig(ConfigBaseModel):
     """Optimization for VAE decoder finetuning."""
 
     learning_rate: float = Field(default=5e-5)
+    adapter_lr_multiplier: float = Field(
+        default=1.0,
+        gt=0.0,
+        description="Adapter LR = learning_rate * this. >1 trains the in/out adapters faster than the decoder.",
+    )
     min_learning_rate: float = Field(default=1e-6, description="Minimum LR for cosine annealing")
     epochs: int = Field(default=10)
     batch_size: int = Field(default=1)
@@ -235,6 +240,10 @@ class VaeAdapterConfig(ConfigBaseModel):
     )
     hidden_channels: int = Field(default=32, ge=1, description="Adapter hidden width (checkpoint metadata wins when resuming)")
     activation: Literal["relu", "silu", "swish", "gelu", "tanh"] = "gelu"
+    identity_init: bool = Field(
+        default=False,
+        description="Init adapters as identity + zero residual (no tanh dead zone). Recommended for training from scratch.",
+    )
     default_temb: float = Field(default=0.0)
 
 
@@ -292,6 +301,10 @@ class VaeTrainerConfig(ConfigBaseModel):
 
     seed: int = Field(default=42)
     output_dir: str = Field(default="outputs/vae_finetune")
+    clean_output_dir: bool = Field(
+        default=False,
+        description="Delete output_dir before training so each run starts from a clean directory.",
+    )
 
     @field_validator("output_dir")
     @classmethod

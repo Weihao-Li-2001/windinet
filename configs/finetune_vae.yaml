@@ -14,8 +14,11 @@ adapter:
   enabled: true
   checkpoint: null
   channels: ["density", "momentum_x", "momentum_y", "pressure"]
-  hidden_channels: 32
+  hidden_channels: 128
   activation: "gelu"
+  # Init adapters as identity + zero residual (no tanh dead zone) so real
+  # spatial structure reaches the encoder from step 0 instead of a flat field.
+  identity_init: true
   default_temb: 0.0
 
 data:
@@ -36,6 +39,9 @@ data:
 
 optimization:
   learning_rate: 5e-5
+  # Adapters are the 4<->3 channel bottleneck (stuck near tanh's dead zone at
+  # init), so train them 10x faster than the decoder: adapter LR = 5e-4.
+  adapter_lr_multiplier: 10.0
   min_learning_rate: 1e-6
   epochs: 10
   batch_size: 1
@@ -96,4 +102,7 @@ wandb:
   tags: ["vae", "decoder", "adapter", "shockwave-cfd"]
 
 seed: 42
-output_dir: "outputs/vae"
+output_dir: "outputs/vae_adapter128"
+# Wipe output_dir at the start of each run so stale checkpoints/visualizations
+# from previous runs don't get mixed in.
+clean_output_dir: true
