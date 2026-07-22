@@ -10,6 +10,7 @@ losses on normalized HDF5 simulation fields.
 
 import math
 import os
+import shutil
 import time
 from contextlib import nullcontext
 from pathlib import Path
@@ -115,6 +116,7 @@ class VaeTrainer:
                 channels=adapter_cfg.channels,
                 k=adapter_cfg.hidden_channels,
                 activation=adapter_cfg.activation,
+                identity_init=adapter_cfg.identity_init,
                 default_temb=adapter_cfg.default_temb,
             )
             logger.info(
@@ -284,10 +286,31 @@ class VaeTrainer:
 
         logger.info(f"Dataset: {n_train} train, {n_eval} eval samples")
 
-        # Optimizer
+        # Optimizer. The in/out adapters are the 4<->3 channel bottleneck and
+        # start stuck near tanh's zero region, so give them their own (typically
+        # higher) LR via a separate param group. The LR schedulers below scale
+        # each group from its own base LR, preserving the ratio through warmup
+        # and cosine annealing.
+        base_lr = cfg.optimization.learning_rate
+        adapter_lr = base_lr * cfg.optimization.adapter_lr_multiplier
+        vae = self._unwrap_vae()
+        decoder_params = [p for p in self._get_decoder().parameters() if p.requires_grad]
+        adapter_params = []
+        if isinstance(vae, AdaptedVAE):
+            adapter_params = (
+                [p for p in vae.in_adapter.parameters() if p.requires_grad]
+                + [p for p in vae.out_adapter.parameters() if p.requires_grad]
+            )
+        param_groups = [{"params": decoder_params, "lr": base_lr}]
+        if adapter_params:
+            param_groups.append({"params": adapter_params, "lr": adapter_lr})
+            logger.info(
+                f"Adapter LR = {adapter_lr:.2e} "
+                f"({cfg.optimization.adapter_lr_multiplier:g}x decoder LR {base_lr:.2e})"
+            )
         optimizer = torch.optim.AdamW(
-            self._trainable_params,
-            lr=cfg.optimization.learning_rate,
+            param_groups,
+            lr=base_lr,
             weight_decay=cfg.optimization.weight_decay,
         )
 
@@ -326,7 +349,7 @@ class VaeTrainer:
                 optimizer, T_max=total_opt_steps, eta_min=cfg.optimization.min_learning_rate,
             )
 
-        Path(cfg.output_dir).mkdir(parents=True, exist_ok=True)
+        self._prepare_output_dir()
         self._save_config()
 
         # Progress bar
@@ -697,6 +720,9 @@ class VaeTrainer:
             "activation": str(
                 self._adapter_meta["activation"] if self._adapter_meta else adapter_cfg.activation
             ),
+            "identity_init": str(
+                self._adapter_meta["identity_init"] if self._adapter_meta else adapter_cfg.identity_init
+            ),
             "default_temb": str(vae.default_temb if isinstance(vae, AdaptedVAE) else adapter_cfg.default_temb),
             "normalization": "clipped_zscore",
             "channel_mean": str(self._config.data.channel_mean),
@@ -711,6 +737,17 @@ class VaeTrainer:
         save_file(tensors, path, metadata=metadata)
         logger.info(f"VAE checkpoint saved: {path.relative_to(self._config.output_dir)}")
         return path
+
+    def _prepare_output_dir(self) -> None:
+        """Create the output dir, optionally wiping it first for a clean run."""
+        out = Path(self._config.output_dir)
+        if IS_MAIN_PROCESS:
+            if self._config.clean_output_dir and out.exists():
+                shutil.rmtree(out)
+                logger.info(f"Cleaned output directory: {out}")
+            out.mkdir(parents=True, exist_ok=True)
+        # Barrier so worker processes never touch the dir before it is ready.
+        self._accelerator.wait_for_everyone()
 
     # ------------------------------------------------------------------
     # Accelerator, wandb, config printing

@@ -37,40 +37,74 @@ def _strict_load(module: nn.Module, sd: dict[str, torch.Tensor], what: str) -> N
 
 
 class InAdapter(nn.Module):
-    """Maps n input channels to 3 RGB channels for the VAE encoder."""
+    """Maps n input channels to 3 RGB channels for the VAE encoder.
 
-    def __init__(self, n: int, k: int, activation: str):
+    Two modes:
+      * default (``identity_init=False``): ``tanh(proj2(act(proj1(x))))``.
+      * ``identity_init=True``: passthrough of the first 3 channels plus a
+        residual whose last layer is zero-initialized, so at init the adapter
+        equals the identity (``x[:, :3]``) instead of tanh's ~0 dead zone.
+        This lets real spatial structure reach the encoder from step 0.
+    """
+
+    def __init__(self, n: int, k: int, activation: str, identity_init: bool = False):
         super().__init__()
         self.n = n
         self.k = k
+        self.identity_init = bool(identity_init)
         if k > 0:
             self.proj1 = nn.Conv3d(n, k, kernel_size=1)
             self.act = _get_activation(activation)
             self.proj2 = nn.Conv3d(k, 3, kernel_size=1)
+            if self.identity_init:
+                nn.init.zeros_(self.proj2.weight)
+                nn.init.zeros_(self.proj2.bias)
 
     def forward(self, x_n: torch.Tensor) -> torch.Tensor:
         if self.k == 0:
             return x_n
         y = self.proj2(self.act(self.proj1(x_n)))
+        if self.identity_init:
+            # Identity + residual (zero at init), clamped to the encoder's [-1, 1].
+            return (x_n[:, :3] + y).clamp(-1.0, 1.0)
         return torch.tanh(y) # * torch.pi
 
 
 class OutAdapter(nn.Module):
-    """Maps 3 RGB channels from VAE decoder to n output channels."""
+    """Maps 3 RGB channels from VAE decoder to n output channels.
 
-    def __init__(self, n: int, k: int, activation: str):
+    With ``identity_init=True`` the first 3 output channels start as the
+    decoder's RGB output and any extra channels start at 0, plus a zero-init
+    residual -- avoiding tanh's dead zone. ``AdaptedVAE.decode`` clamps the
+    result to [-1, 1], so no output tanh is needed in this mode.
+    """
+
+    def __init__(self, n: int, k: int, activation: str, identity_init: bool = False):
         super().__init__()
         self.n = n
         self.k = k
+        self.identity_init = bool(identity_init)
         if k > 0:
             self.proj1 = nn.Conv3d(3, k, kernel_size=1)
             self.act = _get_activation(activation)
             self.proj2 = nn.Conv3d(k, n, kernel_size=1)
+            if self.identity_init:
+                nn.init.zeros_(self.proj2.weight)
+                nn.init.zeros_(self.proj2.bias)
 
     def forward(self, x_rgb: torch.Tensor) -> torch.Tensor:
         if self.k == 0:
             return x_rgb
         y = self.proj2(self.act(self.proj1(x_rgb)))
+        if self.identity_init:
+            if self.n >= 3:
+                b, _, f, h, w = x_rgb.shape
+                passthrough = torch.cat(
+                    [x_rgb, x_rgb.new_zeros(b, self.n - 3, f, h, w)], dim=1
+                )
+            else:
+                passthrough = x_rgb[:, : self.n]
+            return passthrough + y
         return torch.tanh(y) #  * torch.pi
 
 
@@ -166,10 +200,12 @@ def _load_safetensors_vae(ckpt_path: str | Path):
     k = int(metadata.get("k", "0"))
     activation = metadata.get("activation", "gelu")
     default_temb = float(metadata.get("default_temb", "0.0"))
+    identity_init = metadata.get("identity_init", "False") == "True"
 
     ckpt = {
         "channels": channels, "n": n, "k": k, "activation": activation,
         "default_temb": default_temb,
+        "identity_init": identity_init,
         "in_adapter": in_sd,
         "out_adapter": out_sd,
     }
@@ -197,6 +233,7 @@ def load_adapted_vae(
     channels: list[str] | None = None,
     k: int | None = None,
     activation: str | None = None,
+    identity_init: bool = False,
     default_temb: float = AdaptedVAE.DEFAULT_INFERENCE_TEMB,
     verbose: bool = True,
 ) -> tuple[AdaptedVAE, dict[str, Any]]:
@@ -218,6 +255,8 @@ def load_adapted_vae(
     n = int((ckpt or {}).get("n", len(channels)))
     k = int((ckpt or {}).get("k", 0 if k is None else k))
     activation = str((ckpt or {}).get("activation", activation or "gelu"))
+    # A checkpoint's stored mode wins so its forward matches how it was trained.
+    identity_init = bool((ckpt or {}).get("identity_init", identity_init))
     has_decoder = isinstance((ckpt or {}).get("decoder", None), dict)
 
     if default_temb == AdaptedVAE.DEFAULT_INFERENCE_TEMB and ckpt is not None:
@@ -230,8 +269,8 @@ def load_adapted_vae(
         if ckpt_path:
             print(f"[windinet] loading adapter checkpoint: {ckpt_path}")
 
-    in_adapt = InAdapter(n=n, k=k, activation=activation).to(device=device, dtype=dtype)
-    out_adapt = OutAdapter(n=n, k=k, activation=activation).to(device=device, dtype=dtype)
+    in_adapt = InAdapter(n=n, k=k, activation=activation, identity_init=identity_init).to(device=device, dtype=dtype)
+    out_adapt = OutAdapter(n=n, k=k, activation=activation, identity_init=identity_init).to(device=device, dtype=dtype)
 
     if ckpt is not None:
         if ckpt.get("in_adapter"):
@@ -252,6 +291,7 @@ def load_adapted_vae(
 
     meta = {
         "channels": channels, "n": n, "k": k, "activation": activation,
+        "identity_init": identity_init,
         "decoder_loaded": bool(ckpt is not None and has_decoder),
         "default_temb": float(default_temb),
     }
