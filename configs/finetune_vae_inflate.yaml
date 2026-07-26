@@ -1,0 +1,109 @@
+# Shockwave CFD VAE finetuning with input/output channel adapters.
+# Produces a decoder-plus-adapters checkpoint used at inference time.
+
+# Usage:
+#   python scripts/finetune_vae.py configs/finetune_vae.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+# Train 4-channel CFD data through the RGB VAE using lightweight 1x1x1
+# input/output adapters. The base encoder remains frozen; decoder and both
+# adapters are optimized and saved together.
+adapter:
+  enabled: true
+  # Route B: grow the VAE's conv_in/conv_out to read/write all 4 channels
+  # natively instead of the lossy 4->3 adapter. Fixes pressure being dropped by
+  # the 3-channel bottleneck. Trains encoder.conv_in + decoder.
+  mode: "inflate"
+  inflate_init: "zeros"   # zeros preserves the pretrained forward at init
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+data:
+  # HDF5 file containing one group per simulation.
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+
+  # Full train.h5 statistics in adapter channel order. Normalization:
+  # clip((x - mean) / (normalization_clip * std), -1, 1).
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+
+  # Number of simulations held out for VRMSE evaluation at end of each epoch.
+  eval_sims: 675
+
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  # Adapters are the 4<->3 channel bottleneck (stuck near tanh's dead zone at
+  # init), so train them 10x faster than the decoder: adapter LR = 5e-4.
+  adapter_lr_multiplier: 10.0
+  min_learning_rate: 1e-6
+  epochs: 10
+  batch_size: 1
+
+  # Effective batch size = batch_size * gradient_accumulation_steps * num_gpus.
+  # With bs=1, grad_acc=16, 2 GPUs: effective batch = 32.
+  gradient_accumulation_steps: 16
+
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+
+  # Linear LR warmup before cosine annealing.
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  # RMSE + SSIM only. MLW's large, noisy wavelet gradients destabilized training
+  # (SoftAdapt un-suppressed it and reconstruction collapsed), and H1 (~1e-3) was
+  # effectively inert. RMSE is the primary target (aligned with the val VRMSE
+  # metric); SSIM at 0.3 keeps structure without overpowering RMSE. Terms with
+  # weight 0.0 are still computed but contribute no loss/gradient.
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 0.0
+    ssim: 0.3
+    mlw: 0.0
+
+# Shockwave reconstruction loss parameters. Scalar weights are configured above.
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  # One-based physical frame numbers.
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # Save every N epochs. Set to 1 to save after every epoch.
+  interval: 1
+  keep_last_n: 3
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "decoder", "adapter", "shockwave-cfd"]
+
+seed: 42
+output_dir: "outputs/vae_inflate4"
+# Wipe output_dir at the start of each run so stale checkpoints/visualizations
+# from previous runs don't get mixed in.
+clean_output_dir: true

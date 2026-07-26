@@ -238,6 +238,14 @@ class VaeAdapterConfig(ConfigBaseModel):
         default=["density", "momentum_x", "momentum_y", "pressure"],
         min_length=1,
     )
+    mode: Literal["adapter", "inflate"] = Field(
+        default="adapter",
+        description="'adapter': 1x1 in/out adapters around a frozen 3-ch VAE. 'inflate': grow the VAE's conv_in/conv_out to read/write all channels natively (trains encoder.conv_in too).",
+    )
+    inflate_init: Literal["zeros", "mean"] = Field(
+        default="zeros",
+        description="mode='inflate' only: init for the new channel slots. 'zeros' preserves the pretrained forward; 'mean' is I3D-style averaging.",
+    )
     hidden_channels: int = Field(default=32, ge=1, description="Adapter hidden width (checkpoint metadata wins when resuming)")
     activation: Literal["relu", "silu", "swish", "gelu", "tanh"] = "gelu"
     identity_init: bool = Field(
@@ -304,6 +312,15 @@ class VaeTrainerConfig(ConfigBaseModel):
     clean_output_dir: bool = Field(
         default=False,
         description="Delete output_dir before training so each run starts from a clean directory.",
+    )
+    resume_from: str | Path | None = Field(
+        default=None,
+        description="Path to a checkpoint .safetensors to resume from. Its finetuned "
+        "weights are loaded into the model, and the sibling '<stem>.state.pt' "
+        "(optimizer, scheduler, loss weights, RNG, epoch/step) is restored so training "
+        "continues from the epoch after the one saved. Both files are read into memory "
+        "before output_dir is (optionally) cleaned, so resuming into the same output_dir "
+        "is safe.",
     )
 
     @field_validator("output_dir")

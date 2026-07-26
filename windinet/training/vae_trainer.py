@@ -42,7 +42,12 @@ from torch.utils.data import DataLoader, Subset
 
 from windinet.config import VaeTrainerConfig
 from windinet.inference.model_loader import load_vae
-from windinet.vae_adapter import AdaptedVAE, load_adapted_vae
+from windinet.vae_adapter import (
+    AdaptedVAE,
+    inflate_vae_io_channels,
+    load_adapted_vae,
+    load_inflated_vae_checkpoint,
+)
 
 from windinet.losses import (
     reconstruction_losses,
@@ -81,10 +86,17 @@ def vrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> float:
 class VaeTrainer:
     def __init__(self, config: VaeTrainerConfig) -> None:
         self._config = config
+        # Resume bookkeeping. Both the model weights and the training state are
+        # read into memory in __init__ (before train() may clean output_dir), so
+        # resuming into the same output_dir is safe.
+        self._start_epoch = 1
+        self._resume_global_step = 0
+        self._resume_state: Optional[dict] = None
         self._print_config(config)
         self._setup_accelerator()
         self._load_vae()
         self._collect_trainable_params()
+        self._load_resume_state()
         self._init_wandb()
 
         self.ssim_loss = SSIMLoss(
@@ -107,10 +119,14 @@ class VaeTrainer:
         self._vae = load_vae(self._config.model.model_source, dtype=torch.float32)
 
         adapter_cfg = self._config.adapter
-        if adapter_cfg.enabled:
+        self._adapter_meta = None
+        self._inflated = False
+        if adapter_cfg.enabled and adapter_cfg.mode == "adapter":
+            # When resuming, the resume checkpoint supplies the finetuned
+            # decoder+adapter weights (same safetensors layout load_adapted_vae reads).
             self._vae, meta = load_adapted_vae(
                 self._vae,
-                ckpt_path=adapter_cfg.checkpoint,
+                ckpt_path=self._config.resume_from or adapter_cfg.checkpoint,
                 device="cpu",
                 dtype=torch.float32,
                 channels=adapter_cfg.channels,
@@ -125,8 +141,27 @@ class VaeTrainer:
                 f"activation={meta['activation']}"
             )
             self._adapter_meta = meta
-        else:
-            self._adapter_meta = None
+        elif adapter_cfg.enabled and adapter_cfg.mode == "inflate":
+            n = len(adapter_cfg.channels)
+            inflate_vae_io_channels(self._vae, n=n, init=adapter_cfg.inflate_init)
+            self._inflated = True
+            logger.info(
+                f"VAE inflated to {n} native channels "
+                f"(init={adapter_cfg.inflate_init}); encoder.conv_in is trainable"
+            )
+            # Resume: load the finetuned decoder + grown encoder.conv_in weights
+            # over the freshly inflated (pretrained-init) VAE.
+            if self._config.resume_from is not None:
+                meta = load_inflated_vae_checkpoint(
+                    self._vae,
+                    ckpt_path=self._config.resume_from,
+                    device="cpu",
+                    dtype=torch.float32,
+                )
+                logger.info(
+                    f"Resumed inflated VAE weights from {self._config.resume_from} "
+                    f"(checkpoint epoch={meta.get('epoch', '?')})"
+                )
 
         # Freeze everything
         for p in self._vae.parameters():
@@ -140,6 +175,12 @@ class VaeTrainer:
         if isinstance(self._vae, AdaptedVAE):
             self._vae.in_adapter.requires_grad_(True)
             self._vae.out_adapter.requires_grad_(True)
+
+        # Inflated mode: the grown input projection must train so the extra
+        # channel(s) can actually reach the encoder.
+        if self._inflated:
+            for p in self._get_encoder_conv_in().parameters():
+                p.requires_grad_(True)
 
         if self._config.optimization.enable_gradient_checkpointing:
             base_vae = self._vae.vae if isinstance(self._vae, AdaptedVAE) else self._vae
@@ -164,13 +205,30 @@ class VaeTrainer:
                 return getattr(vae, name)
         return vae
 
+    def _get_encoder(self) -> nn.Module:
+        vae = self._unwrap_vae()
+        base_vae = vae.vae if isinstance(vae, AdaptedVAE) else vae
+        return base_vae.encoder
+
+    def _get_encoder_conv_in(self) -> nn.Module:
+        return self._get_encoder().conv_in
+
     def _collect_trainable_params(self) -> None:
         self._trainable_params = [p for p in self._vae.parameters() if p.requires_grad]
         vae = self._unwrap_vae()
         base_vae = vae.vae if isinstance(vae, AdaptedVAE) else vae
+        # In inflate mode the grown encoder.conv_in is intentionally trainable;
+        # everything else in the encoder must still be frozen.
+        conv_in_trainable = (
+            sum(p.numel() for p in self._get_encoder_conv_in().parameters() if p.requires_grad)
+            if self._inflated else 0
+        )
         encoder_trainable = sum(p.numel() for p in base_vae.encoder.parameters() if p.requires_grad)
-        if encoder_trainable:
-            raise RuntimeError(f"VAE encoder must be frozen, but {encoder_trainable:,} parameters are trainable")
+        if encoder_trainable != conv_in_trainable:
+            raise RuntimeError(
+                f"Only encoder.conv_in may be trainable, but {encoder_trainable:,} encoder "
+                f"parameters are trainable ({conv_in_trainable:,} expected)"
+            )
 
         decoder_trainable = sum(p.numel() for p in self._get_decoder().parameters() if p.requires_grad)
         in_adapter_trainable = (
@@ -183,9 +241,75 @@ class VaeTrainer:
         )
         logger.info(
             "Trainable parameters: "
-            f"encoder=0, decoder={decoder_trainable:,}, "
+            f"encoder_conv_in={conv_in_trainable:,}, decoder={decoder_trainable:,}, "
             f"in_adapter={in_adapter_trainable:,}, out_adapter={out_adapter_trainable:,}"
         )
+
+    # ------------------------------------------------------------------
+    # Resume (optimizer / scheduler / loss weights / RNG state)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _state_file_for(ckpt_path: str | Path) -> Path:
+        p = Path(ckpt_path)
+        # vae_shockwave_epoch005.safetensors -> vae_shockwave_epoch005.state.pt
+        return p.parent / (p.stem + ".state.pt")
+
+    def _load_resume_state(self) -> None:
+        """Read the sibling training-state file into memory (before any dir wipe).
+
+        The optimizer/scheduler are only rebuilt inside ``train``; here we just
+        stash the loaded dict and the epoch/step to resume from.
+        """
+        if self._config.resume_from is None:
+            return
+        state_path = self._state_file_for(self._config.resume_from)
+        if not state_path.exists():
+            logger.warning(
+                f"resume_from set but no training-state file at {state_path}; "
+                "model weights will be warm-started, but optimizer/scheduler/epoch "
+                "will start fresh (epoch 1)."
+            )
+            return
+        state = torch.load(state_path, map_location="cpu", weights_only=False)
+        self._resume_state = state
+        saved_epoch = int(state.get("epoch", 0))
+        self._start_epoch = saved_epoch + 1
+        self._resume_global_step = int(state.get("global_opt_step", 0))
+        logger.info(
+            f"Loaded training state from {state_path}: resuming at epoch "
+            f"{self._start_epoch} (saved epoch {saved_epoch}, "
+            f"global_opt_step {self._resume_global_step})"
+        )
+
+    def _apply_resume_state(self, optimizer, scheduler) -> None:
+        """Restore optimizer/scheduler/loss-weighter/RNG from the stashed state."""
+        state = self._resume_state
+        if state is None:
+            return
+        if "optimizer" in state:
+            optimizer.load_state_dict(state["optimizer"])
+        if "scheduler" in state:
+            scheduler.load_state_dict(state["scheduler"])
+        if state.get("loss_weighter") is not None:
+            # Loss weighters have no state_dict; restore their mutable attributes
+            # (weights, previous/initial losses) without replacing the object.
+            self.loss_weighter.__dict__.update(state["loss_weighter"])
+        rng = state.get("rng")
+        if rng is not None:
+            import random as _random
+
+            import numpy as _np
+
+            if rng.get("python") is not None:
+                _random.setstate(rng["python"])
+            if rng.get("numpy") is not None:
+                _np.random.set_state(rng["numpy"])
+            if rng.get("torch") is not None:
+                torch.set_rng_state(rng["torch"])
+            if rng.get("cuda") is not None and torch.cuda.is_available():
+                torch.cuda.set_rng_state_all(rng["cuda"])
+        logger.info("Restored optimizer, scheduler, loss weights, and RNG state.")
 
     def _set_trainable_modules_mode(self, training: bool) -> None:
         self._get_decoder().train(training)
@@ -193,6 +317,8 @@ class VaeTrainer:
         if isinstance(vae, AdaptedVAE):
             vae.in_adapter.train(training)
             vae.out_adapter.train(training)
+        if self._inflated:
+            self._get_encoder_conv_in().train(training)
 
     # ------------------------------------------------------------------
     # VAE encode / decode
@@ -286,26 +412,30 @@ class VaeTrainer:
 
         logger.info(f"Dataset: {n_train} train, {n_eval} eval samples")
 
-        # Optimizer. The in/out adapters are the 4<->3 channel bottleneck and
-        # start stuck near tanh's zero region, so give them their own (typically
-        # higher) LR via a separate param group. The LR schedulers below scale
-        # each group from its own base LR, preserving the ratio through warmup
-        # and cosine annealing.
+        # Optimizer. The channel interface (adapters, or the inflated
+        # encoder.conv_in) is the 4<->3 bottleneck and benefits from a higher LR,
+        # so it goes in its own param group. The LR schedulers below scale each
+        # group from its own base LR, preserving the ratio through warmup and
+        # cosine annealing.
         base_lr = cfg.optimization.learning_rate
-        adapter_lr = base_lr * cfg.optimization.adapter_lr_multiplier
+        fast_lr = base_lr * cfg.optimization.adapter_lr_multiplier
         vae = self._unwrap_vae()
         decoder_params = [p for p in self._get_decoder().parameters() if p.requires_grad]
-        adapter_params = []
+        fast_params = []
+        fast_name = "adapter"
         if isinstance(vae, AdaptedVAE):
-            adapter_params = (
+            fast_params = (
                 [p for p in vae.in_adapter.parameters() if p.requires_grad]
                 + [p for p in vae.out_adapter.parameters() if p.requires_grad]
             )
+        elif self._inflated:
+            fast_params = [p for p in self._get_encoder_conv_in().parameters() if p.requires_grad]
+            fast_name = "encoder.conv_in"
         param_groups = [{"params": decoder_params, "lr": base_lr}]
-        if adapter_params:
-            param_groups.append({"params": adapter_params, "lr": adapter_lr})
+        if fast_params:
+            param_groups.append({"params": fast_params, "lr": fast_lr})
             logger.info(
-                f"Adapter LR = {adapter_lr:.2e} "
+                f"{fast_name} LR = {fast_lr:.2e} "
                 f"({cfg.optimization.adapter_lr_multiplier:g}x decoder LR {base_lr:.2e})"
             )
         optimizer = torch.optim.AdamW(
@@ -349,6 +479,14 @@ class VaeTrainer:
                 optimizer, T_max=total_opt_steps, eta_min=cfg.optimization.min_learning_rate,
             )
 
+        # Restore optimizer/scheduler/loss-weights/RNG when resuming. Done after
+        # both are built (load_state_dict needs the target objects) and after
+        # set_seed above, so the restored RNG wins. Expose them so end-of-epoch
+        # checkpoints can serialize the full training state.
+        self._optimizer = optimizer
+        self._scheduler = scheduler
+        self._apply_resume_state(optimizer, scheduler)
+
         self._prepare_output_dir()
         self._save_config()
 
@@ -368,14 +506,25 @@ class VaeTrainer:
             train_progress = MagicMock()
             live = nullcontext()
 
-        global_opt_step = 0
+        global_opt_step = self._resume_global_step
         saved_path = None
         metrics_history: list[dict[str, float]] = []
 
-        logger.info("Starting VAE decoder finetuning...")
+        if self._start_epoch > cfg.optimization.epochs:
+            raise ValueError(
+                f"resume epoch {self._start_epoch} exceeds configured epochs "
+                f"{cfg.optimization.epochs}; increase optimization.epochs to train further."
+            )
+        if self._start_epoch > 1:
+            logger.info(
+                f"Resuming VAE finetuning at epoch {self._start_epoch} / "
+                f"{cfg.optimization.epochs}"
+            )
+        else:
+            logger.info("Starting VAE decoder finetuning...")
 
         with live:
-            for epoch in range(1, cfg.optimization.epochs + 1):
+            for epoch in range(self._start_epoch, cfg.optimization.epochs + 1):
                 self._set_trainable_modules_mode(True)
                 running_loss = 0.0
                 count = 0
@@ -711,9 +860,18 @@ class VaeTrainer:
                 f"out_adapter.{k}": v.detach().cpu().contiguous()
                 for k, v in vae.out_adapter.state_dict().items()
             })
+        if self._inflated:
+            # The grown input projection is trained too and must be restored to
+            # rebuild an inflated VAE at inference time.
+            tensors.update({
+                f"encoder_conv_in.{k}": v.detach().cpu().contiguous()
+                for k, v in self._get_encoder_conv_in().state_dict().items()
+            })
 
         metadata = {
-            "format": "ltx-decoder-plus-adapters-v1",
+            "format": "ltx-inflated-io-v1" if self._inflated else "ltx-decoder-plus-adapters-v1",
+            "mode": adapter_cfg.mode,
+            "inflate_init": adapter_cfg.inflate_init,
             "channels": str(vae.channels if isinstance(vae, AdaptedVAE) else adapter_cfg.channels),
             "n": str(len(vae.channels) if isinstance(vae, AdaptedVAE) else len(adapter_cfg.channels)),
             "k": str(vae.k if isinstance(vae, AdaptedVAE) else 0),
@@ -736,7 +894,44 @@ class VaeTrainer:
         path = save_dir / filename
         save_file(tensors, path, metadata=metadata)
         logger.info(f"VAE checkpoint saved: {path.relative_to(self._config.output_dir)}")
+
+        self._save_training_state(path, epoch, step)
         return path
+
+    def _save_training_state(self, ckpt_path: Path, epoch: int, step: int) -> Path:
+        """Persist optimizer/scheduler/loss-weights/RNG next to the model checkpoint.
+
+        Written as ``<stem>.state.pt`` alongside the safetensors so that
+        ``resume_from=<that safetensors>`` can restore an exact continuation.
+        The model weights themselves live in the safetensors (loaded separately),
+        so they are intentionally not duplicated here.
+        """
+        import random
+
+        import numpy as np
+
+        state_path = self._state_file_for(ckpt_path)
+        rng = {
+            "python": random.getstate(),
+            "numpy": np.random.get_state(),
+            "torch": torch.get_rng_state(),
+            "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        }
+        # Loss weighters expose no state_dict; snapshot their mutable attributes.
+        loss_weighter_state = dict(getattr(self.loss_weighter, "__dict__", {}))
+        state = {
+            "epoch": epoch,
+            "global_opt_step": step,
+            "optimizer": self._optimizer.state_dict(),
+            "scheduler": self._scheduler.state_dict(),
+            "loss_weighter": loss_weighter_state,
+            "rng": rng,
+        }
+        torch.save(state, state_path)
+        logger.info(
+            f"Training state saved: {state_path.relative_to(self._config.output_dir)}"
+        )
+        return state_path
 
     def _prepare_output_dir(self) -> None:
         """Create the output dir, optionally wiping it first for a clean run."""

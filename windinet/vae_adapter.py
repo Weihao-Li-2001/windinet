@@ -170,6 +170,148 @@ class AdaptedVAE(nn.Module):
         return out
 
 
+def _clone_conv3d(old: nn.Conv3d, in_channels: int, out_channels: int) -> nn.Conv3d:
+    """A new nn.Conv3d with the same hyperparameters but different channel counts."""
+    return nn.Conv3d(
+        in_channels,
+        out_channels,
+        kernel_size=old.kernel_size,
+        stride=old.stride,
+        padding=old.padding,
+        dilation=old.dilation,
+        groups=old.groups,
+        bias=old.bias is not None,
+        padding_mode=old.padding_mode,
+    ).to(device=old.weight.device, dtype=old.weight.dtype)
+
+
+@torch.no_grad()
+def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
+    """Make the LTX VAE natively read/write ``n`` channels instead of 3.
+
+    The encoder patchifies (C x patch^2) before ``conv_in`` and the decoder
+    unpatchifies after ``conv_out``; both operations infer the channel count
+    dynamically from the tensor, so only the two projection convs need to grow:
+
+      * ``encoder.conv_in``:  (3*block -> C0)  ->  (n*block -> C0)
+      * ``decoder.conv_out``: (Cd -> 3*block)  ->  (Cd -> n*block)
+
+    where ``block = patch_size**2 * patch_size_t`` (16 here). Channels are laid
+    out blocked-by-channel (verified): original channel c occupies slots
+    ``[c*block, c*block+block)``, so each new channel's slots are initialized
+    per patch-position ``p`` either to zero (``init='zeros'``, default: preserves
+    the pretrained forward, learns the new channel from clean gradients) or to
+    the mean of the original channels at the same ``p`` (``init='mean'``, I3D).
+    """
+    if init not in ("zeros", "mean"):
+        raise ValueError(f"init must be 'zeros' or 'mean', got {init!r}")
+    n_orig = int(vae.config.in_channels)
+    if n < n_orig:
+        raise ValueError(f"n={n} must be >= original in_channels={n_orig}")
+
+    def _fill_new_blocks(w_new: torch.Tensor, block: int, axis: int) -> None:
+        # w_new indexed on `axis` as [c0_block, c1_block, ... c_{n-1}_block].
+        for c_new in range(n_orig, n):
+            for p in range(block):
+                dst = c_new * block + p
+                if init == "zeros":
+                    continue  # already zeroed
+                src = [c * block + p for c in range(n_orig)]
+                if axis == 1:
+                    w_new[:, dst] = w_new[:, src].mean(dim=1)
+                else:
+                    w_new[dst] = w_new[src].mean(dim=0)
+
+    # --- encoder.conv_in: inflate INPUT channels ---
+    ci = vae.encoder.conv_in
+    old = ci.conv
+    block = old.in_channels // n_orig
+    new = _clone_conv3d(old, in_channels=n * block, out_channels=old.out_channels)
+    new.weight.zero_()
+    new.weight[:, : old.in_channels] = old.weight
+    _fill_new_blocks(new.weight, block, axis=1)
+    if old.bias is not None:  # bias is per-output-channel -> unchanged
+        new.bias.copy_(old.bias)
+    ci.conv = new
+    ci.in_channels = n * block
+    vae.encoder.in_channels = n * block
+
+    # --- decoder.conv_out: inflate OUTPUT channels ---
+    co = vae.decoder.conv_out
+    old = co.conv
+    block = old.out_channels // n_orig
+    new = _clone_conv3d(old, in_channels=old.in_channels, out_channels=n * block)
+    new.weight.zero_()
+    new.weight[: old.out_channels] = old.weight
+    if old.bias is not None:
+        new.bias.zero_()
+        new.bias[: old.out_channels] = old.bias
+    _fill_new_blocks(new.weight, block, axis=0)
+    if old.bias is not None and init == "mean":
+        for p in range(block):
+            for c_new in range(n_orig, n):
+                new.bias[c_new * block + p] = new.bias[[c * block + p for c in range(n_orig)]].mean()
+    co.conv = new
+    co.out_channels = n * block
+    vae.decoder.out_channels = n * block
+
+    try:
+        vae.register_to_config(in_channels=n, out_channels=n)
+    except Exception:
+        pass
+    return vae
+
+
+@torch.no_grad()
+def load_inflated_vae_checkpoint(
+    vae,
+    ckpt_path: str | Path,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.float32,
+    verbose: bool = True,
+) -> dict[str, str]:
+    """Load a finetuned inflate-mode checkpoint into an already-inflated VAE.
+
+    The checkpoint is the ``ltx-inflated-io-v1`` safetensors written by
+    ``VaeTrainer._save_checkpoint``: it holds the finetuned ``decoder.*`` and the
+    grown ``encoder_conv_in.*`` weights. ``vae`` must already have been passed
+    through :func:`inflate_vae_io_channels` so the conv shapes match. Returns the
+    checkpoint metadata dict.
+    """
+    from safetensors import safe_open
+
+    f = safe_open(str(ckpt_path), framework="pt", device="cpu")
+    metadata = f.metadata() or {}
+    fmt = metadata.get("format")
+    if fmt != "ltx-inflated-io-v1":
+        raise ValueError(
+            f"expected an inflate-mode checkpoint (format='ltx-inflated-io-v1'), "
+            f"got format={fmt!r} at {ckpt_path}"
+        )
+
+    decoder_sd, conv_in_sd = {}, {}
+    for key in f.keys():
+        tensor = f.get_tensor(key)
+        if key.startswith("decoder."):
+            decoder_sd[key[len("decoder."):]] = tensor
+        elif key.startswith("encoder_conv_in."):
+            conv_in_sd[key[len("encoder_conv_in."):]] = tensor
+
+    if not decoder_sd:
+        raise ValueError(f"no decoder.* weights found in {ckpt_path}")
+    _strict_load(vae.decoder, decoder_sd, "decoder")
+    if conv_in_sd:
+        _strict_load(vae.encoder.conv_in, conv_in_sd, "encoder.conv_in")
+    vae.to(device=device, dtype=dtype)
+
+    if verbose:
+        print(
+            f"[windinet] loaded inflated VAE checkpoint: {ckpt_path} "
+            f"(epoch={metadata.get('epoch', '?')}, step={metadata.get('step', '?')})"
+        )
+    return metadata
+
+
 def _load_safetensors_vae(ckpt_path: str | Path):
     """Load a .safetensors VAE checkpoint. Returns (tensors_dict, metadata_dict)."""
     from safetensors import safe_open

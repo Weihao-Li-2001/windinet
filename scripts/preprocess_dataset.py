@@ -43,7 +43,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from windinet.inference.model_loader import load_vae, LtxvModelVersion
+from windinet.inference.model_loader import load_vae, load_inflated_vae, LtxvModelVersion
 from windinet.latent_utils import encode_video
 
 from windinet.training.shockwave_data import (
@@ -72,6 +72,12 @@ def main(
     # ),
     device: str = typer.Option(default="cuda", help="Device for VAE encoding"),
     max_samples: int = typer.Option(default=0, help="Limit number of samples (0 = all)"),
+    inflate_checkpoint: str = typer.Option(
+        default=None,
+        help="Finetuned inflate-mode VAE checkpoint (.safetensors). REQUIRED to encode "
+        "4-channel CFD fields: the base VAE only reads 3 channels. Its grown conv_in and "
+        "finetuned decoder are loaded so latents match the VAE that will decode them.",
+    ),
     scalar_names: str = typer.Option(
         default="gamma",
         help="Comma-separated scalar conditioning names to extract",
@@ -92,9 +98,17 @@ def main(
         dataset.ids = dataset.ids[:max_samples]
     logger.info(f"Found {len(dataset)} samples in {data_root}")
 
-    # Load VAE
-    logger.info(f"Loading VAE ({model_source})...")
-    vae = load_vae(model_source, dtype=torch.bfloat16)
+    # Load VAE. The CFD fields have 4 native channels, which the base 3-channel
+    # LTX VAE cannot encode, so an inflate-mode finetuned checkpoint is required.
+    # Latents MUST be produced by the same VAE that will later decode them.
+    if not inflate_checkpoint:
+        raise typer.BadParameter(
+            "--inflate-checkpoint is required: the base VAE reads only 3 channels and "
+            "cannot encode the 4-channel CFD fields. Pass the finetuned inflate VAE, e.g. "
+            "outputs/vae_inflate4_resume/checkpoints/vae_shockwave_epoch010.safetensors"
+        )
+    logger.info(f"Loading inflated VAE ({model_source}) + checkpoint {inflate_checkpoint}...")
+    vae = load_inflated_vae(model_source, inflate_checkpoint, dtype=torch.bfloat16, device=device)
     vae = vae.to(device).eval()
     vae.requires_grad_(False)
 

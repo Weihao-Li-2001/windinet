@@ -139,27 +139,65 @@ def load_vae(
     raise ValueError(f"Invalid model source: {source}")
 
 
+def load_inflated_vae(
+    source: ModelSource,
+    ckpt_path: str | Path,
+    *,
+    dtype: torch.dtype = torch.bfloat16,
+    device: str = "cpu",
+) -> AutoencoderKLLTXVideo:
+    """Load the base VAE, grow its conv_in/conv_out, and load a finetuned inflate checkpoint.
+
+    Rebuilds the exact VAE produced by ``VaeTrainer`` in ``mode: inflate``: the
+    number of native channels and the init mode are read from the checkpoint
+    metadata, so the grown conv shapes match the stored ``decoder`` and
+    ``encoder_conv_in`` weights. Use this to encode 4-channel CFD fields into
+    latents (preprocessing) and to decode them back with the same finetuned VAE.
+    """
+    from safetensors import safe_open
+
+    from windinet.vae_adapter import inflate_vae_io_channels, load_inflated_vae_checkpoint
+
+    vae = load_vae(source, dtype=dtype)
+
+    meta = safe_open(str(ckpt_path), framework="pt", device="cpu").metadata() or {}
+    n = int(meta.get("n", 4))
+    init = meta.get("inflate_init", "zeros")
+    inflate_vae_io_channels(vae, n=n, init=init)
+    load_inflated_vae_checkpoint(vae, ckpt_path, device=device, dtype=dtype)
+    return vae
+
+
 def load_vae_with_adapter(
     source: ModelSource,
     *,
     dtype: torch.dtype = torch.bfloat16,
     device: str = "cpu",
 ) -> Any:
-    """Load the base VAE and optionally wrap with physics adapter.
+    """Load the base VAE and optionally wrap/grow it for CFD channels.
 
-    Set WINDINET_VAE_ADAPTER_CKPT=/path/to/vae_physics.pt to enable.
+    Two mutually exclusive env-var driven modes (adapter takes precedence):
+      * WINDINET_VAE_ADAPTER_CKPT=/path/to/vae.safetensors -- 1x1 in/out adapters
+        around a frozen 3-channel VAE (mode: adapter).
+      * WINDINET_VAE_INFLATE_CKPT=/path/to/vae.safetensors -- grown conv_in/conv_out
+        reading/writing all channels natively (mode: inflate).
     """
-    vae = load_vae(source, dtype=dtype)
-
     adapter_ckpt = os.getenv("WINDINET_VAE_ADAPTER_CKPT")
+    inflate_ckpt = os.getenv("WINDINET_VAE_INFLATE_CKPT")
+
     if adapter_ckpt:
+        vae = load_vae(source, dtype=dtype)
         from windinet.vae_adapter import load_adapted_vae
 
         v = os.getenv("WINDINET_VAE_ADAPTER_VERBOSE", "0").strip().lower()
         verbose = v not in ("0", "false", "no", "")
         vae, _ = load_adapted_vae(vae, ckpt_path=adapter_ckpt, device=device, dtype=dtype, verbose=verbose)
+        return vae
 
-    return vae
+    if inflate_ckpt:
+        return load_inflated_vae(source, inflate_ckpt, dtype=dtype, device=device)
+
+    return load_vae(source, dtype=dtype)
 
 
 def load_transformer(

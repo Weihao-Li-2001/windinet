@@ -1,0 +1,87 @@
+# Shockwave VAE inflate-mode finetuning FROM SCRATCH (4-GPU settings).
+#
+# resume_from is null, so no finetuned weights are loaded: the VAE starts from
+# its pretrained weights, inflated to 4 channels (inflate_init: zeros preserves
+# the pretrained forward), and the optimizer/LR/epoch all start fresh.
+#
+# Usage:
+#   python scripts/finetune_vae.py configs/finetune_vae_inflate_resume.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+# From scratch: do not load any finetuned checkpoint.
+resume_from: null
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 10.0
+  min_learning_rate: 1e-6
+  # Total training epochs (from scratch). The cosine LR schedule spans all of
+  # them. The original from-scratch run used 10.
+  epochs: 10
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 0.0
+    ssim: 0.3
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  keep_last_n: 3
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "decoder", "adapter", "shockwave-cfd"]
+
+seed: 42
+# Write to a NEW directory so the original run's epoch001-005 checkpoints are
+output_dir: "outputs/vae_inflate4_resume"
+clean_output_dir: true
