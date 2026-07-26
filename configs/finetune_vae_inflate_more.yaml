@@ -41,14 +41,14 @@ adapter:
   activation: "gelu"
   default_temb: 0.0
 
-resume_from: "outputs/vae_inflate4_resume3/checkpoints/vae_shockwave_epoch010.safetensors"
+resume_from: null
 
 # REQUIRED here. vae_shockwave_epoch010.state.pt sits next to that safetensors,
 # and without this flag it would be restored: the optimizer moments, the
 # *finished* cosine schedule (already at 1e-6) and epoch=10 all come back, so
 # learning_rate: 2e-5 would be overridden and epochs: 30 would run as 11..30.
 # The warm restart would silently not happen.
-resume_weights_only: true
+resume_weights_only: false
 
 data:
   data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
@@ -64,11 +64,11 @@ data:
 optimization:
   # Warm restart. Not back to 5e-5, which would undo weights that are already
   # good; far above the 1e-6 the last run ended at, which is why it stalled.
-  learning_rate: 2.0e-5
+  learning_rate: 5e-5
   adapter_lr_multiplier: 10.0
   min_learning_rate: 1e-6
   # ~30 x 120 = 3600 optimizer steps, 3x the entire previous run.
-  epochs: 30
+  epochs: 10
   batch_size: 1
   gradient_accumulation_steps: 8
   max_grad_norm: 5.0
@@ -91,8 +91,8 @@ loss_weighting:
   strategy: "fixed"
   weights:
     rmse: 1.0
-    h1: 0.0
-    ssim: 0.3
+    h1: 25.0
+    ssim: 0.15
     mlw: 0.0
 
 loss:
