@@ -24,11 +24,22 @@ Output structure (compatible with PrecomputedDataset)::
         latents/<sample_id>.pt     # {latents, num_frames, height, width}
         scalars/<sample_id>.pt     # {scalars, scalar_names}
         normalization.json         # the channel stats the latents were built with
+        split_manifest.json        # which ids went to train vs val (if --eval-sims)
+        val/
+            latents/<sample_id>.pt # held-out split, same layout
+            scalars/<sample_id>.pt
+
+With ``--eval-sims N`` the held-out simulations are written under ``val/`` instead
+of the top-level ``latents``/``scalars``, so ``PrecomputedDataset(output_dir)``
+sees only the training split and ``PrecomputedDataset(output_dir/"val")`` sees
+only the held-out one. Pass ``val/`` to the DiT trainer as
+``validation.data_root``.
 
 Usage:
     python scripts/preprocess_dataset.py /data/shockwave_dataset/train.h5 \
         --output-dir /data/preprocessed \
-        --inflate-checkpoint outputs/vae_inflate4_resume2/checkpoints/vae_shockwave_epoch010.safetensors
+        --inflate-checkpoint outputs/vae_inflate4_resume3/checkpoints/vae_shockwave_epoch010.safetensors \
+        --eval-sims 675
 """
 
 import json
@@ -49,6 +60,7 @@ from rich.progress import (
 
 from windinet.inference.model_loader import load_vae, load_inflated_vae, LtxvModelVersion
 from windinet.latent_utils import encode_video
+from windinet.vae_adapter import latent_space_fingerprint
 
 from windinet.training.shockwave_data import (
     CHANNEL_NAMES,
@@ -145,6 +157,17 @@ def main(
     normalization_clip: float = typer.Option(
         default=None, help="Override: normalization clip (defaults to the VAE config's value)"
     ),
+    eval_sims: int = typer.Option(
+        default=0,
+        help="Hold out N simulations as a DiT validation split, written to <output-dir>/val. "
+        "0 disables the split and encodes everything into the training set. Use 675 with "
+        "--split-seed 42 to reproduce the VAE run's held-out set exactly.",
+    ),
+    split_seed: int = typer.Option(
+        default=42,
+        help="Seed for the train/val partition. Must match the VAE run's seed for the two "
+        "splits to be identical.",
+    ),
 ) -> None:
     """Preprocess ShockWave HDF5 simulations into VAE latents for DiT training."""
     output_path = Path(output_dir)
@@ -153,13 +176,45 @@ def main(
     latents_dir.mkdir(parents=True, exist_ok=True)
     scalars_dir.mkdir(parents=True, exist_ok=True)
 
+    val_latents_dir = output_path / "val" / "latents"
+    val_scalars_dir = output_path / "val" / "scalars"
+
     parsed_scalar_names = [s.strip() for s in scalar_names.split(",")]
 
     # Load dataset
     dataset = ShockWaveDataset(data_root)
     if max_samples > 0:
+        if eval_sims > 0:
+            raise typer.BadParameter(
+                "--max-samples truncates dataset.ids, which shifts every index the split "
+                "permutation is drawn against. The resulting val set would not match the "
+                "VAE run's. Use one or the other, not both."
+            )
         dataset.ids = dataset.ids[:max_samples]
     logger.info(f"Found {len(dataset)} samples in {data_root}")
+
+    # Held-out split. This mirrors VaeTrainer._setup exactly -- same sorted id
+    # order (ShockWaveDataset sorts the HDF5 keys), same seed, same
+    # torch.randperm, same tail slice -- so that with --eval-sims 675
+    # --split-seed 42 the DiT's validation simulations are byte-for-byte the
+    # ones the VAE also held out. A contiguous slice would not do: the groups
+    # are ordered by gamma, so it would hand entire gamma regimes to validation
+    # and turn it into an extrapolation test.
+    eval_indices: set[int] = set()
+    if eval_sims > 0:
+        if eval_sims >= len(dataset):
+            raise typer.BadParameter(
+                f"--eval-sims {eval_sims} leaves no training data (dataset has {len(dataset)} sims)"
+            )
+        split_generator = torch.Generator().manual_seed(split_seed)
+        perm = torch.randperm(len(dataset), generator=split_generator).tolist()
+        eval_indices = set(perm[len(dataset) - eval_sims:])
+        val_latents_dir.mkdir(parents=True, exist_ok=True)
+        val_scalars_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(
+            f"Split (seed={split_seed}): {len(dataset) - eval_sims} train, {eval_sims} val "
+            f"-> {output_path / 'val'}"
+        )
 
     # Load VAE. The CFD fields have 4 native channels, which the base 3-channel
     # LTX VAE cannot encode, so an inflate-mode finetuned checkpoint is required.
@@ -183,7 +238,15 @@ def main(
     logger.info(
         f"Channel normalization from {norm_source}: mean={norm_mean}, std={norm_std}, clip={norm_clip}"
     )
-    # Record the stats so decoding (inference) can invert them with the same numbers.
+    # Record the stats so decoding (inference) can invert them with the same
+    # numbers, plus a fingerprint of the latent space these latents live in.
+    # Everything downstream (DiT training, inference) checks that fingerprint:
+    # decoding with a VAE whose encoder differs from this one produces physically
+    # wrong fields and would otherwise fail silently.
+    fingerprint = latent_space_fingerprint(
+        Path(inflate_checkpoint), norm_mean, norm_std, norm_clip
+    )
+    logger.info(f"Latent space fingerprint: {fingerprint}")
     (output_path / "normalization.json").write_text(
         json.dumps(
             {
@@ -192,6 +255,7 @@ def main(
                 "channel_std": norm_std,
                 "normalization_clip": norm_clip,
                 "vae_checkpoint": str(Path(inflate_checkpoint).resolve()),
+                "latent_fingerprint": fingerprint,
                 "source": norm_source,
             },
             indent=2,
@@ -200,6 +264,8 @@ def main(
 
     processed = 0
     skipped = 0
+    train_ids: list[str] = []
+    val_ids: list[str] = []
 
     with Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -215,8 +281,10 @@ def main(
             sample = dataset[idx]
             sample_id = sample["id"]
 
-            latent_path = latents_dir / f"{sample_id}.pt"
-            scalar_path = scalars_dir / f"{sample_id}.pt"
+            is_eval = idx in eval_indices
+            (val_ids if is_eval else train_ids).append(sample_id)
+            latent_path = (val_latents_dir if is_eval else latents_dir) / f"{sample_id}.pt"
+            scalar_path = (val_scalars_dir if is_eval else scalars_dir) / f"{sample_id}.pt"
 
             if latent_path.exists() and scalar_path.exists():
                 skipped += 1
@@ -267,9 +335,29 @@ def main(
             if device == "cuda":
                 torch.cuda.empty_cache()
 
+    # Record the partition so the val set is auditable and can be reproduced
+    # (or intersected with the VAE's) without re-deriving the permutation.
+    (output_path / "split_manifest.json").write_text(
+        json.dumps(
+            {
+                "data_root": str(Path(data_root).resolve()),
+                "split_seed": split_seed,
+                "eval_sims": eval_sims,
+                "num_train": len(train_ids),
+                "num_val": len(val_ids),
+                "train_ids": sorted(train_ids),
+                "val_ids": sorted(val_ids),
+            },
+            indent=2,
+        )
+    )
+
     logger.info(f"Done: {processed} processed, {skipped} skipped")
     logger.info(f"Latents: {latents_dir}")
     logger.info(f"Scalars: {scalars_dir}")
+    if eval_sims > 0:
+        logger.info(f"Held-out split ({len(val_ids)} sims): {output_path / 'val'}")
+    logger.info(f"Split manifest: {output_path / 'split_manifest.json'}")
 
 
 if __name__ == "__main__":

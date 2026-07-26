@@ -312,6 +312,55 @@ def load_inflated_vae_checkpoint(
     return metadata
 
 
+def latent_space_fingerprint(
+    ckpt_path: str | Path,
+    channel_mean: list[float],
+    channel_std: list[float],
+    normalization_clip: float,
+) -> str:
+    """A short digest of everything that determines the latents a VAE produces.
+
+    Two VAE checkpoints yielding the same fingerprint encode a given physical
+    field to bit-identical latents, so precomputed latents (and any DiT trained
+    on them) stay valid across the swap. A different fingerprint means the latent
+    space moved and everything downstream is stale.
+
+    Only the *encoder* side is hashed -- the grown ``encoder_conv_in`` weights
+    plus the input normalization -- because those alone map fields to latents.
+    The decoder is deliberately excluded: a decoder-only refinement improves
+    reconstruction without invalidating a single precomputed latent, and must
+    not trip the guard.
+
+    Paths and checkpoint metadata are not used: a path can be overwritten in
+    place, and two separate runs both saving "epoch010" carry identical metadata.
+    """
+    import hashlib
+
+    from safetensors import safe_open
+
+    digest = hashlib.sha256()
+    with safe_open(str(ckpt_path), framework="pt", device="cpu") as f:
+        conv_in_keys = sorted(k for k in f.keys() if k.startswith("encoder_conv_in."))
+        if not conv_in_keys:
+            # Adapter-mode checkpoints route channels through in_adapter instead.
+            conv_in_keys = sorted(k for k in f.keys() if k.startswith("in_adapter."))
+        if not conv_in_keys:
+            raise ValueError(
+                f"{ckpt_path} has neither encoder_conv_in.* nor in_adapter.* weights, so the "
+                "latent space it produces cannot be fingerprinted"
+            )
+        for key in conv_in_keys:
+            digest.update(key.encode())
+            digest.update(f.get_tensor(key).float().cpu().numpy().tobytes())
+
+    # The normalization is part of the encoder: the VAE only ever sees
+    # (x - mean) / (std * clip), so changing these remaps the latents too.
+    digest.update(repr([round(v, 12) for v in channel_mean]).encode())
+    digest.update(repr([round(v, 12) for v in channel_std]).encode())
+    digest.update(repr(round(float(normalization_clip), 12)).encode())
+    return digest.hexdigest()[:16]
+
+
 def _load_safetensors_vae(ckpt_path: str | Path):
     """Load a .safetensors VAE checkpoint. Returns (tensors_dict, metadata_dict)."""
     from safetensors import safe_open

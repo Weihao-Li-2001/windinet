@@ -177,10 +177,18 @@ class VaeTrainer:
             self._vae.out_adapter.requires_grad_(True)
 
         # Inflated mode: the grown input projection must train so the extra
-        # channel(s) can actually reach the encoder.
-        if self._inflated:
+        # channel(s) can actually reach the encoder -- unless the latent space is
+        # deliberately being held fixed, in which case the decoder trains alone
+        # and every already-encoded latent stays valid.
+        if self._inflated and not adapter_cfg.freeze_conv_in:
             for p in self._get_encoder_conv_in().parameters():
                 p.requires_grad_(True)
+        elif self._inflated:
+            logger.info(
+                "encoder.conv_in FROZEN (freeze_conv_in=true): decoder-only refinement. "
+                "The latent space is unchanged, so existing latents and any DiT trained on "
+                "them remain valid and this VAE can be swapped in at inference."
+            )
 
         if self._config.optimization.enable_gradient_checkpointing:
             base_vae = self._vae.vae if isinstance(self._vae, AdaptedVAE) else self._vae
@@ -263,6 +271,13 @@ class VaeTrainer:
         """
         if self._config.resume_from is None:
             return
+        if self._config.resume_weights_only:
+            logger.info(
+                "resume_weights_only=true: loaded the checkpoint's weights but ignoring its "
+                "training state. Optimizer, LR schedule and epoch counter start fresh, so the "
+                "configured learning_rate/epochs take effect (warm restart)."
+            )
+            return
         state_path = self._state_file_for(self._config.resume_from)
         if not state_path.exists():
             logger.warning(
@@ -317,7 +332,8 @@ class VaeTrainer:
         if isinstance(vae, AdaptedVAE):
             vae.in_adapter.train(training)
             vae.out_adapter.train(training)
-        if self._inflated:
+        # A frozen conv_in stays in eval mode with the rest of the frozen encoder.
+        if self._inflated and not self._config.adapter.freeze_conv_in:
             self._get_encoder_conv_in().train(training)
 
     # ------------------------------------------------------------------

@@ -8,9 +8,15 @@
 # --- Checkpoints ---
 # Local paths. The DiT / scalar embedding come from a ShockWaveNet training run;
 # the VAE must be the inflate-mode checkpoint the latents were encoded with.
+#
+# The 10-epoch VAE run is split across three output dirs (resume: epochs 1-4,
+# resume2: 5-6, resume3: 7-10), so the final epoch010 weights live in resume3 --
+# NOT in resume2. Using a different VAE here than preprocess_dataset.py encoded
+# with silently produces garbage: the latents would be decoded by a decoder that
+# never matched the encoder they came from, and nothing would raise.
 checkpoint: "outputs/shockwave_dit/checkpoints/dit_step_10000.safetensors"
 scalar_checkpoint: "outputs/shockwave_dit/checkpoints/scalar_embedding_step_10000.safetensors"
-vae_checkpoint: "outputs/vae_inflate4_resume2/checkpoints/vae_shockwave_epoch010.safetensors"
+vae_checkpoint: "outputs/vae_inflate4_resume3/checkpoints/vae_shockwave_epoch010.safetensors"
 
 # --- Model ---
 model_source: "LTXV_2B_0.9.6_DEV"
@@ -20,8 +26,10 @@ h5: "euler_mq_dataset/128x128_ds/train.h5"
 
 # --- Channel normalization ---
 # MUST be the stats the VAE was finetuned with and preprocessing encoded with.
-# Point at the preprocessed set's normalization.json, or the VAE run's config.
-normalization: "outputs/vae_inflate4_resume2/training_config.yaml"
+# Preferably point at the preprocessed set's normalization.json, which records
+# both the stats and the vae_checkpoint they were paired with; the VAE run's own
+# training_config.yaml carries the same numbers.
+normalization: "outputs/vae_inflate4_resume3/training_config.yaml"
 
 # --- Generation ---
 num_inference_steps: 20    # denoising steps

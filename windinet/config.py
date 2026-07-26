@@ -147,6 +147,32 @@ class DataConfig(ConfigBaseModel):
     num_dataloader_workers: int = Field(default=2, ge=0)
 
 
+class ValidationConfig(ConfigBaseModel):
+    """Held-out evaluation during DiT training.
+
+    Disabled unless ``data_root`` points at a preprocessed split the training set
+    does not contain (see ``preprocess_dataset.py --eval-sims``). Without it the
+    run only ever reports training loss, which cannot distinguish learning from
+    memorization.
+    """
+
+    data_root: str | None = Field(
+        default=None,
+        description="Preprocessed held-out split (a dir with latents/ and scalars/). "
+        "None disables validation.",
+    )
+    interval: int | None = Field(
+        default=None,
+        gt=0,
+        description="Optimizer steps between validation passes. Defaults to checkpoints.interval.",
+    )
+    max_samples: int = Field(
+        default=0,
+        ge=0,
+        description="Cap on validation simulations per pass (0 = the whole split).",
+    )
+
+
 class CheckpointsConfig(ConfigBaseModel):
     """Configuration for model checkpointing during training."""
 
@@ -246,6 +272,17 @@ class VaeAdapterConfig(ConfigBaseModel):
         default="zeros",
         description="mode='inflate' only: init for the new channel slots. 'zeros' preserves the pretrained forward; 'mean' is I3D-style averaging.",
     )
+    freeze_conv_in: bool = Field(
+        default=False,
+        description=(
+            "mode='inflate' only: keep the grown encoder.conv_in frozen and train the decoder "
+            "alone. encoder.conv_in is the last trainable thing on the encoder side, so freezing "
+            "it fixes the latent space: already-encoded latents (and any DiT trained on them) stay "
+            "valid, and the refined VAE can be swapped in at inference. Leave False when the "
+            "latent space is still being established -- the extra channel cannot reach the encoder "
+            "otherwise."
+        ),
+    )
     hidden_channels: int = Field(default=32, ge=1, description="Adapter hidden width (checkpoint metadata wins when resuming)")
     activation: Literal["relu", "silu", "swish", "gelu", "tanh"] = "gelu"
     identity_init: bool = Field(
@@ -322,6 +359,15 @@ class VaeTrainerConfig(ConfigBaseModel):
         "before output_dir is (optionally) cleaned, so resuming into the same output_dir "
         "is safe.",
     )
+    resume_weights_only: bool = Field(
+        default=False,
+        description=(
+            "Load only the weights from resume_from and ignore its sibling .state.pt. "
+            "Required for a warm restart: restoring the state would also restore the finished "
+            "cosine schedule and the epoch counter, so a new learning_rate/epochs would be "
+            "silently overridden and training would continue at the old run's final LR."
+        ),
+    )
 
     @field_validator("output_dir")
     @classmethod
@@ -343,6 +389,7 @@ class LtxvTrainerConfig(ConfigBaseModel):
     optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
     acceleration: AccelerationConfig = Field(default_factory=AccelerationConfig)
     data: DataConfig = Field(default_factory=DataConfig)
+    validation: ValidationConfig = Field(default_factory=ValidationConfig)
     checkpoints: CheckpointsConfig = Field(default_factory=CheckpointsConfig)
     flow_matching: FlowMatchingConfig = Field(default_factory=FlowMatchingConfig)
     wandb: WandbConfig = Field(default_factory=WandbConfig)

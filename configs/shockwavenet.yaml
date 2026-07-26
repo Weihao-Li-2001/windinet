@@ -24,8 +24,14 @@ scalar_conditioning:
 optimization:
   learning_rate: 1e-5
   steps: 10000
-  batch_size: 1
-  gradient_accumulation_steps: 16
+  # Effective batch = batch_size * grad_acc * num_gpus = 4 * 4 * 4 = 64, the same
+  # as the old 1 * 16 * 4, so training dynamics are unchanged. The latent sequence
+  # is only 224 tokens (14 latent frames x 4 x 4), so a batch-1 step spends nearly
+  # all its time streaming the 1.92B weights rather than computing; batching 4 at a
+  # time amortizes that read. Fits in 48 GB: fp32 params 7.7 + grads 7.7 + AdamW
+  # states 15.4 = ~31 GB, leaving ample room for activations at this sequence length.
+  batch_size: 4
+  gradient_accumulation_steps: 4
   max_grad_norm: 1.0
   optimizer_type: "adamw"
   scheduler_type: "cosine"
@@ -38,13 +44,39 @@ acceleration:
   compile_with_inductor: false
 
 data:
-  # REQUIRED: update this to your preprocessed data path
-  preprocessed_data_root: "/data/shockwave_preprocessed"
-  num_dataloader_workers: 0
+  # Produced by:
+  #   python scripts/preprocess_dataset.py euler_mq_dataset/128x128_ds/train.h5 \
+  #       --output-dir <this path> \
+  #       --inflate-checkpoint outputs/vae_inflate4_resume3/checkpoints/vae_shockwave_epoch010.safetensors \
+  #       --eval-sims 675
+  preprocessed_data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_preprocessed"
+  # Each sample is a ~57 KB .pt, so loading is cheap either way, but 0 workers
+  # puts it on the training thread for no reason.
+  num_dataloader_workers: 2
+
+validation:
+  # The val/ subtree written by --eval-sims 675 --split-seed 42: the same 675
+  # simulations the VAE run held out, so DiT and VAE VRMSE are measured on the
+  # same simulations and can be compared directly (the VAE's is the floor).
+  # Without this the run reports training loss only and cannot show overfitting.
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_preprocessed/val"
+  # A full pass is 675 single-sample forwards (~1 min). At every epoch that is
+  # ~20% overhead on a ~11h run, so validate every 5th epoch instead. 300 is a
+  # multiple of checkpoints.interval, so those rows in epoch_log.json carry both
+  # train_loss and val_loss; the rest carry train_loss only.
+  interval: 300
+  max_samples: 0    # 0 = the whole 675-sim split
 
 checkpoints:
-  interval: 156
-  keep_last_n: -1
+  # One epoch = 3825 train sims / effective batch 64 (batch_size 1 x grad_acc 16
+  # x 4 GPUs) = 60 optimizer steps. The old 156 made every logged "epoch" 2.6
+  # real epochs. RE-DERIVE THIS IF YOU CHANGE THE GPU COUNT OR BATCH SIZE:
+  # steps_per_epoch = 3825 / (batch_size * grad_acc * num_gpus).
+  interval: 60
+  # The 1.92B transformer is saved as an fp32 state_dict = 7.7 GB per checkpoint.
+  # keep_last_n: -1 keeps every one of them: 10000/60 = 166 checkpoints = 1.3 TB,
+  # on a volume with 2.1 TB free. Keep a short rolling window instead.
+  keep_last_n: 5
 
 flow_matching:
   timestep_sampling_mode: "shifted_logit_normal"

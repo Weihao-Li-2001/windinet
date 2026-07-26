@@ -130,11 +130,22 @@ class LtxvTrainer:
         self._load_checkpoint()
         self._prepare_models_for_training()
         self._dataset = None
+        self._val_dataset = None
+        self._val_dataloader = None
         self._global_step = -1
         self._checkpoint_paths = []
         self._epoch_losses = []
         self._epoch_train_losses = []
+        self._last_val_loss: float | None = None
+        self._last_val_step: int | None = None
         self._init_wandb()
+
+    @property
+    def _validation_interval(self) -> int | None:
+        """Optimizer steps between validation passes, or None if disabled."""
+        if self._config.validation.data_root is None:
+            return None
+        return self._config.validation.interval or self._config.checkpoints.interval
 
     # ------------------------------------------------------------------
     # Batch preparation (absorbed from training_strategies.py)
@@ -147,8 +158,16 @@ class LtxvTrainer:
             sources.append("scalars")
         return sources
 
-    def _prepare_batch(self, batch: dict[str, Any], timestep_sampler) -> TrainingBatch:
-        """Prepare a training batch with noise and conditioning."""
+    def _prepare_batch(
+        self, batch: dict[str, Any], timestep_sampler, force_conditioning: bool = False
+    ) -> TrainingBatch:
+        """Prepare a training batch with noise and conditioning.
+
+        ``force_conditioning`` always applies the first-frame conditioning mask
+        instead of sampling it. Validation uses it so the measured loss matches
+        what inference actually does (the initial condition is always given) and
+        does not fluctuate with the Bernoulli draw.
+        """
         latents = batch["latents"]
         target_latents = latents["latents"]
 
@@ -180,6 +199,7 @@ class LtxvTrainer:
             height=latent_height,
             width=latent_width,
             device=target_latents.device,
+            force=force_conditioning,
         )
 
         # Create noise for the target latents
@@ -248,10 +268,16 @@ class LtxvTrainer:
         return torch.where(conditioning_mask, 0, expanded_timesteps)
 
     def _create_first_frame_conditioning_mask(
-        self, batch_size: int, sequence_length: int, height: int, width: int, device: torch.device
+        self,
+        batch_size: int,
+        sequence_length: int,
+        height: int,
+        width: int,
+        device: torch.device,
+        force: bool = False,
     ) -> Tensor:
         conditioning_mask = torch.zeros(batch_size, sequence_length, dtype=torch.bool, device=device)
-        if (
+        if force or (
             self._config.conditioning.first_frame_conditioning_p > 0
             and random.random() < self._config.conditioning.first_frame_conditioning_p
         ):
@@ -280,12 +306,20 @@ class LtxvTrainer:
 
         self._init_optimizer()
         self._init_dataloader()
+        self._init_val_dataloader()
         data_iter = iter(self._dataloader)
         self._init_timestep_sampler()
+        val_interval = self._validation_interval
+        if val_interval is None and IS_MAIN_PROCESS:
+            logger.warning(
+                "No validation.data_root configured: this run will only report training loss "
+                "and cannot tell you whether the model generalizes."
+            )
 
         self._accelerator.wait_for_everyone()
         Path(cfg.output_dir).mkdir(parents=True, exist_ok=True)
         self._save_config()
+        self._record_latent_provenance()
 
         logger.info("Starting training...")
 
@@ -366,6 +400,28 @@ class LtxvTrainer:
                         if self._lr_scheduler is not None:
                             self._lr_scheduler.step()
 
+                    # Validation before checkpointing, so the epoch record below
+                    # can carry the val loss belonging to the weights just saved.
+                    if (
+                        val_interval
+                        and is_optimization_step
+                        and self._global_step > 0
+                        and self._global_step % val_interval == 0
+                    ):
+                        if IS_MAIN_PROCESS:
+                            val_loss = self._validate()
+                            if val_loss is not None:
+                                self._last_val_loss = val_loss
+                                self._last_val_step = self._global_step
+                                self._accelerator.print(
+                                    f"[val] step={self._global_step} val_loss={val_loss:.6f}"
+                                )
+                                self._log_metrics({
+                                    "val/loss": val_loss,
+                                    "val/global_step": self._global_step,
+                                })
+                        self._accelerator.wait_for_everyone()
+
                     if (
                         cfg.checkpoints.interval
                         and is_optimization_step
@@ -388,20 +444,30 @@ class LtxvTrainer:
                         else:
                             epoch_train_loss = None
 
+                        # Only attach the val loss if it was measured on these
+                        # exact weights; a stale one would misrepresent the gap.
+                        epoch_val_loss = (
+                            self._last_val_loss if self._last_val_step == self._global_step else None
+                        )
+
                         if IS_MAIN_PROCESS:
                             train_str = f"{epoch_train_loss:.6f}" if epoch_train_loss else "N/A"
+                            val_str = f" val_loss={epoch_val_loss:.6f}" if epoch_val_loss is not None else ""
                             self._accelerator.print(
-                                f"[epoch {epoch}] step={self._global_step} train_loss={train_str}"
+                                f"[epoch {epoch}] step={self._global_step} train_loss={train_str}{val_str}"
                             )
                             epoch_metrics = {"epoch": epoch}
                             if epoch_train_loss is not None:
                                 epoch_metrics["epoch/train_loss"] = epoch_train_loss
+                            if epoch_val_loss is not None:
+                                epoch_metrics["epoch/val_loss"] = epoch_val_loss
                             self._log_metrics(epoch_metrics)
 
                             self._epoch_losses.append({
                                 "epoch": epoch,
                                 "step": self._global_step,
                                 "train_loss": epoch_train_loss,
+                                "val_loss": epoch_val_loss,
                             })
                             self._save_epoch_log()
 
@@ -553,16 +619,24 @@ class LtxvTrainer:
 
         return loss
 
-    def _embed_and_concat_scalars(self, batch: TrainingBatch) -> TrainingBatch:
-        """Embed scalar values and use as prompt embeddings."""
+    def _embed_and_concat_scalars(
+        self, batch: TrainingBatch, scalar_embedding: nn.Module | None = None
+    ) -> TrainingBatch:
+        """Embed scalar values and use as prompt embeddings.
+
+        ``scalar_embedding`` overrides the trainer's own module; validation passes
+        the unwrapped one so no DDP collective is launched from rank 0 alone.
+        """
+        scalar_embedding = scalar_embedding if scalar_embedding is not None else self._scalar_embedding
+
         if torch.isnan(batch.scalars).any() or torch.isinf(batch.scalars).any():
             raise ValueError("Input scalars contain NaN or Inf values")
 
-        for name, param in self._scalar_embedding.named_parameters():
+        for name, param in scalar_embedding.named_parameters():
             if torch.isnan(param).any() or torch.isinf(param).any():
                 raise ValueError(f"Scalar embedding weights contain NaN or Inf: {name}")
 
-        scalar_embeds = self._scalar_embedding(batch.scalars)
+        scalar_embeds = scalar_embedding(batch.scalars)
 
         if torch.isnan(scalar_embeds).any() or torch.isinf(scalar_embeds).any():
             raise ValueError("Scalar embeddings contain NaN or Inf values")
@@ -771,6 +845,139 @@ class LtxvTrainer:
             pin_memory=self._config.data.num_dataloader_workers > 0,
         )
         self._dataloader = self._accelerator.prepare(dataloader)
+
+    def _record_latent_provenance(self) -> None:
+        """Copy the latent space's identity from the dataset into the run's output.
+
+        The DiT learns a distribution over one specific VAE's latents. Nothing in
+        a checkpoint says which, so inference can silently decode with a different
+        VAE and emit physically wrong fields. Writing the fingerprint next to the
+        weights lets inference_shockwave.py refuse that pairing.
+        """
+        if not IS_MAIN_PROCESS:
+            return
+
+        norm_path = Path(self._config.data.preprocessed_data_root) / "normalization.json"
+        if not norm_path.is_file():
+            logger.warning(
+                f"No normalization.json at {norm_path}: the latent space these latents came "
+                "from cannot be recorded, so inference will not be able to verify that it is "
+                "decoding with the matching VAE. Re-run preprocess_dataset.py to produce one."
+            )
+            return
+
+        payload = json.loads(norm_path.read_text())
+        fingerprint = payload.get("latent_fingerprint")
+        provenance = {
+            "latent_fingerprint": fingerprint,
+            "vae_checkpoint": payload.get("vae_checkpoint"),
+            "channel_mean": payload.get("channel_mean"),
+            "channel_std": payload.get("channel_std"),
+            "normalization_clip": payload.get("normalization_clip"),
+            "preprocessed_data_root": str(Path(self._config.data.preprocessed_data_root).resolve()),
+        }
+        out = Path(self._config.output_dir) / "latent_provenance.json"
+        out.write_text(json.dumps(provenance, indent=2))
+        logger.info(
+            f"Training on latents from VAE {payload.get('vae_checkpoint')} "
+            f"(fingerprint {fingerprint}); recorded in {out.name}"
+        )
+
+    def _init_val_dataloader(self) -> None:
+        """Build the held-out loader. Not accelerator-prepared: validation runs on
+        the main process only, over the whole split, so the reported number is one
+        unambiguous average rather than a sharded one that depends on world size."""
+        val_root = self._config.validation.data_root
+        if val_root is None:
+            return
+        if not IS_MAIN_PROCESS:
+            return
+
+        data_sources = self._get_data_sources()
+        self._val_dataset = PrecomputedDataset(val_root, data_sources=data_sources)
+        if len(self._val_dataset) == 0:
+            raise ValueError(f"Validation split at {val_root} is empty")
+
+        train_root = Path(self._config.data.preprocessed_data_root).resolve()
+        if Path(val_root).resolve() == train_root:
+            raise ValueError(
+                f"validation.data_root and data.preprocessed_data_root are the same directory "
+                f"({train_root}). Validating on the training set measures nothing. Re-run "
+                f"preprocess_dataset.py with --eval-sims to produce a held-out split."
+            )
+
+        # shuffle=False so the same simulations are seen in the same order every
+        # pass; combined with the RNG reset in _validate this makes successive
+        # validation losses comparable rather than dominated by sampling noise.
+        self._val_dataloader = DataLoader(
+            self._val_dataset,
+            batch_size=self._config.optimization.batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=self._config.data.num_dataloader_workers,
+            pin_memory=self._config.data.num_dataloader_workers > 0,
+        )
+        logger.info(f"Validation split: {len(self._val_dataset):,} samples from {val_root}")
+
+    @torch.no_grad()
+    def _validate(self) -> float | None:
+        """Average held-out flow-matching loss.
+
+        The sigma draw dominates this objective's variance -- a fresh draw each
+        pass would swamp the real trend -- so the RNG is reset to a fixed seed
+        before every pass and restored afterwards, leaving the training stream
+        untouched. Each validation therefore scores the same simulations at the
+        same noise levels, and successive values differ only by the model.
+        """
+        if self._val_dataloader is None:
+            return None
+
+        device = self._accelerator.device
+        max_samples = self._config.validation.max_samples
+
+        py_rng_state = random.getstate()
+        cpu_rng_state = torch.get_rng_state()
+        cuda_rng_state = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+        random.seed(self._config.seed)
+        torch.manual_seed(self._config.seed)
+
+        # Unwrap: under multi-GPU only rank 0 runs this loop, and calling the DDP
+        # wrapper here would risk a collective the other ranks never join. The
+        # unwrapped module shares the same parameters, so nothing else changes.
+        transformer = self._accelerator.unwrap_model(self._transformer)
+        scalar_embedding = (
+            self._accelerator.unwrap_model(self._scalar_embedding)
+            if self._scalar_embedding is not None
+            else None
+        )
+        transformer.eval()
+        total_loss, seen = 0.0, 0
+        try:
+            for batch in self._val_dataloader:
+                if max_samples and seen >= max_samples:
+                    break
+                batch = {
+                    key: {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in value.items()}
+                    if isinstance(value, dict)
+                    else value
+                    for key, value in batch.items()
+                }
+                val_batch = self._prepare_batch(batch, self._timestep_sampler, force_conditioning=True)
+                if scalar_embedding is not None and val_batch.scalars is not None:
+                    val_batch = self._embed_and_concat_scalars(val_batch, scalar_embedding)
+                model_pred = transformer(**self._prepare_model_inputs(val_batch))[0]
+                loss = self._compute_loss(model_pred, val_batch)
+
+                total_loss += loss.item() * val_batch.batch_size
+                seen += val_batch.batch_size
+        finally:
+            transformer.train()
+            random.setstate(py_rng_state)
+            torch.set_rng_state(cpu_rng_state)
+            if cuda_rng_state is not None:
+                torch.cuda.set_rng_state_all(cuda_rng_state)
+
+        return total_loss / seen if seen else None
 
     # ------------------------------------------------------------------
     # Checkpointing and logging

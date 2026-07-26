@@ -1,0 +1,95 @@
+# Shockwave VAE inflate-mode finetuning -- RESUME the interrupted run.
+#
+# The run in outputs/vae_inflate4_resume was killed during epoch 5. This config
+# picks up from the last complete epoch (004) checkpoint + its sibling
+# .state.pt (optimizer / LR scheduler / loss weights / RNG), so training
+# continues at epoch 5 of 10 with the exact optimizer state.
+#
+# IMPORTANT: gradient_accumulation_steps must stay 8 (what the interrupted run
+# actually used). It drives steps_per_epoch (120) and therefore total_opt_steps
+# (1200) that the restored cosine schedule was built against; changing it would
+# make the restored scheduler step count meaningless.
+#
+# Usage (4 GPUs):
+#   accelerate launch --num_processes 4 scripts/finetune_vae.py \
+#       configs/finetune_vae_inflate_resume2.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+# Resume: finetuned weights from this safetensors, training state from the
+# sibling vae_shockwave_epoch004.state.pt.
+resume_from: "outputs/vae_inflate4_resume2/checkpoints/vae_shockwave_epoch006.safetensors"
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 10.0
+  min_learning_rate: 1e-6
+  # Same total horizon as the interrupted run; epochs 5-10 remain.
+  epochs: 10
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 0.0
+    ssim: 0.3
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  keep_last_n: 3
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "decoder", "inflate", "shockwave-cfd"]
+
+seed: 42
+# New directory so the interrupted run's epoch001-004 checkpoints and its
+# metrics.csv (epochs 1-4) stay intact; this run writes epochs 5-10.
+output_dir: "outputs/vae_inflate4_resume3"
+clean_output_dir: true

@@ -17,6 +17,7 @@ Usage:
 """
 
 import argparse
+import json
 from copy import deepcopy
 from pathlib import Path
 
@@ -38,8 +39,53 @@ from windinet.training.shockwave_data import (
     normalize_fields,
 )
 from windinet.training.vae_visualization import denormalize_fields
+from windinet.vae_adapter import latent_space_fingerprint
 
 DTYPE = torch.bfloat16
+
+
+def verify_latent_space(vae_checkpoint, dit_checkpoint, stats) -> None:
+    """Refuse to decode a DiT's latents with a VAE that did not produce them.
+
+    The DiT models a distribution over one specific VAE's latent space. Decoding
+    those latents with a VAE whose encoder differs yields fields that look
+    plausible and are physically wrong -- no exception, no NaN, nothing to notice
+    downstream. The training run records the fingerprint of the latents it was
+    trained on (latent_provenance.json, written next to the checkpoints); this
+    compares it against the VAE about to be used.
+    """
+    provenance_path = Path(dit_checkpoint).parent.parent / "latent_provenance.json"
+    if not provenance_path.is_file():
+        print(
+            f"WARNING: no {provenance_path} -- cannot verify that {vae_checkpoint} is the VAE "
+            "the DiT's latents were built with. A mismatch here produces wrong physics silently."
+        )
+        return
+
+    expected = json.loads(provenance_path.read_text()).get("latent_fingerprint")
+    if not expected:
+        print(f"WARNING: {provenance_path} records no latent_fingerprint; skipping the check.")
+        return
+
+    actual = latent_space_fingerprint(
+        Path(vae_checkpoint),
+        stats["channel_mean"],
+        stats["channel_std"],
+        stats["normalization_clip"],
+    )
+    if actual != expected:
+        raise SystemExit(
+            f"VAE / DiT latent space mismatch.\n"
+            f"  DiT was trained on latents with fingerprint : {expected}\n"
+            f"  this VAE + normalization fingerprints as    : {actual}\n"
+            f"  vae_checkpoint : {vae_checkpoint}\n"
+            f"  provenance     : {provenance_path}\n"
+            f"Decoding would produce physically wrong fields. Point vae_checkpoint at the VAE "
+            f"recorded in {provenance_path}, or re-run preprocessing and retrain the DiT.\n"
+            f"(A decoder-only VAE refinement keeps the fingerprint and is safe to swap in; a "
+            f"changed encoder.conv_in or changed channel normalization does not.)"
+        )
+    print(f"Latent space verified: fingerprint {actual} matches the DiT's training latents")
 
 
 def parse_args():
@@ -171,6 +217,8 @@ def main():
     # preprocessing used, or the decoded fields come out on the wrong scale.
     stats = load_channel_normalization(cfg["normalization"])
     print(f"Normalization from {cfg['normalization']}: clip={stats['normalization_clip']}")
+
+    verify_latent_space(ensure_checkpoint(vae_ckpt), checkpoint, stats)
 
     sc = cfg.get("scalar_conditioning", {})
     scalar_cfg = ScalarConditioningConfig(
