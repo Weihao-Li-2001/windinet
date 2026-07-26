@@ -1,0 +1,41 @@
+# ShockWaveNet inference configuration (4-channel CFD fields + gamma).
+#
+# Usage:
+#   python scripts/inference_shockwave.py configs/inference_shockwave.yaml \
+#       --h5 euler_mq_dataset/128x128_ds/train.h5 \
+#       --out_dir predictions/ --num_samples 8
+
+# --- Checkpoints ---
+# Local paths. The DiT / scalar embedding come from a ShockWaveNet training run;
+# the VAE must be the inflate-mode checkpoint the latents were encoded with.
+checkpoint: "outputs/shockwave_dit/checkpoints/dit_step_10000.safetensors"
+scalar_checkpoint: "outputs/shockwave_dit/checkpoints/scalar_embedding_step_10000.safetensors"
+vae_checkpoint: "outputs/vae_inflate4_resume2/checkpoints/vae_shockwave_epoch010.safetensors"
+
+# --- Model ---
+model_source: "LTXV_2B_0.9.6_DEV"
+
+# --- Dataset (initial conditions come from frame 0 of each simulation) ---
+h5: "euler_mq_dataset/128x128_ds/train.h5"
+
+# --- Channel normalization ---
+# MUST be the stats the VAE was finetuned with and preprocessing encoded with.
+# Point at the preprocessed set's normalization.json, or the VAE run's config.
+normalization: "outputs/vae_inflate4_resume2/training_config.yaml"
+
+# --- Generation ---
+num_inference_steps: 20    # denoising steps
+guidance_scale: 1.0        # 1.0 = no classifier-free guidance
+num_frames: 105            # generated length, must be 8k+1 for the LTX VAE
+num_output_frames: 101     # trim back to the true simulation length
+image_cond_noise_scale: 0.0  # the IC is exact physics -- do not perturb it
+seed: 42
+
+# --- Scalar conditioning ---
+# Must match the ranges used during DiT training (configs/shockwavenet.yaml).
+scalar_conditioning:
+  scalar_names: ["gamma"]
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4

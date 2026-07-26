@@ -16,6 +16,7 @@ train.h5
 Returns physical fields for LTX preprocessing.
 """
 
+import json
 from pathlib import Path
 
 import h5py
@@ -218,6 +219,61 @@ def build_shockwave_video(
         dtype=torch.float32,
     ).contiguous()
     
+CHANNEL_NAMES = ["density", "momentum_x", "momentum_y", "pressure"]
+
+
+def load_channel_normalization(source: str | Path) -> dict:
+    """Read the channel normalization stats that a VAE / latent set was built with.
+
+    Accepts either a ``normalization.json`` written by ``preprocess_dataset.py``
+    or a VAE run's ``training_config.yaml``. Encoding, decoding and preprocessing
+    must all agree on these numbers -- the VAE only ever saw fields normalized as
+    ``(x - mean) / (std * clip)`` clamped to [-1, 1], so any mismatch silently
+    produces off-distribution latents or wrongly scaled physical outputs.
+
+    Returns a dict with ``channel_mean``, ``channel_std`` and ``normalization_clip``.
+    """
+    path = Path(source)
+    if not path.is_file():
+        raise FileNotFoundError(f"Normalization source not found: {path}")
+
+    if path.suffix == ".json":
+        payload = json.loads(path.read_text())
+    else:
+        import yaml
+
+        # A dumped training_config.yaml carries python-tagged values (e.g. the
+        # model-source enum). Ignore unknown tags rather than reaching for
+        # unsafe_load, which would execute whatever the file names.
+        class _TolerantLoader(yaml.SafeLoader):
+            pass
+
+        _TolerantLoader.add_multi_constructor("", lambda loader, suffix, node: None)
+        payload = (yaml.load(path.read_text(), Loader=_TolerantLoader) or {}).get("data", {})
+
+    mean, std = payload.get("channel_mean"), payload.get("channel_std")
+    if not mean or not std:
+        raise ValueError(f"{path} has no channel_mean / channel_std")
+    return {
+        "channel_mean": list(mean),
+        "channel_std": list(std),
+        "normalization_clip": float(payload.get("normalization_clip", 5.0)),
+    }
+
+
+def normalize_fields(
+    x: Tensor,
+    channel_mean: list[float],
+    channel_std: list[float],
+    normalization_clip: float,
+) -> Tensor:
+    """Normalize physical fields [B, C, ...] to [-1, 1]; inverse of denormalize_fields."""
+    shape = (1, len(channel_mean)) + (1,) * (x.ndim - 2)
+    mean = x.new_tensor(channel_mean).view(shape)
+    scale = x.new_tensor(channel_std).view(shape) * normalization_clip
+    return ((x - mean) / scale).clamp(-1.0, 1.0)
+
+
 def extract_scalars(
     meta: dict,
     scalar_names: list[str] | None = None,

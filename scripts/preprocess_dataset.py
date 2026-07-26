@@ -23,16 +23,20 @@ Output structure (compatible with PrecomputedDataset)::
     output_dir/
         latents/<sample_id>.pt     # {latents, num_frames, height, width}
         scalars/<sample_id>.pt     # {scalars, scalar_names}
+        normalization.json         # the channel stats the latents were built with
 
 Usage:
     python scripts/preprocess_dataset.py /data/shockwave_dataset/train.h5 \
-        --output-dir /data/preprocessed
+        --output-dir /data/preprocessed \
+        --inflate-checkpoint outputs/vae_inflate4_resume2/checkpoints/vae_shockwave_epoch010.safetensors
 """
 
+import json
 from pathlib import Path
 
 import torch
 import typer
+import yaml
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -47,9 +51,11 @@ from windinet.inference.model_loader import load_vae, load_inflated_vae, LtxvMod
 from windinet.latent_utils import encode_video
 
 from windinet.training.shockwave_data import (
+    CHANNEL_NAMES,
     ShockWaveDataset,
     build_shockwave_video,
     extract_scalars,
+    load_channel_normalization,
 )
 
 from windinet.utils import logger
@@ -58,9 +64,52 @@ console = Console()
 app = typer.Typer(pretty_exceptions_enable=False, no_args_is_help=True)
 
 
+def _parse_floats(raw: str | None) -> list[float] | None:
+    return None if raw is None else [float(v) for v in raw.split(",")]
+
+
+def _resolve_normalization(
+    inflate_checkpoint: Path,
+    vae_config: str | None,
+    channel_mean: str | None,
+    channel_std: str | None,
+    normalization_clip: float | None,
+) -> tuple[list[float], list[float], float, str]:
+    """Determine the channel normalization the latents must be built with.
+
+    The VAE was finetuned on fields normalized as ``(x - mean) / (std * clip)``
+    and clamped to [-1, 1]. Encoding raw physical values instead would put the
+    input far outside the VAE's training distribution and produce meaningless
+    latents, so the stats used here MUST be the ones the VAE saw. They are
+    therefore taken from the VAE run's own ``training_config.yaml`` by default
+    (found next to the checkpoint), and only overridden explicitly.
+
+    Returns (mean, std, clip, source description).
+    """
+    explicit_mean = _parse_floats(channel_mean)
+    explicit_std = _parse_floats(channel_std)
+    if (explicit_mean is None) != (explicit_std is None):
+        raise typer.BadParameter("--channel-mean and --channel-std must be given together")
+    if explicit_mean is not None:
+        return explicit_mean, explicit_std, normalization_clip or 5.0, "command line"
+
+    # Auto-discover: outputs/<run>/checkpoints/vae_*.safetensors
+    #             -> outputs/<run>/training_config.yaml
+    config_path = Path(vae_config) if vae_config else inflate_checkpoint.parent.parent / "training_config.yaml"
+    if not config_path.is_file():
+        raise typer.BadParameter(
+            f"Cannot determine channel normalization: no VAE training config at {config_path}. "
+            "Pass --vae-config, or give --channel-mean/--channel-std explicitly. Encoding "
+            "un-normalized fields would silently produce unusable latents, so there is no default."
+        )
+    stats = load_channel_normalization(config_path)
+    clip = normalization_clip if normalization_clip is not None else stats["normalization_clip"]
+    return stats["channel_mean"], stats["channel_std"], float(clip), str(config_path)
+
+
 @app.command()
 def main(
-    data_root: str = typer.Argument(..., help="Path to dataset split directory (e.g. /data/wind_dataset/train)"),
+    data_root: str = typer.Argument(..., help="Path to the ShockWave HDF5 split (e.g. /data/shockwave/train.h5)"),
     output_dir: str = typer.Option(..., help="Output directory for preprocessed data"),
     model_source: str = typer.Option(
         default="LTXV_2B_0.9.6_DEV",
@@ -82,8 +131,22 @@ def main(
         default="gamma",
         help="Comma-separated scalar conditioning names to extract",
     ),
+    vae_config: str = typer.Option(
+        default=None,
+        help="VAE training_config.yaml to read the channel normalization from. "
+        "Defaults to the one next to --inflate-checkpoint.",
+    ),
+    channel_mean: str = typer.Option(
+        default=None, help="Override: comma-separated per-channel means (with --channel-std)"
+    ),
+    channel_std: str = typer.Option(
+        default=None, help="Override: comma-separated per-channel stds (with --channel-mean)"
+    ),
+    normalization_clip: float = typer.Option(
+        default=None, help="Override: normalization clip (defaults to the VAE config's value)"
+    ),
 ) -> None:
-    """Preprocess wind field NPZ data into VAE latents for DiT training."""
+    """Preprocess ShockWave HDF5 simulations into VAE latents for DiT training."""
     output_path = Path(output_dir)
     latents_dir = output_path / "latents"
     scalars_dir = output_path / "scalars"
@@ -111,6 +174,29 @@ def main(
     vae = load_inflated_vae(model_source, inflate_checkpoint, dtype=torch.bfloat16, device=device)
     vae = vae.to(device).eval()
     vae.requires_grad_(False)
+
+    # The fields must be normalized exactly as during VAE finetuning before they
+    # are encoded, otherwise the latents are off-distribution and unusable.
+    norm_mean, norm_std, norm_clip, norm_source = _resolve_normalization(
+        Path(inflate_checkpoint), vae_config, channel_mean, channel_std, normalization_clip
+    )
+    logger.info(
+        f"Channel normalization from {norm_source}: mean={norm_mean}, std={norm_std}, clip={norm_clip}"
+    )
+    # Record the stats so decoding (inference) can invert them with the same numbers.
+    (output_path / "normalization.json").write_text(
+        json.dumps(
+            {
+                "channel_names": CHANNEL_NAMES,
+                "channel_mean": norm_mean,
+                "channel_std": norm_std,
+                "normalization_clip": norm_clip,
+                "vae_checkpoint": str(Path(inflate_checkpoint).resolve()),
+                "source": norm_source,
+            },
+            indent=2,
+        )
+    )
 
     processed = 0
     skipped = 0
@@ -141,8 +227,11 @@ def main(
                 # Build conditioning video and encode
                 video = build_shockwave_video(
                     sample,
-                    device=torch.device(device)
-                )  # [1, 4, F, H, W]
+                    device=torch.device(device),
+                    channel_mean=norm_mean,
+                    channel_std=norm_std,
+                    normalization_clip=norm_clip,
+                )  # [1, 4, F, H, W], normalized to [-1, 1]
                 video = video.permute(0, 2, 1, 3, 4)  # [1, F, C, H, W] for encode_video
 
                 with torch.no_grad():

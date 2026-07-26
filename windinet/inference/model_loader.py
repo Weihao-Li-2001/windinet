@@ -168,6 +168,29 @@ def load_inflated_vae(
     return vae
 
 
+def select_vae_env(ckpt_path: str | Path) -> str:
+    """Point ``load_vae_with_adapter`` at a finetuned VAE, picking the right mode.
+
+    Adapter and inflate checkpoints are not interchangeable -- they are read by
+    different code paths and adapter takes precedence -- so the mode is decided
+    from the checkpoint's own ``format`` metadata rather than by the caller
+    guessing. An env var the caller already set is left untouched.
+
+    Returns the name of the env var that was set (or already present).
+    """
+    from safetensors import safe_open
+
+    for existing in ("WINDINET_VAE_ADAPTER_CKPT", "WINDINET_VAE_INFLATE_CKPT"):
+        if os.getenv(existing):
+            return existing
+
+    metadata = safe_open(str(ckpt_path), framework="pt", device="cpu").metadata() or {}
+    fmt = metadata.get("format")
+    var = "WINDINET_VAE_INFLATE_CKPT" if fmt == "ltx-inflated-io-v1" else "WINDINET_VAE_ADAPTER_CKPT"
+    os.environ[var] = str(ckpt_path)
+    return var
+
+
 def load_vae_with_adapter(
     source: ModelSource,
     *,

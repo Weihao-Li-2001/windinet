@@ -31,7 +31,7 @@ from torch.amp import autocast
 
 from windinet.checkpoints import ensure_checkpoint
 from windinet.inference.pipeline import LTXConditionPipeline
-from windinet.inference.model_loader import load_ltxv_components
+from windinet.inference.model_loader import load_ltxv_components, select_vae_env
 from windinet.scalar_embeddings import ScalarEmbedding
 from windinet.config import ScalarConditioningConfig
 from windinet.visualization import render_wind_video
@@ -162,11 +162,10 @@ def main():
     seed = cfg.get("seed", 42)
     mag_cap_mps = cfg.get("mag_cap_mps", 30.0)
 
-    # VAE decoder checkpoint (via env var or config)
-    import os
+    # VAE decoder checkpoint (an env var set by the caller wins over the config)
     vae_ckpt = cfg.get("vae_checkpoint")
-    if vae_ckpt and not os.getenv("WINDINET_VAE_ADAPTER_CKPT"):
-        os.environ["WINDINET_VAE_ADAPTER_CKPT"] = ensure_checkpoint(vae_ckpt)
+    if vae_ckpt:
+        select_vae_env(ensure_checkpoint(vae_ckpt))
 
     # Build scalar conditioning config
     sc = cfg.get("scalar_conditioning", {})
