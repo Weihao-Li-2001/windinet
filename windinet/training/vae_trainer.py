@@ -92,6 +92,12 @@ class VaeTrainer:
         self._start_epoch = 1
         self._resume_global_step = 0
         self._resume_state: Optional[dict] = None
+        # Best-checkpoint tracking. Paths of the per-epoch checkpoints written so
+        # far, oldest first, for keep_last_n pruning.
+        self._best_metric_value = math.inf
+        self._best_epoch: int | None = None
+        self._best_ckpt_path: Path | None = None
+        self._checkpoint_paths: list[Path] = []
         self._print_config(config)
         self._setup_accelerator()
         self._load_vae()
@@ -414,8 +420,27 @@ class VaeTrainer:
         # partition stays reproducible across runs.
         split_generator = torch.Generator().manual_seed(cfg.seed)
         perm = torch.randperm(len(full_dataset), generator=split_generator).tolist()
-        train_set = Subset(full_dataset, perm[:n_train])
-        eval_set = Subset(full_dataset, perm[n_train:n_train + n_eval])
+        if cfg.data.overfit_sims is not None:
+            # Diagnostic mode: the same handful of sims for both loaders. val is
+            # then a memorization score, not a generalization score -- the point
+            # is to see how far reconstruction can go when generalization is not
+            # in the way. Taken from the head of the same shuffled perm, so these
+            # sims span gamma regimes rather than being one contiguous block.
+            k = min(cfg.data.overfit_sims, len(full_dataset))
+            repeat = cfg.data.overfit_repeat
+            # The train subset repeats the same k indices so one epoch holds
+            # `repeat` optimizer steps; eval sees each sim once.
+            train_set = Subset(full_dataset, perm[:k] * repeat)
+            eval_set = Subset(full_dataset, perm[:k])
+            n_train = n_eval = k
+            logger.warning(
+                f"OVERFIT DIAGNOSTIC: training and evaluating on the same {k} sims "
+                f"(repeated {repeat}x per epoch). val_vrmse measures memorization, "
+                "not generalization."
+            )
+        else:
+            train_set = Subset(full_dataset, perm[:n_train])
+            eval_set = Subset(full_dataset, perm[n_train:n_train + n_eval])
 
         train_loader = DataLoader(
             train_set,
@@ -475,25 +500,38 @@ class VaeTrainer:
         total_opt_steps = max(1, cfg.optimization.epochs * steps_per_epoch)
         warmup_steps = min(cfg.optimization.warmup_steps, total_opt_steps)
 
-        if warmup_steps > 0:
-            warmup = torch.optim.lr_scheduler.LinearLR(
-                optimizer,
-                start_factor=cfg.optimization.warmup_start_factor,
-                end_factor=1.0,
-                total_iters=warmup_steps,
-            )
-            cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer,
-                T_max=max(1, total_opt_steps - warmup_steps),
-                eta_min=cfg.optimization.min_learning_rate,
-            )
-            scheduler = torch.optim.lr_scheduler.SequentialLR(
-                optimizer, schedulers=[warmup, cosine], milestones=[warmup_steps],
-            )
-        else:
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=total_opt_steps, eta_min=cfg.optimization.min_learning_rate,
-            )
+        # One multiplicative LambdaLR for every param group. LambdaLR scales each
+        # group from its own initial_lr, so the adapter/decoder ratio is exact for
+        # the whole run. (CosineAnnealingLR's eta_min is an *absolute* floor shared
+        # by all groups: with base 5e-5 / adapter 5e-4 / eta_min 1e-6 both groups
+        # converge onto 1e-6 and the intended 10x silently becomes 1x by the end.)
+        sched_type = cfg.optimization.scheduler_type
+        floor = cfg.optimization.min_learning_rate / base_lr
+        decay_steps = max(1, total_opt_steps - warmup_steps)
+        if sched_type == "wsd":
+            stable_steps = int(round(decay_steps * cfg.optimization.stable_fraction))
+        elif sched_type == "constant":
+            stable_steps = decay_steps
+        else:  # cosine: decay immediately after warmup
+            stable_steps = 0
+        anneal_steps = max(1, decay_steps - stable_steps)
+
+        def lr_factor(step: int) -> float:
+            if step < warmup_steps:
+                w = cfg.optimization.warmup_start_factor
+                return w + (1.0 - w) * (step / max(1, warmup_steps))
+            t = step - warmup_steps
+            if t < stable_steps:
+                return 1.0
+            p = min(1.0, (t - stable_steps) / anneal_steps)
+            return floor + (1.0 - floor) * 0.5 * (1.0 + math.cos(math.pi * p))
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_factor)
+        logger.info(
+            f"LR schedule '{sched_type}': {total_opt_steps} steps "
+            f"({warmup_steps} warmup, {stable_steps} stable, {anneal_steps} anneal), "
+            f"peak {base_lr:.2e} -> floor {cfg.optimization.min_learning_rate:.2e}"
+        )
 
         # Restore optimizer/scheduler/loss-weights/RNG when resuming. Done after
         # both are built (load_state_dict needs the target objects) and after
@@ -748,14 +786,37 @@ class VaeTrainer:
                     if vis_cfg.enabled and epoch % vis_cfg.interval_epochs == 0:
                         self._save_visualization(eval_loader, device, epoch)
 
+                    monitored = (
+                        val_metrics["vrmse"]
+                        if cfg.checkpoints.best_metric == "val_vrmse"
+                        else val_metrics["total_loss"]
+                    )
+                    improved = monitored < self._best_metric_value
+                    if improved:
+                        self._best_metric_value = monitored
+                        self._best_epoch = epoch
+
                     if cfg.checkpoints.interval and epoch % cfg.checkpoints.interval == 0:
-                        saved_path = self._save_checkpoint(epoch, global_opt_step)
+                        saved_path = self._save_checkpoint(
+                            epoch, global_opt_step, improved=improved
+                        )
 
                 self._accelerator.wait_for_everyone()
 
-        # Final checkpoint
+        # Final checkpoint. improved=False so a last epoch that is worse than the
+        # best cannot overwrite the best weights; it still refreshes the rolling
+        # last/ pair. In per-epoch mode this is the usual unconditional save.
         if IS_MAIN_PROCESS:
-            saved_path = self._save_checkpoint(cfg.optimization.epochs, global_opt_step)
+            saved_path = self._save_checkpoint(
+                cfg.optimization.epochs,
+                global_opt_step,
+                improved=not cfg.checkpoints.save_best_only,
+            )
+            if cfg.checkpoints.save_best_only and self._best_epoch is not None:
+                logger.info(
+                    f"Best epoch: {self._best_epoch} "
+                    f"({cfg.checkpoints.best_metric}={self._best_metric_value:.6f})"
+                )
 
         if self._wandb_run is not None:
             self._wandb_run.finish()
@@ -855,7 +916,7 @@ class VaeTrainer:
     # Checkpointing (safetensors, compatible with load_adapted_vae)
     # ------------------------------------------------------------------
 
-    def _save_checkpoint(self, epoch: int, step: int) -> Path:
+    def _save_checkpoint(self, epoch: int, step: int, *, improved: bool = True) -> Path:
         save_dir = Path(self._config.output_dir) / "checkpoints"
         save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -906,15 +967,56 @@ class VaeTrainer:
             "step": str(step),
         }
 
-        filename = f"vae_shockwave_epoch{epoch:03d}.safetensors"
-        path = save_dir / filename
-        save_file(tensors, path, metadata=metadata)
-        logger.info(f"VAE checkpoint saved: {path.relative_to(self._config.output_dir)}")
+        ckpt_cfg = self._config.checkpoints
+        if not ckpt_cfg.save_best_only:
+            path = save_dir / f"vae_shockwave_epoch{epoch:03d}.safetensors"
+            save_file(tensors, path, metadata=metadata)
+            logger.info(f"VAE checkpoint saved: {path.relative_to(self._config.output_dir)}")
+            self._save_training_state(self._state_file_for(path), epoch, step)
+            # train() saves a final checkpoint for the last epoch on top of that
+            # epoch's own save, so the same path can arrive here twice.
+            if path not in self._checkpoint_paths:
+                self._checkpoint_paths.append(path)
+            self._prune_checkpoints()
+            return path
 
-        self._save_training_state(path, epoch, step)
-        return path
+        # save_best_only: two fixed slots instead of one pair per epoch.
+        #   best/ -- weights only, replaced when the monitored metric improves.
+        #   last/ -- weights + optimizer state, replaced every time, so a resume
+        #            always pairs weights with the moments that produced them.
+        if improved:
+            best_path = save_dir / "vae_shockwave_best.safetensors"
+            save_file(tensors, best_path, metadata={**metadata, "best_metric": ckpt_cfg.best_metric})
+            self._best_ckpt_path = best_path
+            logger.info(
+                f"New best checkpoint (epoch {epoch}, {ckpt_cfg.best_metric}="
+                f"{self._best_metric_value:.6f}): {best_path.relative_to(self._config.output_dir)}"
+            )
 
-    def _save_training_state(self, ckpt_path: Path, epoch: int, step: int) -> Path:
+        if ckpt_cfg.save_last_state:
+            last_path = save_dir / "vae_shockwave_last.safetensors"
+            save_file(tensors, last_path, metadata=metadata)
+            self._save_training_state(self._state_file_for(last_path), epoch, step)
+
+        # Return the best weights when we have them: that is what downstream
+        # (inference, DiT latent re-encoding) should consume.
+        return self._best_ckpt_path or (save_dir / "vae_shockwave_last.safetensors")
+
+    def _prune_checkpoints(self) -> None:
+        """Delete all but the newest keep_last_n per-epoch checkpoints."""
+        keep = self._config.checkpoints.keep_last_n
+        if not (0 < keep < len(self._checkpoint_paths)):
+            return
+        for stale in self._checkpoint_paths[:-keep]:
+            for f in (stale, self._state_file_for(stale)):
+                try:
+                    f.unlink(missing_ok=True)
+                except OSError as e:  # a missing file is fine; anything else is worth seeing
+                    logger.warning(f"Could not remove stale checkpoint {f}: {e}")
+            logger.info(f"Pruned old checkpoint: {stale.name} (keep_last_n={keep})")
+        self._checkpoint_paths = self._checkpoint_paths[-keep:]
+
+    def _save_training_state(self, state_path: Path, epoch: int, step: int) -> Path:
         """Persist optimizer/scheduler/loss-weights/RNG next to the model checkpoint.
 
         Written as ``<stem>.state.pt`` alongside the safetensors so that
@@ -926,7 +1028,6 @@ class VaeTrainer:
 
         import numpy as np
 
-        state_path = self._state_file_for(ckpt_path)
         rng = {
             "python": random.getstate(),
             "numpy": np.random.get_state(),

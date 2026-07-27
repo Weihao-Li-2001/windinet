@@ -1,0 +1,152 @@
+# CAPACITY DIAGNOSTIC -- overfit 8 simulations. Not a training run.
+#
+# THE QUESTION: the full-data runs plateau at val_vrmse ~0.105. Is that because
+#   (a) the information is not in the latent -- the frozen encoder's 32x spatial
+#       compression puts a 128x128 field into a 4x4x128 grid, 240:1 overall -- or
+#   (b) the information IS there and the L2-family objective averages it away,
+#       plus 1200 steps was not enough training?
+#
+# Both produce the same flat curve on the full dataset, so no amount of longer
+# training on 3825 sims can separate them.
+#
+# THE TEST: train and evaluate on the SAME 8 sims. Generalization is removed
+# entirely, so whatever VRMSE this reaches is the reconstruction floor for these
+# exact samples given a frozen encoder. 553M trainable parameters against 8
+# samples is a memorization task; if it cannot memorize them, no loss function
+# and no schedule will fix it.
+#
+# HOW TO READ THE RESULT (val_vrmse == train reconstruction here, by design):
+#
+#   <= 0.03   The latent carries the information. The 0.105 on full data is a
+#             loss-function / training-budget problem. -> spectral or adversarial
+#             term to stop L2 averaging the small scales away, and more steps.
+#
+#   ~0.05-0.08  Partial. Some headroom from the objective, but the latent is
+#             already straining. Do both: better loss AND more latent budget.
+#
+#   >= 0.09   The information never reaches the decoder. Loss surgery is wasted
+#             effort; the fix is latent budget -- feed 256x256 (latent 4x4 ->
+#             8x8, 4x capacity) or 512x512 (16x16, 16x), or drop an encoder
+#             downsample stage. Note this also multiplies DiT token count
+#             (224 -> 896 -> 3584).
+#
+# For reference, the ideal band-limited VRMSE floors measured on this dataset:
+# 32x32 cutoff = 0.165, 64x64 = 0.089, i.e. the current model behaves like a
+# ~56x56 Fourier truncation.
+#
+# STEP MATH (1 GPU): 8 sims x 5 repeats = 40 samples/epoch, accum 1 -> 40
+# optimizer steps/epoch. 25 epochs = 1000 steps, ~32 min. Validation runs once
+# per epoch -> 25 points on the curve.
+#
+# ONE GPU IS DELIBERATE. Memorization needs update COUNT, not batch size. A
+# full-batch variant (4 GPUs, accum 2, all 8 sims per step) costs 8000 sim
+# forward+backwards for the same 1000 steps -- 8x the compute and 2x the wall
+# clock -- and buys only a less noisy gradient, which is worthless when the
+# question is "can it fit at all". Leaving 3 GPUs free for the LR scan.
+#
+# Usage (1 GPU, ~32 min):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/overfit8.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Taken from the head of the same seed-42 shuffle used by every other run, so
+  # these 8 span gamma regimes (1.13 / 1.30 / 1.365 / 1.40 / 1.453 x3 / 1.597)
+  # instead of being one contiguous gamma block.
+  overfit_sims: 8
+  # 5 x 8 = 40 optimizer steps per epoch, so validation (which runs once per
+  # epoch over all 8 sims) costs ~7% of the runtime instead of dominating it.
+  overfit_repeat: 5
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  # Higher than any real run on purpose. Generalization does not exist here, so
+  # there is nothing to regularize and a low LR would only confound "cannot fit"
+  # with "not trained enough" -- the exact ambiguity this run exists to remove.
+  learning_rate: 2e-4
+  adapter_lr_multiplier: 10.0
+  min_learning_rate: 1e-6
+  # Constant: a decaying LR would flatten the curve on its own and reintroduce
+  # the ambiguity.
+  scheduler_type: "constant"
+  epochs: 25
+  batch_size: 1
+  # 1, not 2: one optimizer step per sim. See STEP MATH above.
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  # Same weights as the vae_inflate4_more run so the VRMSE here is on the same
+  # footing as the 0.105 it is being compared against.
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 25.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  # Every 5 epochs (200 steps). The images are the real payload here: if VRMSE
+  # stalls, whether the residual still holds coherent vortex structure or has
+  # gone to noise says which of the two explanations is right.
+  interval_epochs: 5
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # Every 5 epochs, not every epoch: a save writes 2.1 GB and would dominate a
+  # run whose epochs are only ~75 s.
+  interval: 5
+  save_best_only: true
+  best_metric: "val_vrmse"
+  # No resume needed for a one-hour throwaway diagnostic; skipping the optimizer
+  # state keeps this to a single 2.1 GB file.
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit"]
+
+seed: 42
+output_dir: "outputs/vae_overfit8"
+clean_output_dir: true

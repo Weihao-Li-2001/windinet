@@ -178,6 +178,31 @@ class CheckpointsConfig(ConfigBaseModel):
 
     interval: int | None = Field(default=None, gt=0)
     keep_last_n: int = Field(default=1, ge=-1)
+    save_best_only: bool = Field(
+        default=False,
+        description=(
+            "Keep a constant amount of disk instead of one checkpoint per epoch. Writes "
+            "vae_shockwave_best.safetensors (overwritten only when best_metric improves) "
+            "plus a rolling vae_shockwave_last.{safetensors,state.pt} pair for resuming. "
+            "The 'best' weights carry no optimizer state on purpose: pairing best-epoch "
+            "weights with last-epoch optimizer moments would silently corrupt a resume."
+        ),
+    )
+    best_metric: Literal["val_total_loss", "val_vrmse"] = Field(
+        default="val_total_loss",
+        description=(
+            "Metric that decides 'best' (lower is better). val_total_loss depends on the "
+            "configured loss weights and so is not comparable across runs that weight the "
+            "terms differently; val_vrmse is weight-independent."
+        ),
+    )
+    save_last_state: bool = Field(
+        default=True,
+        description=(
+            "save_best_only mode: also keep the rolling last/ pair so the run can resume. "
+            "Set false to keep only the best weights (no resume possible)."
+        ),
+    )
 
 
 class WandbConfig(ConfigBaseModel):
@@ -218,6 +243,25 @@ class VaeDataConfig(ConfigBaseModel):
     eval_sims: int = Field(default=10, description="Number of simulations held out for VRMSE evaluation")
     num_dataloader_workers: int = Field(default=4, ge=0)
     num_sim_frames: int | None = Field(default=None, ge=1, description="Optional frame limit for debugging")
+    overfit_sims: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Diagnostic: train AND evaluate on the same first N simulations, ignoring "
+            "eval_sims. Generalization is removed from the picture, so the VRMSE this "
+            "reaches is the reconstruction floor imposed by the frozen encoder's latent "
+            "for these exact samples. Never use for a real run."
+        ),
+    )
+    overfit_repeat: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "overfit_sims only: how many times the subset is repeated per epoch. Sets the "
+            "optimizer steps per epoch, since validation runs once per epoch and would "
+            "otherwise dominate the runtime of a tiny training set."
+        ),
+    )
     channel_mean: list[float] = Field(description="Per-channel training-set means")
     channel_std: list[float] = Field(description="Per-channel training-set standard deviations")
     normalization_clip: float = Field(
@@ -244,7 +288,30 @@ class VaeOptimizationConfig(ConfigBaseModel):
         gt=0.0,
         description="Adapter LR = learning_rate * this. >1 trains the in/out adapters faster than the decoder.",
     )
-    min_learning_rate: float = Field(default=1e-6, description="Minimum LR for cosine annealing")
+    min_learning_rate: float = Field(
+        default=1e-6,
+        description=(
+            "LR floor for the decoder group at the end of decay. Applied as the ratio "
+            "min_learning_rate/learning_rate to every param group, so the "
+            "adapter_lr_multiplier ratio is preserved for the whole schedule."
+        ),
+    )
+    scheduler_type: Literal["cosine", "wsd", "constant"] = Field(
+        default="cosine",
+        description=(
+            "LR schedule after warmup. 'cosine' anneals to the floor over the whole run. "
+            "'wsd' holds the peak LR for stable_fraction of the post-warmup steps, then "
+            "cosine-anneals to the floor -- a flat val curve during the stable phase is "
+            "evidence of a real plateau rather than an exhausted schedule. 'constant' "
+            "never decays."
+        ),
+    )
+    stable_fraction: float = Field(
+        default=0.7,
+        gt=0.0,
+        le=1.0,
+        description="wsd only: fraction of post-warmup steps held at peak LR before decay.",
+    )
     epochs: int = Field(default=10)
     batch_size: int = Field(default=1)
     gradient_accumulation_steps: int = Field(default=32)
