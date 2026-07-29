@@ -38,6 +38,7 @@ from windinet.training.shockwave_data import (
     load_channel_normalization,
     normalize_fields,
 )
+from windinet.utils import get_default_device
 from windinet.training.vae_visualization import denormalize_fields
 from windinet.vae_adapter import latent_space_fingerprint
 
@@ -186,7 +187,7 @@ def main():
     args = parse_args()
     cfg = load_config(args)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_default_device()
 
     model_source = cfg.get("model_source", "LTXV_2B_0.9.6_DEV")
     checkpoint = ensure_checkpoint(cfg["checkpoint"])
@@ -264,7 +265,7 @@ def main():
         prompt_mask = torch.ones(1, prompt_embeds.shape[1], device=device, dtype=torch.long)
 
         g = torch.Generator(device=device).manual_seed(seed + i)
-        with autocast(device.type, dtype=DTYPE, enabled=(device.type == "cuda")):
+        with autocast(device.type, dtype=DTYPE, enabled=(device.type in ("cuda", "xpu"))):
             out = pipe(
                 prompt=None, negative_prompt=None,
                 video=cond_video, frame_index=0, strength=1.0,
@@ -304,6 +305,8 @@ def main():
 
         if device.type == "cuda":
             torch.cuda.empty_cache()
+        elif device.type == "xpu":
+            torch.xpu.empty_cache()
 
     print(f"\nDone! {len(indices)} .npz files -> {args.out_dir}")
 

@@ -29,7 +29,7 @@ from torchvision.transforms import InterpolationMode
 from torchvision.transforms.functional import crop, resize, to_tensor
 from transformers.utils.logging import disable_progress_bar
 
-from windinet.utils import logger, open_image_as_srgb
+from windinet.utils import get_default_device, logger, open_image_as_srgb
 from windinet.ltxv_utils import encode_video
 from windinet.inference.model_loader import LtxvModelVersion, load_vae
 
@@ -328,7 +328,7 @@ def compute_video_latents(
     main_media_column: str | None = None,
     reshape_mode: str = "center",
     batch_size: int = 1,
-    device: str = "cuda",
+    device: str = str(get_default_device()),
     vae_tiling: bool = False,
 ) -> None:
     """
@@ -474,7 +474,7 @@ def main(
         help="Batch size for processing",
     ),
     device: str = typer.Option(
-        default="cuda",
+        default=str(get_default_device()),
         help="Device to use for computation",
     ),
     vae_tiling: bool = typer.Option(

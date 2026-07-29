@@ -16,24 +16,39 @@ from PIL.Image import Image as PilImage
 from safetensors.torch import load_file, save_file
 
 
+def get_default_device() -> torch.device:
+    """Pick the best available accelerator: Intel XPU > NVIDIA CUDA > CPU."""
+    if hasattr(torch, "xpu") and torch.xpu.is_available():
+        return torch.device("xpu")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
 def get_gpu_memory_gb(device: torch.device) -> float:
-    """Get current GPU memory usage in GB using nvidia-smi."""
-    try:
-        device_id = device.index if device.index is not None else 0
-        result = subprocess.check_output(
-            [
-                "nvidia-smi",
-                "--query-gpu=memory.used",
-                "--format=csv,nounits,noheader",
-                "-i",
-                str(device_id),
-            ],
-            encoding="utf-8",
-        )
-        return float(result.strip()) / 1024
-    except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as e:
-        logger.error(f"Failed to get GPU memory from nvidia-smi: {e}")
-        return torch.cuda.memory_allocated(device) / 1024**3
+    """Get current GPU memory usage in GB."""
+    if device.type == "xpu":
+        return torch.xpu.memory_allocated(device) / 1024**3
+
+    if device.type == "cuda":
+        try:
+            device_id = device.index if device.index is not None else 0
+            result = subprocess.check_output(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=memory.used",
+                    "--format=csv,nounits,noheader",
+                    "-i",
+                    str(device_id),
+                ],
+                encoding="utf-8",
+            )
+            return float(result.strip()) / 1024
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as e:
+            logger.error(f"Failed to get GPU memory from nvidia-smi: {e}")
+            return torch.cuda.memory_allocated(device) / 1024**3
+
+    return 0.0
 
 
 def open_image_as_srgb(image_path: str | Path | io.BytesIO) -> PilImage:

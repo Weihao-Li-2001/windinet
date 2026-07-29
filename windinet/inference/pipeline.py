@@ -53,7 +53,7 @@ EXAMPLE_DOC_STRING = """
         >>> from diffusers.utils import export_to_video, load_video, load_image
 
         >>> pipe = LTXConditionPipeline.from_pretrained("Lightricks/LTX-Video-0.9.5", torch_dtype=torch.bfloat16)
-        >>> pipe.to("cuda")
+        >>> pipe.to("xpu")
 
         >>> # Load input image and video
         >>> video = load_video(
@@ -77,7 +77,7 @@ EXAMPLE_DOC_STRING = """
         >>> negative_prompt = "worst quality, inconsistent motion, blurry, jittery, distorted"
 
         >>> # Generate video
-        >>> generator = torch.Generator("cuda").manual_seed(0)
+        >>> generator = torch.Generator("xpu").manual_seed(0)
         >>> # Text-only conditioning is also supported without the need to pass `conditions`
         >>> video = pipe(
         ...     conditions=[condition1, condition2],

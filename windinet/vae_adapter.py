@@ -15,6 +15,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from windinet.utils import get_default_device
+
 
 def _get_activation(name: str) -> nn.Module:
     name = name.lower()
@@ -418,7 +420,7 @@ def _load_pt_vae(ckpt_path: str | Path):
 def load_adapted_vae(
     vae,
     ckpt_path: str | Path | None = None,
-    device: str = "cuda",
+    device: str = str(get_default_device()),
     dtype: torch.dtype = torch.float32,
     *,
     channels: list[str] | None = None,

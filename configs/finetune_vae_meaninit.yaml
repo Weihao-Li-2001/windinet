@@ -35,9 +35,13 @@
 # starting point than every previous checkpoint. Latents from
 # preprocess_dataset.py must be re-encoded before any DiT training on this VAE.
 #
-# Usage (4 GPUs):
-#   accelerate launch --num_processes 4 scripts/finetune_vae.py \
-#       configs/finetune_vae_meaninit.yaml
+# Usage:
+#   lundquist (4 NVIDIA GPUs):
+#     accelerate launch --num_processes 4 scripts/finetune_vae.py \
+#         configs/finetune_vae_meaninit.yaml
+#   sng_pvc (8 Intel XPU tiles):
+#     accelerate launch --num_processes 8 scripts/finetune_vae.py \
+#         configs/finetune_vae_meaninit.yaml
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -58,7 +62,7 @@ resume_from: null
 resume_weights_only: false
 
 data:
-  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  data_root: "/dss/dsshome1/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5"
   channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
   channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
   normalization_clip: 5.0
@@ -77,7 +81,11 @@ optimization:
   scheduler_type: "cosine"
   epochs: 10
   batch_size: 1
-  gradient_accumulation_steps: 8
+  # Effective batch = batch_size * gradient_accumulation_steps * num_gpus.
+  # 8 on lundquist (bs=1, grad_acc=8, 4 GPUs) = 32. On sng_pvc with all 8 XPU
+  # tiles (--num_processes 8), halve grad_acc to 4 to keep the same effective
+  # batch and match the baseline's training dynamics.
+  gradient_accumulation_steps: 4
   max_grad_norm: 5.0
   weight_decay: 0.0
   # 50, not the 100 the lrscan configs used -- matching the baseline matters

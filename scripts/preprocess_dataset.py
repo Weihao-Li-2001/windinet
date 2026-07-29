@@ -70,7 +70,7 @@ from windinet.training.shockwave_data import (
     load_channel_normalization,
 )
 
-from windinet.utils import logger
+from windinet.utils import get_default_device, logger
 
 console = Console()
 app = typer.Typer(pretty_exceptions_enable=False, no_args_is_help=True)
@@ -131,7 +131,7 @@ def main(
     #     default=112,
     #     help="Number of simulation frames to use (112 + 1 conditioning = 113 total)",
     # ),
-    device: str = typer.Option(default="cuda", help="Device for VAE encoding"),
+    device: str = typer.Option(default=str(get_default_device()), help="Device for VAE encoding"),
     max_samples: int = typer.Option(default=0, help="Limit number of samples (0 = all)"),
     inflate_checkpoint: str = typer.Option(
         default=None,
@@ -334,6 +334,8 @@ def main(
 
             if device == "cuda":
                 torch.cuda.empty_cache()
+            elif device == "xpu":
+                torch.xpu.empty_cache()
 
     # Record the partition so the val set is auditable and can be reproduced
     # (or intersected with the VAE's) without re-deriving the permutation.

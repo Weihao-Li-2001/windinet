@@ -330,6 +330,8 @@ class VaeTrainer:
                 torch.set_rng_state(rng["torch"])
             if rng.get("cuda") is not None and torch.cuda.is_available():
                 torch.cuda.set_rng_state_all(rng["cuda"])
+            if rng.get("xpu") is not None and hasattr(torch, "xpu") and torch.xpu.is_available():
+                torch.xpu.set_rng_state_all(rng["xpu"])
         logger.info("Restored optimizer, scheduler, loss weights, and RNG state.")
 
     def _set_trainable_modules_mode(self, training: bool) -> None:
@@ -1033,6 +1035,9 @@ class VaeTrainer:
             "numpy": np.random.get_state(),
             "torch": torch.get_rng_state(),
             "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+            "xpu": torch.xpu.get_rng_state_all()
+            if hasattr(torch, "xpu") and torch.xpu.is_available()
+            else None,
         }
         # Loss weighters expose no state_dict; snapshot their mutable attributes.
         loss_weighter_state = dict(getattr(self.loss_weighter, "__dict__", {}))

@@ -937,7 +937,12 @@ class LtxvTrainer:
 
         py_rng_state = random.getstate()
         cpu_rng_state = torch.get_rng_state()
-        cuda_rng_state = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+        if device.type == "cuda":
+            accel_rng_state = torch.cuda.get_rng_state_all()
+        elif device.type == "xpu":
+            accel_rng_state = torch.xpu.get_rng_state_all()
+        else:
+            accel_rng_state = None
         random.seed(self._config.seed)
         torch.manual_seed(self._config.seed)
 
@@ -974,8 +979,11 @@ class LtxvTrainer:
             transformer.train()
             random.setstate(py_rng_state)
             torch.set_rng_state(cpu_rng_state)
-            if cuda_rng_state is not None:
-                torch.cuda.set_rng_state_all(cuda_rng_state)
+            if accel_rng_state is not None:
+                if device.type == "cuda":
+                    torch.cuda.set_rng_state_all(accel_rng_state)
+                elif device.type == "xpu":
+                    torch.xpu.set_rng_state_all(accel_rng_state)
 
         return total_loss / seen if seen else None
 
