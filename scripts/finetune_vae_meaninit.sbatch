@@ -53,6 +53,12 @@ export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline   # or WANDB_DISABLED=true
 export TOKENIZERS_PARALLELISM=false
 
+# 8 processes x num_dataloader_workers=4 all open train.h5 concurrently.
+# HDF5's file locking is unreliable on network filesystems like DSS/Lustre and
+# throws "Unable to synchronously open object (can't open file)" under this
+# much concurrent access -- disable it.
+export HDF5_USE_FILE_LOCKING=FALSE
+
 # gradient_accumulation_steps=4 in the config is already tuned for
 # num_processes=8 (effective batch = batch_size 1 * grad_acc 4 * 8 = 32,
 # matching the 4-GPU lundquist baseline). RE-DERIVE IT IF YOU CHANGE NUM_XPUS.
