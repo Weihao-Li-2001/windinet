@@ -17,6 +17,7 @@ Returns physical fields for LTX preprocessing.
 """
 
 import json
+import time
 from pathlib import Path
 
 import h5py
@@ -57,13 +58,12 @@ class ShockWaveDataset(Dataset):
         num_sim_frames: int | None = None,
     ):
         self.h5_path = Path(h5_path)
+        self.file = None
 
         if not self.h5_path.is_file():
             raise FileNotFoundError(f"Shockwave HDF5 file not found: {self.h5_path}")
 
-        self.file = None
-
-        with h5py.File(self.h5_path, "r") as f:
+        with self._open(self.h5_path) as f:
             self.ids = sorted(list(f.keys()))
 
         self.num_sim_frames = num_sim_frames
@@ -73,17 +73,66 @@ class ShockWaveDataset(Dataset):
         return len(self.ids)
 
 
+    @staticmethod
+    def _open(path: Path, retries: int = 5) -> h5py.File:
+        """
+        Open the HDF5 file, retrying with backoff.
+
+        On network filesystems (e.g. LRZ DSS), many worker processes opening
+        the same file within the same instant can transiently fail with
+        "Unable to synchronously open object" even with HDF5 file locking
+        disabled -- this showed up running 8-rank x 4-worker distributed
+        training but never in a single-process run. Retrying with backoff
+        rides out the transient failures; ``locking=False`` avoids HDF5's own
+        locking, which network filesystems often don't honor correctly.
+        """
+        for attempt in range(retries):
+            try:
+                try:
+                    return h5py.File(path, "r", locking=False)
+                except TypeError:
+                    # Installed h5py/libhdf5 too old to support the `locking` kwarg.
+                    return h5py.File(path, "r")
+            except OSError:
+                if attempt == retries - 1:
+                    raise
+                time.sleep(0.5 * (2 ** attempt))
+        raise AssertionError("unreachable")
+
     def _init_file(self):
         """
         Lazy open h5 file.
         Important for DataLoader workers.
         """
         if self.file is None:
-            self.file = h5py.File(self.h5_path, "r")
+            self.file = self._open(self.h5_path)
 
     def __del__(self):
         if self.file is not None:
             self.file.close()
+
+    def _get_group(self, sid: str, retries: int = 5):
+        """
+        Look up one simulation's group, retrying with a fresh file handle.
+
+        Under 8-rank x 4-worker distributed training (32 processes hitting
+        the same file on LRZ DSS), `self.file[sid]` has been observed to
+        transiently fail with "Unable to synchronously open object (can't
+        open file)" even though `self.file` itself opened fine -- this never
+        happens in a single-process run, so it looks like contention on the
+        network filesystem rather than a real missing key. Retry with a
+        freshly reopened handle rather than trusting the stale one.
+        """
+        for attempt in range(retries):
+            try:
+                return self.file[sid]
+            except KeyError:
+                if attempt == retries - 1:
+                    raise
+                time.sleep(0.5 * (2 ** attempt))
+                self.file.close()
+                self.file = self._open(self.h5_path)
+        raise AssertionError("unreachable")
 
     def __getitem__(self, idx):
 
@@ -91,7 +140,7 @@ class ShockWaveDataset(Dataset):
 
         sid = self.ids[idx]
 
-        sample = self.file[sid]
+        sample = self._get_group(sid)
 
 
         density = torch.from_numpy(
