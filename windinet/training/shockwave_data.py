@@ -17,6 +17,8 @@ Returns physical fields for LTX preprocessing.
 """
 
 import json
+import os
+import random
 import time
 from pathlib import Path
 
@@ -63,6 +65,7 @@ class ShockWaveDataset(Dataset):
         if not self.h5_path.is_file():
             raise FileNotFoundError(f"Shockwave HDF5 file not found: {self.h5_path}")
 
+        time.sleep(self._rank_stagger_delay())
         with self._open(self.h5_path) as f:
             self.ids = sorted(list(f.keys()))
 
@@ -74,7 +77,37 @@ class ShockWaveDataset(Dataset):
 
 
     @staticmethod
-    def _open(path: Path, retries: int = 5) -> h5py.File:
+    def _rank_stagger_delay(spread: float = 0.3) -> float:
+        """
+        Per-rank delay to spread out each process's first file access.
+
+        Every rank in a distributed run reaches its first HDF5 access at
+        nearly the same wall-clock instant (dataset construction, then the
+        first `__getitem__`), so without this, all ranks hit the network
+        filesystem in the same burst regardless of the retry jitter in
+        `_backoff_sleep` -- that only helps *after* a collision has already
+        happened. Staggering by rank spreads the initial burst out
+        preemptively. Falls back to 0 outside a distributed run.
+        """
+        rank = int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0")))
+        return rank * spread
+
+    @staticmethod
+    def _backoff_sleep(attempt: int) -> None:
+        """
+        Sleep with exponential backoff plus random jitter.
+
+        All ranks in a distributed run hit the dataset near-simultaneously
+        (e.g. all fetching the first batch at once), so a fixed backoff
+        schedule with no jitter has every rank retry in lockstep -- they
+        keep re-colliding on the network filesystem at the same instants
+        instead of spreading out. The jitter desynchronizes them.
+        """
+        base = 0.5 * (2 ** attempt)
+        time.sleep(base + random.uniform(0, base))
+
+    @staticmethod
+    def _open(path: Path, retries: int = 8) -> h5py.File:
         """
         Open the HDF5 file, retrying with backoff.
 
@@ -96,7 +129,7 @@ class ShockWaveDataset(Dataset):
             except OSError:
                 if attempt == retries - 1:
                     raise
-                time.sleep(0.5 * (2 ** attempt))
+                ShockWaveDataset._backoff_sleep(attempt)
         raise AssertionError("unreachable")
 
     def _init_file(self):
@@ -105,23 +138,24 @@ class ShockWaveDataset(Dataset):
         Important for DataLoader workers.
         """
         if self.file is None:
+            time.sleep(self._rank_stagger_delay())
             self.file = self._open(self.h5_path)
 
     def __del__(self):
         if self.file is not None:
             self.file.close()
 
-    def _get_group(self, sid: str, retries: int = 5):
+    def _get_group(self, sid: str, retries: int = 8):
         """
         Look up one simulation's group, retrying with a fresh file handle.
 
-        Under 8-rank x 4-worker distributed training (32 processes hitting
-        the same file on LRZ DSS), `self.file[sid]` has been observed to
-        transiently fail with "Unable to synchronously open object (can't
-        open file)" even though `self.file` itself opened fine -- this never
-        happens in a single-process run, so it looks like contention on the
-        network filesystem rather than a real missing key. Retry with a
-        freshly reopened handle rather than trusting the stale one.
+        Under multi-rank distributed training, `self.file[sid]` has been
+        observed to transiently fail with "Unable to synchronously open
+        object (can't open file)" even though `self.file` itself opened fine
+        -- this never happens in a single-process run, so it looks like
+        contention on the network filesystem rather than a real missing key.
+        Retry with a freshly reopened handle rather than trusting the stale
+        one. See `_backoff_sleep` for why the retries are jittered.
         """
         for attempt in range(retries):
             try:
@@ -129,7 +163,7 @@ class ShockWaveDataset(Dataset):
             except KeyError:
                 if attempt == retries - 1:
                     raise
-                time.sleep(0.5 * (2 ** attempt))
+                self._backoff_sleep(attempt)
                 self.file.close()
                 self.file = self._open(self.h5_path)
         raise AssertionError("unreachable")

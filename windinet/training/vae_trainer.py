@@ -98,6 +98,7 @@ class VaeTrainer:
         self._best_epoch: int | None = None
         self._best_ckpt_path: Path | None = None
         self._checkpoint_paths: list[Path] = []
+        self._staged_dataset_dir: Optional[Path] = None
         self._print_config(config)
         self._setup_accelerator()
         self._load_vae()
@@ -404,8 +405,9 @@ class VaeTrainer:
         set_seed(cfg.seed)
 
         # Data
+        data_root = self._stage_dataset_locally(Path(cfg.data.data_root))
         full_dataset = ShockWaveDataset(
-            cfg.data.data_root,
+            data_root,
             num_sim_frames=cfg.data.num_sim_frames,
         )
         n_eval = min(cfg.data.eval_sims, len(full_dataset))
@@ -824,6 +826,7 @@ class VaeTrainer:
             self._wandb_run.finish()
 
         self._accelerator.end_training()
+        self._cleanup_staged_dataset()
         return saved_path
 
     @torch.no_grad()
@@ -1065,6 +1068,61 @@ class VaeTrainer:
             out.mkdir(parents=True, exist_ok=True)
         # Barrier so worker processes never touch the dir before it is ready.
         self._accelerator.wait_for_everyone()
+
+    def _stage_dataset_locally(self, data_root: Path) -> Path:
+        """
+        Copy the HDF5 dataset to node-local /dev/shm once, so only one
+        process per node reads it off the network filesystem and every rank
+        (including that one) reads its samples from RAM afterward instead of
+        hitting DSS/Lustre concurrently. This is what was crashing training
+        under 8-way concurrent access (see shockwave_data.py's retry/jitter,
+        which mitigates but doesn't eliminate the contention).
+
+        IS_MAIN_PROCESS is LOCAL_RANK == 0, i.e. one copier per node, so this
+        also does the right thing if --nodes is ever raised above 1.
+
+        Falls back to the original path if /dev/shm isn't usable (e.g. not
+        enough free space for the dataset) -- distributed access still has
+        the retry/jitter safety net, it just loses this extra layer.
+
+        No-op for single-process runs: there's no concurrent access to
+        protect against, so it's not worth the copy's startup cost.
+        """
+        if self._accelerator.num_processes == 1:
+            return data_root
+
+        staged_dir = Path("/dev/shm") / f"windinet_vae_{os.environ.get('SLURM_JOB_ID', 'local')}"
+        staged_path = staged_dir / data_root.name
+
+        if IS_MAIN_PROCESS:
+            try:
+                staged_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(data_root, staged_path)
+                logger.info(f"Staged dataset to {staged_path}")
+            except OSError as e:
+                logger.warning(
+                    f"Could not stage dataset to {staged_dir}, "
+                    f"falling back to {data_root}: {e}"
+                )
+                # copyfile can fail partway through (e.g. /dev/shm full),
+                # leaving a truncated file. Remove it so the is_file() check
+                # below can't mistake it for a successful stage.
+                staged_path.unlink(missing_ok=True)
+        # Barrier so other ranks never read the staged file before the copy
+        # finishes (or don't exist at all, if the copy failed).
+        self._accelerator.wait_for_everyone()
+
+        if staged_path.is_file():
+            self._staged_dataset_dir = staged_dir
+            return staged_path
+        return data_root
+
+    def _cleanup_staged_dataset(self) -> None:
+        """Remove the /dev/shm dataset copy so it doesn't linger and eat node RAM."""
+        if self._staged_dataset_dir is not None:
+            self._accelerator.wait_for_everyone()
+            if IS_MAIN_PROCESS:
+                shutil.rmtree(self._staged_dataset_dir, ignore_errors=True)
 
     # ------------------------------------------------------------------
     # Accelerator, wandb, config printing
