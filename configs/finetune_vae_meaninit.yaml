@@ -70,7 +70,9 @@ data:
   # Same 675 eval sims as the baseline (same seed + randperm), so val_vrmse is
   # measured on exactly the same simulations.
   eval_sims: 675
-  num_dataloader_workers: 4
+  # 0 on sng_pvc: 8 ranks x N workers all opening train.h5 concurrently on the
+  # DSS network filesystem was triggering transient open failures at N=4.
+  num_dataloader_workers: 0
 
 optimization:
   # Back to the inflate_more peak: the last LR that trained stably here.
