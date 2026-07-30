@@ -205,8 +205,18 @@ class ShockWaveDataset(Dataset):
                 except Exception as e:
                     print(f"[ShockWaveDataset DEBUG] fresh-handle probe FAILED for {probe_id}: {e!r}", flush=True)
 
-            for sid in self._prewarm_ids:
-                self._get_group(sid)
+            is_rank0 = int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0"))) == 0
+            for i, sid in enumerate(self._prewarm_ids):
+                if is_rank0:
+                    print(f"[ShockWaveDataset DEBUG] prewarming target {i+1}/{len(self._prewarm_ids)}: {sid}", flush=True)
+                try:
+                    self._get_group(sid)
+                except Exception:
+                    if is_rank0:
+                        print(f"[ShockWaveDataset DEBUG] prewarm FAILED on target {i+1}/{len(self._prewarm_ids)}: {sid}", flush=True)
+                    raise
+                if is_rank0:
+                    print(f"[ShockWaveDataset DEBUG] prewarming target {i+1}/{len(self._prewarm_ids)}: {sid} OK", flush=True)
 
     def __del__(self):
         if self.file is not None:
