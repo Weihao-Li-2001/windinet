@@ -187,6 +187,24 @@ class ShockWaveDataset(Dataset):
         if self.file is None:
             time.sleep(self._rank_stagger_delay())
             self.file = self._open(self.h5_path)
+
+            # DEBUG: does a brand-new h5py.File opened right here, inside the
+            # live (already accelerate/torch/XPU-initialized) process, also
+            # fail to resolve the same external link that every standalone
+            # `python3 -c` repro outside this process has resolved fine?
+            # Distinguishes "something wrong with this Dataset's file handle"
+            # from "something about this process's state at this point breaks
+            # HDF5 external-link resolution regardless of which handle is used".
+            if int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0"))) == 0 and self._prewarm_ids:
+                probe_id = self._prewarm_ids[0]
+                try:
+                    probe_file = h5py.File(self.h5_path, "r", locking=False)
+                    _ = probe_file[probe_id]
+                    print(f"[ShockWaveDataset DEBUG] fresh-handle probe OK for {probe_id}", flush=True)
+                    probe_file.close()
+                except Exception as e:
+                    print(f"[ShockWaveDataset DEBUG] fresh-handle probe FAILED for {probe_id}: {e!r}", flush=True)
+
             for sid in self._prewarm_ids:
                 self._get_group(sid)
 
