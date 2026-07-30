@@ -86,6 +86,16 @@ LOCAL_H5="$LOCAL_SCRATCH/$(basename "$REMOTE_H5")"
 echo "Staging dataset on node-local scratch: $REMOTE_H5 -> $LOCAL_H5"
 cp "$REMOTE_H5" "$LOCAL_H5"
 
+# Fail fast, before burning a GPU allocation, if the copy silently truncated
+# instead of surfacing as a cryptic h5py error deep inside training.
+REMOTE_SIZE=$(stat -c%s "$REMOTE_H5")
+LOCAL_SIZE=$(stat -c%s "$LOCAL_H5")
+echo "Remote size: $REMOTE_SIZE bytes | Local size: $LOCAL_SIZE bytes"
+if [ "$REMOTE_SIZE" != "$LOCAL_SIZE" ]; then
+    echo "ERROR: staged copy size ($LOCAL_SIZE) != source size ($REMOTE_SIZE) -- aborting." >&2
+    exit 1
+fi
+
 LOCAL_CONFIG="$LOCAL_SCRATCH/finetune_vae_meaninit.local.yaml"
 python - "$CONFIG_SRC" "$LOCAL_H5" "$LOCAL_CONFIG" <<'PY'
 import sys, yaml

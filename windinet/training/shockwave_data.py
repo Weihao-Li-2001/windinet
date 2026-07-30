@@ -69,6 +69,15 @@ class ShockWaveDataset(Dataset):
         with self._open(self.h5_path) as f:
             self.ids = sorted(list(f.keys()))
 
+            # DEBUG: prove which file is actually being read, not just what the
+            # config claims. Rank0 only to avoid 8x duplicate spam.
+            if int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0"))) == 0:
+                real_path = os.path.realpath(self.h5_path)
+                print(f"[ShockWaveDataset DEBUG] h5_path        = {self.h5_path}", flush=True)
+                print(f"[ShockWaveDataset DEBUG] realpath        = {real_path}", flush=True)
+                print(f"[ShockWaveDataset DEBUG] st_size (bytes) = {os.stat(self.h5_path).st_size}", flush=True)
+                print(f"[ShockWaveDataset DEBUG] first 5 keys    = {self.ids[:5]}", flush=True)
+
         self.num_sim_frames = num_sim_frames
 
 
