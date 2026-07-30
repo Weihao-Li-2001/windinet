@@ -1,0 +1,151 @@
+# Shockwave VAE -- mean init, wsd15 schedule (job 21623's exact recipe). ONE
+# variable changed against configs/finetune_vae_meaninit_wsd15.yaml:
+# loss_weighting.weights.h1  25.0 -> 50.0.
+#
+# WHY: job 21623 (that config's run) is the best VAE checkpoint so far (epoch 15
+# val_vrmse 0.094886), but its validation residual maps show a specific, non-
+# random failure mode: density and momentum_x residuals concentrate almost
+# entirely along vortex boundaries / shock interfaces, while smooth regions
+# reconstruct cleanly (outputs/vae_meaninit_wsd15_4gpu/visualizations/epoch_0015,
+# sample 1859_gamma1.365, frame 100). That is exactly what the H1 seminorm loss
+# penalizes -- ||grad(pred) - grad(target)||^2, see windinet/losses/h1_semi_norm.py
+# -- so it is the most targeted lever available without touching architecture or
+# input resolution.
+#
+# WHY x2 AND NOT MORE: h1's raw value at epoch 15 was ~0.0003-0.0007 per step
+# (21623's log), so at weight 25 its weighted contribution (~0.0075-0.0175) is
+# already roughly on par with rmse's raw contribution (~0.005-0.023) -- h1 is
+# not a minor term being ignored, it already competes with rmse for the
+# gradient. Doubling to 50 makes h1 the clearly dominant term without the kind
+# of order-of-magnitude jump that destabilized training when mlw was left
+# unweighted in earlier configs (finetune_vae.yaml's header: "MLW's large, noisy
+# wavelet gradients destabilized training"). H1 has no such instability history
+# -- it is a plain finite-difference MSE, smooth and bounded -- so a 2x step is
+# a reasonable first probe rather than a blind escalation.
+#
+# WHAT TO READ AT THE END:
+#   - val_vrmse vs 0.094886 (21623's best): weight-independent (windinet/training/
+#     vae_trainer.py's vrmse()), so it stays the fair head-to-head number.
+#   - val_total_loss / train_total_loss are NOT comparable to 21623 -- the loss
+#     shape itself changed, so a lower total loss here would be meaningless on
+#     its own.
+#   - qualitatively: whether epoch 15's density/momentum_x residual maps still
+#     hug the vortex/shock edges as tightly as 21623's did, or that pattern
+#     eases. If val_vrmse ties or slightly worsens but the edge-hugging residual
+#     visibly relaxes, that is still a useful result for where to spend further
+#     loss-shaping effort.
+#
+# KILL CRITERIA: none set as a hard early-epoch number -- h1 already contributes
+# a large, stable share of the loss at weight 25, so a 2x bump is not expected
+# to destabilize early epochs the way a new LR peak or a new init would. Watch
+# for the standard divergence tells instead (NaN loss, val_ssim jumping toward
+# 1.0, or val_vrmse blowing well past 21623's epoch-1 0.18855).
+#
+# Everything else -- inflate_init mean, wsd/0.7, 15 epochs, warmup 200, peak
+# 5e-5, min 1e-6, accum 8, seed 42 -- is byte-identical to
+# configs/finetune_vae_meaninit_wsd15.yaml, so h1 weight is the only
+# attributable difference.
+#
+# NOTE ON THE LATENT SPACE: freeze_conv_in is false, so encoder.conv_in trains
+# and the latent space MOVES. Latents from preprocess_dataset.py must be
+# re-encoded before any DiT training on this checkpoint. The fingerprint check
+# in inference_shockwave.py refuses a mismatched pairing rather than emitting
+# wrong physics silently.
+#
+# Usage (4 GPUs):
+#   sbatch scripts/finetune_vae_4gpu.sbatch configs/finetune_vae_meaninit_wsd15_h1x2.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # Carried over from 21623: mean beat zeros/random on every prior ablation.
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 675 eval sims as every prior run (same seed + randperm), so val_vrmse
+  # is measured on exactly the same simulations.
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  # Every field below is identical to configs/finetune_vae_meaninit_wsd15.yaml.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 10.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  # 4 GPUs: overridden to 8 by the sbatch wrapper anyway, kept here so a bare
+  # `accelerate launch --num_processes 4` matches. CHANGE THIS TOGETHER WITH
+  # --num_processes, never one alone -- it sets both the effective batch and
+  # steps_per_epoch, and therefore the LR horizon.
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    # THE ONE CHANGE. 25.0 -> 50.0: push harder on matching spatial gradients
+    # (vortex boundaries / shock interfaces), the specific failure mode seen in
+    # 21623's residual maps.
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "shockwave-cfd"]
+
+seed: 42
+# NOT outputs/vae_meaninit_wsd15 -- clean_output_dir would wipe 21623's 0.094886
+# baseline.
+output_dir: "outputs/vae_meaninit_wsd15_h1x2"
+clean_output_dir: true
