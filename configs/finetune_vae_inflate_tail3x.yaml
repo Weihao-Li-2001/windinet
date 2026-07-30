@@ -77,7 +77,7 @@ optimization:
   adapter_lr_multiplier: 10.0
   # THE ONE CHANGE: 3x the previous floor, so epoch 10 trains at ~3e-6-4e-6
   # instead of decaying into 1e-6 where the loss curve went flat.
-  min_learning_rate: 3e-6
+  min_learning_rate: 1e-5
   epochs: 10
   batch_size: 1
   # 6 GPUs: 3825 train sims / 6 = 638 per process, ceil(638/5) = 128 optimizer

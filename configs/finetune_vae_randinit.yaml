@@ -1,0 +1,159 @@
+# Shockwave VAE -- full reinitialization of the inflated projections.
+# ORIGINALLY a strict one-variable ablation against configs/finetune_vae_meaninit.yaml
+# (inflate_init mean -> random, everything else pinned for attribution). Job 21619
+# (4 GPU, 10 epochs) was cancelled mid-epoch-8 before finishing, but the curve
+# already showed the comparison wasn't going to be favorable and doesn't matter
+# anymore anyway: we are no longer trying to keep this attributable to meaninit.
+# The goal now is just the best endpoint for random init on its own terms, so the
+# schedule below is tuned for that instead of held identical to meaninit's.
+#
+# WHAT 'random' TESTS. 'zeros' and 'mean' both KEEP LTXV's pretrained conv_in /
+# conv_out and only decide how the 4th channel slot is seeded. 'random' throws
+# both projections away and relearns them. The premise: LTXV's patchify basis
+# was fitted to natural-image RGB statistics, and a shock front is not an
+# image edge -- so those filters may be a worse starting point than noise, and
+# 'zeros'/'mean' have been spending the whole run fighting them.
+#
+# The counter-argument, and why this is a real gamble: encoder.conv_in is the
+# ONLY trainable module on the encoder side (221,312 params) and it feeds a
+# FROZEN 694M trunk. With 'zeros' the trunk sees exactly the activations it was
+# pretrained on at step 0; with 'random' it sees a random projection it cannot
+# adapt to, and only conv_in can move to fix that. decoder.conv_out carries no
+# such risk -- it is part of the fully-trainable decoder and gets relearned
+# under every init.
+#
+# The one safeguard applied: the fresh weights are rescaled to
+# std(pretrained) * sqrt(old_fan_in/new_fan_in), so the trunk at least receives
+# activations of the right MAGNITUDE (measured ratio 1.002 vs the pretrained
+# layer). Only the direction is randomized, not the scale. See _reinit_scaled
+# in windinet/vae_adapter.py.
+#
+# JOB 21619 RESULT (cosine, 10 epochs, 50 warmup -- cancelled at step 930/1200,
+# not diverged, just killed externally):
+#     epoch  1  val_vrmse 0.81836
+#     epoch  3  val_vrmse 0.39110
+#     epoch  7  val_vrmse 0.22626   (still trending down ~5-7%/epoch, lr 1.19e-05)
+# Loss decreased smoothly the whole way -- no oscillation/spikes -- so the slow
+# finish looks like LR starvation from cosine's immediate decay, not an
+# exhausted model or too-low a peak LR.
+#
+# THREE CHANGES FOR THIS RUN, all aimed at giving the recovering random conv_in
+# more runway instead of protecting comparability:
+#   1. scheduler_type cosine -> wsd, stable_fraction 0.7: hold peak 5e-5 for 70%
+#      of post-warmup steps instead of decaying immediately (same lever already
+#      validated on meaninit in configs/finetune_vae_wsd.yaml, which measured
+#      cosine spending only 5.6% of its budget in the last 3 epochs).
+#   2. epochs 10 -> 15: random init starts much further behind than mean/zeros,
+#      so it needs a larger total step budget to both hold the plateau and still
+#      get a full anneal at the end.
+#   3. warmup_steps 50 -> 200: this was flagged but deliberately left alone in
+#      the original ablation ("a longer warmup is arguably the right thing here,
+#      but changing it would make the comparison unattributable"). Now that
+#      attribution is off the table, apply it -- a freshly randomized conv_in
+#      hitting 5e-4 (10x multiplier) after only 50 steps is the most likely
+#      cause of the sluggish epoch 1-3 recovery.
+# Peak LR (5e-5) is left untouched: the descent was smooth with no instability,
+# so there's no evidence it's too low, and lrscan_1.5e-4 is documented elsewhere
+# as diverging -- raising it is not a well-motivated next step.
+#
+# NOTE ON THE LATENT SPACE: freeze_conv_in is false (it MUST be -- a frozen
+# random projection would be permanent noise), so the latent space moves, and
+# further from the pretrained one than under any previous init. Latents from
+# preprocess_dataset.py must be re-encoded before any DiT training on this VAE.
+#
+# Usage (4 GPUs):
+#   sbatch scripts/finetune_vae_4gpu.sbatch configs/finetune_vae_randinit.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # THE ONE CHANGE. Discard the pretrained conv_in / conv_out and relearn them.
+  inflate_init: "random"
+  # Must stay false: conv_in is now random, and freezing it would leave the
+  # frozen trunk reading permanent noise with nothing able to correct it.
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 675 eval sims as every prior run (same seed + randperm).
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 10.0
+  min_learning_rate: 1e-6
+  # Hold peak LR for 70% of post-warmup steps, then cosine-anneal -- see the
+  # header note. Was "cosine" in job 21619.
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  # Was 10 in job 21619. More total budget so the wsd stable phase and the
+  # final anneal are both long enough given random init's slower recovery.
+  epochs: 15
+  batch_size: 1
+  # 4 GPUs: overridden by the sbatch wrapper, kept here so a bare
+  # `accelerate launch --num_processes 4` matches.
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  # Was 50 in job 21619 -- see header note on the freshly-randomized conv_in.
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  # Unchanged from vae_meaninit -- no reason to touch the loss shape here.
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 25.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "random-init", "shockwave-cfd"]
+
+seed: 42
+output_dir: "outputs/vae_randinit"
+clean_output_dir: true

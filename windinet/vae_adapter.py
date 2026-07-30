@@ -9,6 +9,7 @@ n-channel wind fields (u, v, building mask) and 3-channel RGB space.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -186,6 +187,35 @@ def _clone_conv3d(old: nn.Conv3d, in_channels: int, out_channels: int) -> nn.Con
 
 
 @torch.no_grad()
+def _reinit_scaled(new: nn.Conv3d, old: nn.Conv3d) -> None:
+    """Discard the pretrained weights and keep the fresh init, rescaled to match.
+
+    ``_clone_conv3d`` already returns a Conv3d carrying PyTorch's default
+    Kaiming-uniform init, so "reinitialize" just means not overwriting it. The
+    one thing that cannot be left to the default is the *scale*: a conv output
+    has variance ~ fan_in * var(w) * var(x), and inflating 3 -> 4 channels grows
+    fan_in from 3*block to 4*block. Left alone, the fresh layer would hand the
+    frozen trunk activations of a different magnitude than the ones it was
+    trained on, on top of the intended change of direction.
+
+    So the fresh weight is rescaled to ``std(old) * sqrt(old_fan_in/new_fan_in)``,
+    which reproduces the pretrained layer's *output* variance while keeping the
+    randomized structure. This assumes the input channels are on comparable
+    scales -- true here, since every channel is normalized by its own mean/std
+    before reaching the VAE.
+
+    The bias is left at its fresh init too: the point of this mode is that
+    nothing pretrained survives in this layer.
+    """
+    old_fan_in = old.in_channels * math.prod(old.kernel_size)
+    new_fan_in = new.in_channels * math.prod(new.kernel_size)
+    target = old.weight.detach().float().std() * math.sqrt(old_fan_in / new_fan_in)
+    current = new.weight.detach().float().std()
+    if float(current) > 0.0:
+        new.weight.mul_(target / current)
+
+
+@torch.no_grad()
 def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
     """Make the LTX VAE natively read/write ``n`` channels instead of 3.
 
@@ -198,13 +228,30 @@ def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
 
     where ``block = patch_size**2 * patch_size_t`` (16 here). Channels are laid
     out blocked-by-channel (verified): original channel c occupies slots
-    ``[c*block, c*block+block)``, so each new channel's slots are initialized
-    per patch-position ``p`` either to zero (``init='zeros'``, default: preserves
-    the pretrained forward, learns the new channel from clean gradients) or to
-    the mean of the original channels at the same ``p`` (``init='mean'``, I3D).
+    ``[c*block, c*block+block)``.
+
+    ``init`` controls what the grown projections start from:
+
+      * ``'zeros'`` (default) -- keep all pretrained slots, zero the new channel.
+        Preserves the pretrained forward pass exactly and learns the new channel
+        from clean gradients.
+      * ``'mean'`` -- keep all pretrained slots, seed the new channel with the
+        mean of the originals at the same patch position (I3D-style).
+      * ``'random'`` -- **discard the pretrained projections entirely** and
+        reinitialize both layers from scratch, rescaled to preserve the output
+        variance (see :func:`_reinit_scaled`). The premise is that LTXV's
+        patchify/unpatchify filters are tuned to natural-image RGB statistics
+        and are the wrong basis for CFD fields, so relearning them beats
+        adapting them. Note the asymmetric risk: ``decoder.conv_out`` is part of
+        the fully-trainable decoder and is relearned either way, but
+        ``encoder.conv_in`` is the *only* trainable module on the encoder side
+        (221,312 params) feeding a frozen 694M trunk -- randomizing it means the
+        trunk sees off-distribution input at step 0 and has no way to adapt.
+        Expect a much worse epoch 1 than 'zeros'/'mean'; the bet is on the
+        endpoint, not the start.
     """
-    if init not in ("zeros", "mean"):
-        raise ValueError(f"init must be 'zeros' or 'mean', got {init!r}")
+    if init not in ("zeros", "mean", "random"):
+        raise ValueError(f"init must be 'zeros', 'mean' or 'random', got {init!r}")
     n_orig = int(vae.config.in_channels)
     if n < n_orig:
         raise ValueError(f"n={n} must be >= original in_channels={n_orig}")
@@ -227,11 +274,14 @@ def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
     old = ci.conv
     block = old.in_channels // n_orig
     new = _clone_conv3d(old, in_channels=n * block, out_channels=old.out_channels)
-    new.weight.zero_()
-    new.weight[:, : old.in_channels] = old.weight
-    _fill_new_blocks(new.weight, block, axis=1)
-    if old.bias is not None:  # bias is per-output-channel -> unchanged
-        new.bias.copy_(old.bias)
+    if init == "random":
+        _reinit_scaled(new, old)
+    else:
+        new.weight.zero_()
+        new.weight[:, : old.in_channels] = old.weight
+        _fill_new_blocks(new.weight, block, axis=1)
+        if old.bias is not None:  # bias is per-output-channel -> unchanged
+            new.bias.copy_(old.bias)
     ci.conv = new
     ci.in_channels = n * block
     vae.encoder.in_channels = n * block
@@ -241,16 +291,22 @@ def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
     old = co.conv
     block = old.out_channels // n_orig
     new = _clone_conv3d(old, in_channels=old.in_channels, out_channels=n * block)
-    new.weight.zero_()
-    new.weight[: old.out_channels] = old.weight
-    if old.bias is not None:
-        new.bias.zero_()
-        new.bias[: old.out_channels] = old.bias
-    _fill_new_blocks(new.weight, block, axis=0)
-    if old.bias is not None and init == "mean":
-        for p in range(block):
-            for c_new in range(n_orig, n):
-                new.bias[c_new * block + p] = new.bias[[c * block + p for c in range(n_orig)]].mean()
+    if init == "random":
+        # fan_in is unchanged here (only the output width grows), so the rescale
+        # is a no-op in expectation; call it anyway so the two projections are
+        # initialized by one code path.
+        _reinit_scaled(new, old)
+    else:
+        new.weight.zero_()
+        new.weight[: old.out_channels] = old.weight
+        if old.bias is not None:
+            new.bias.zero_()
+            new.bias[: old.out_channels] = old.bias
+        _fill_new_blocks(new.weight, block, axis=0)
+        if old.bias is not None and init == "mean":
+            for p in range(block):
+                for c_new in range(n_orig, n):
+                    new.bias[c_new * block + p] = new.bias[[c * block + p for c in range(n_orig)]].mean()
     co.conv = new
     co.out_channels = n * block
     vae.decoder.out_channels = n * block

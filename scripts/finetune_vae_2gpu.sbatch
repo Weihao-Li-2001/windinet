@@ -44,7 +44,9 @@ set -euo pipefail
 PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python
 cd /local/disk/hramachandran/work/wh_work/windinet
 
-BASE_CONFIG=configs/finetune_vae_inflate_tail3x.yaml
+# Defaults to the tail3x config; pass any other config as $1, e.g.
+#   sbatch scripts/finetune_vae_2gpu.sbatch configs/finetune_vae_randinit.yaml
+BASE_CONFIG=${1:-configs/finetune_vae_inflate_tail3x.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_2gpu_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
@@ -53,7 +55,7 @@ import sys, yaml
 src, dst = sys.argv[1], sys.argv[2]
 cfg = yaml.safe_load(open(src))
 cfg["optimization"]["gradient_accumulation_steps"] = 16
-cfg["output_dir"] = "outputs/vae_tail3x_2gpu"
+cfg["output_dir"] = cfg["output_dir"].rstrip("/") + "_2gpu"
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(f"2 GPUs x accum 16 -> effective batch 32; output_dir {cfg['output_dir']}")
 PY

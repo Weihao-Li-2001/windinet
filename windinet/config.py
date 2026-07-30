@@ -335,9 +335,16 @@ class VaeAdapterConfig(ConfigBaseModel):
         default="adapter",
         description="'adapter': 1x1 in/out adapters around a frozen 3-ch VAE. 'inflate': grow the VAE's conv_in/conv_out to read/write all channels natively (trains encoder.conv_in too).",
     )
-    inflate_init: Literal["zeros", "mean"] = Field(
+    inflate_init: Literal["zeros", "mean", "random"] = Field(
         default="zeros",
-        description="mode='inflate' only: init for the new channel slots. 'zeros' preserves the pretrained forward; 'mean' is I3D-style averaging.",
+        description=(
+            "mode='inflate' only. 'zeros' keeps every pretrained slot and zeroes the new "
+            "channel (preserves the pretrained forward); 'mean' seeds the new channel with "
+            "I3D-style averaging of the originals; 'random' discards the pretrained "
+            "conv_in/conv_out entirely and reinitializes both, rescaled to preserve output "
+            "variance -- the bet that LTXV's RGB patchify basis is wrong for CFD fields and "
+            "is better relearned than adapted."
+        ),
     )
     freeze_conv_in: bool = Field(
         default=False,
