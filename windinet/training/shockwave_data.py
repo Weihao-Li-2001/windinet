@@ -151,14 +151,21 @@ class ShockWaveDataset(Dataset):
         """
         Open the HDF5 file, retrying with backoff.
 
-        On network filesystems (e.g. LRZ DSS), many worker processes opening
-        the same file within the same instant can transiently fail with
-        "Unable to synchronously open object" even with HDF5 file locking
-        disabled -- this showed up running 8-rank x 4-worker distributed
-        training but never in a single-process run. Retrying with backoff
-        rides out the transient failures; ``locking=False`` avoids HDF5's own
-        locking, which network filesystems often don't honor correctly.
+        train.h5 stores each sample as an h5py.ExternalLink into a separate
+        per-gamma shard file (e.g. train_subsets/train_gamma1.130_128.hdf5).
+        On this environment's h5py/HDF5 build, resolving that link depends on
+        the process's current working directory rather than falling back to
+        train.h5's own directory -- confirmed by the link resolving fine when
+        opened with the process cwd'd into the same directory as train.h5,
+        but failing (single process, no concurrency involved) when opened by
+        absolute path from a different cwd, exactly the situation training
+        runs in. Setting HDF5_EXT_PREFIX to this file's own directory makes
+        link resolution explicit instead of relying on that cwd-dependent
+        fallback. The retry-with-backoff below is a separate, unrelated
+        mitigation for genuine transient network-filesystem hiccups on LRZ
+        DSS and is kept as defense in depth.
         """
+        os.environ["HDF5_EXT_PREFIX"] = str(path.parent)
         for attempt in range(retries):
             try:
                 try:
