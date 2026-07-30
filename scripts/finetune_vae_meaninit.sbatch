@@ -61,50 +61,6 @@ export HDF5_USE_FILE_LOCKING=FALSE
 # gradient_accumulation_steps=4 in the config is already tuned for
 # num_processes=8 (effective batch = batch_size 1 * grad_acc 4 * 8 = 32,
 # matching the 4-GPU lundquist baseline). RE-DERIVE IT IF YOU CHANGE NUM_XPUS.
-
-# Stage the HDF5 dataset on node-local scratch instead of reading it from DSS
-# for every sample. num_dataloader_workers is already 0 in this config and
-# shockwave_data.py already retries opens with backoff -- both added because
-# 8 ranks opening the same file on DSS concurrently causes transient "Unable
-# to synchronously open object" failures. Those mitigations only shrink the
-# collision window; a DSS hiccup that outlasts the retry budget still kills
-# the whole job (all 8 ranks failing on the first batch has been observed).
-# Copying the file once removes the network filesystem from the hot loop
-# entirely. NOTE: this only stages onto the first allocated node -- if
-# --nodes is ever raised above 1, this staging step must move inside the
-# srun below so it runs on every node.
-CONFIG_SRC="configs/finetune_vae_meaninit.yaml"
-LOCAL_SCRATCH="${TMPDIR:-/tmp/$SLURM_JOB_ID}"
-mkdir -p "$LOCAL_SCRATCH"
-
-REMOTE_H5=$(python - "$CONFIG_SRC" <<'PY'
-import sys, yaml
-print(yaml.safe_load(open(sys.argv[1]))["data"]["data_root"])
-PY
-)
-LOCAL_H5="$LOCAL_SCRATCH/$(basename "$REMOTE_H5")"
-echo "Staging dataset on node-local scratch: $REMOTE_H5 -> $LOCAL_H5"
-cp "$REMOTE_H5" "$LOCAL_H5"
-
-# Fail fast, before burning a GPU allocation, if the copy silently truncated
-# instead of surfacing as a cryptic h5py error deep inside training.
-REMOTE_SIZE=$(stat -c%s "$REMOTE_H5")
-LOCAL_SIZE=$(stat -c%s "$LOCAL_H5")
-echo "Remote size: $REMOTE_SIZE bytes | Local size: $LOCAL_SIZE bytes"
-if [ "$REMOTE_SIZE" != "$LOCAL_SIZE" ]; then
-    echo "ERROR: staged copy size ($LOCAL_SIZE) != source size ($REMOTE_SIZE) -- aborting." >&2
-    exit 1
-fi
-
-LOCAL_CONFIG="$LOCAL_SCRATCH/finetune_vae_meaninit.local.yaml"
-python - "$CONFIG_SRC" "$LOCAL_H5" "$LOCAL_CONFIG" <<'PY'
-import sys, yaml
-src, local_h5, dst = sys.argv[1:4]
-cfg = yaml.safe_load(open(src))
-cfg["data"]["data_root"] = local_h5
-yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
-PY
-
 srun --mpi=none accelerate launch \
     --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \
     --num_machines $SLURM_JOB_NUM_NODES \
@@ -112,6 +68,6 @@ srun --mpi=none accelerate launch \
     --main_process_ip "$MASTER_ADDR" \
     --main_process_port "$MASTER_PORT" \
     --mixed_precision bf16 \
-    scripts/finetune_vae.py "$LOCAL_CONFIG"
+    scripts/finetune_vae.py configs/finetune_vae_meaninit.yaml
 
 echo "END TIME: $(date)"

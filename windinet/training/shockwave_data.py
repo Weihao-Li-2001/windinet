@@ -68,6 +68,7 @@ class ShockWaveDataset(Dataset):
         time.sleep(self._rank_stagger_delay())
         with self._open(self.h5_path) as f:
             self.ids = sorted(list(f.keys()))
+            self._prewarm_ids = self._pick_prewarm_ids(f, self.ids)
 
             # DEBUG: prove which file is actually being read, not just what the
             # config claims. Rank0 only to avoid 8x duplicate spam.
@@ -77,8 +78,38 @@ class ShockWaveDataset(Dataset):
                 print(f"[ShockWaveDataset DEBUG] realpath        = {real_path}", flush=True)
                 print(f"[ShockWaveDataset DEBUG] st_size (bytes) = {os.stat(self.h5_path).st_size}", flush=True)
                 print(f"[ShockWaveDataset DEBUG] first 5 keys    = {self.ids[:5]}", flush=True)
+                print(f"[ShockWaveDataset DEBUG] external targets to prewarm = {len(self._prewarm_ids)}", flush=True)
 
         self.num_sim_frames = num_sim_frames
+
+    @staticmethod
+    def _pick_prewarm_ids(f: h5py.File, ids: list[str]) -> list[str]:
+        """
+        One sample id per distinct external-link target file.
+
+        Each sample in train.h5 is an ``h5py.ExternalLink`` into a separate
+        per-gamma shard file (e.g. ``train_subsets/train_gamma1.130_128.hdf5``).
+        Resolving a link for the first time makes HDF5 open its target file;
+        with several ranks shuffling through samples independently, those
+        first-opens land at unpredictable, possibly simultaneous points deep
+        into training instead of a controlled startup window. `_prewarm_external_targets`
+        uses this list to force one resolution per distinct target up front,
+        while ranks are still staggered, so that burst happens once and only
+        once rather than scattered through the epoch.
+        """
+        seen_targets = set()
+        prewarm_ids = []
+        for sid in ids:
+            link = f.get(sid, getlink=True)
+            target = getattr(link, "filename", None)
+            if target is None:
+                # Not an external link (e.g. a self-contained h5 file) --
+                # nothing to pre-resolve.
+                continue
+            if target not in seen_targets:
+                seen_targets.add(target)
+                prewarm_ids.append(sid)
+        return prewarm_ids
 
 
     def __len__(self):
@@ -149,6 +180,8 @@ class ShockWaveDataset(Dataset):
         if self.file is None:
             time.sleep(self._rank_stagger_delay())
             self.file = self._open(self.h5_path)
+            for sid in self._prewarm_ids:
+                self._get_group(sid)
 
     def __del__(self):
         if self.file is not None:
