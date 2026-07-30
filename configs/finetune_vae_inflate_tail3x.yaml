@@ -1,0 +1,141 @@
+# Shockwave VAE inflate-mode finetuning -- FROM SCRATCH, with a 3x higher LR tail.
+#
+# Copy of the retired finetune_vae_inflate_more.yaml (deleted; recoverable via
+# `git show eacd701:configs/finetune_vae_inflate_more.yaml`, and preserved
+# verbatim as outputs/vae_inflate4_more/training_config.yaml). One knob differs:
+#
+#   min_learning_rate  1e-6 -> 3e-6
+#
+# WHY: the cosine floor is applied as the ratio min_learning_rate/learning_rate
+# (see _create_scheduler in windinet/training/vae_trainer.py), so tripling it
+# lifts the whole annealing tail by the same factor for every param group --
+# decoder and encoder.conv_in keep their exact 1:10 ratio. On 6 GPUs with
+# gradient_accumulation_steps: 5 there are 128 optimizer steps/epoch, so
+# epochs: 10 is a 1280-step horizon (50 warmup) and the last epoch becomes:
+#
+#   step        1152     1184     1216     1248     1280
+#   1e-6 floor  2.31e-6  1.74e-6  1.33e-6  1.08e-6  1.00e-6
+#   3e-6 floor  4.25e-6  3.70e-6  3.31e-6  3.08e-6  3.00e-6   (3.00x at the end)
+#
+# The floor is a *ratio* (min_lr/lr), so this tail is the same pointwise as the
+# 4-GPU/accum-8 1200-step version -- only the step numbering differs.
+#
+# The multiplier is exactly 3x only at the final step; earlier in epoch 10 it is
+# 1.8x-2.8x, because raising the floor cannot lift the part of the cosine that
+# has not yet approached it. If the entire final epoch must sit at ~3x, the floor
+# is the wrong knob -- the cosine horizon (epochs x steps_per_epoch) is.
+#
+# Everything else is byte-identical to that baseline (outputs/vae_inflate4_more,
+# epoch 10 val_vrmse 0.10489), so the run is directly comparable to it and the
+# only attributable difference is "the LR tail did not collapse to 1e-6".
+#
+# NOTE ON THE LATENT SPACE: freeze_conv_in is false, so encoder.conv_in trains
+# and the latent space MOVES. Latents already produced by preprocess_dataset.py
+# become stale the moment this run's checkpoint is used, and must be re-encoded
+# before DiT training. The fingerprint check in inference_shockwave.py will
+# refuse a mismatched pairing rather than emit wrong physics silently.
+#
+# Usage (6 GPUs, via SLURM -- a bare launch dies with the login shell):
+#   sbatch scripts/finetune_vae_6gpu.sbatch
+#
+# For other GPU counts use scripts/finetune_vae_{2,4}gpu.sbatch, which patch
+# gradient_accumulation_steps (16 / 8) to hold the effective batch at 32.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  # False = encoder.conv_in trains (the 221,312-parameter patchify projection,
+  # the only path by which pressure reaches the frozen 694M encoder trunk).
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+# From scratch: pretrained LTXV weights + zero-init inflation, no prior run's
+# weights, no optimizer/scheduler state. resume_weights_only is therefore moot.
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 675 sims as every previous run (same seed + randperm), so the numbers
+  # stay comparable.
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 10.0
+  # THE ONE CHANGE: 3x the previous floor, so epoch 10 trains at ~3e-6-4e-6
+  # instead of decaying into 1e-6 where the loss curve went flat.
+  min_learning_rate: 3e-6
+  epochs: 10
+  batch_size: 1
+  # 6 GPUs: 3825 train sims / 6 = 638 per process, ceil(638/5) = 128 optimizer
+  # steps/epoch -> the 1280-step horizon the LR table in the header assumes.
+  # Effective batch = 6 processes x 1 x 5 = 30, against 4 x 1 x 8 = 32 in the
+  # runs this is compared to (32/6 is not an integer, so 30 is the closest match;
+  # accum 6 would give batch 36 but only 107 steps/epoch).
+  # CHANGE THIS TOGETHER WITH --num_processes, never one alone.
+  gradient_accumulation_steps: 5
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 25.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # Each epoch writes a ~2.2 GB safetensors + ~4.4 GB .state.pt pair. Under
+  # keep_last_n: 3 that was ~20 GB resident and grew with every run; best-only
+  # keeps it constant instead (one best safetensors + one rolling last pair).
+  # Purely a disk policy -- it does not touch training dynamics, so the run
+  # stays comparable to the baselines.
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "decoder", "inflate", "shockwave-cfd", "lr-tail-3x"]
+
+seed: 42
+output_dir: "outputs/vae_inflate4_tail3x"
+clean_output_dir: true

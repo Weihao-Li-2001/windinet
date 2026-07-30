@@ -1,5 +1,7 @@
 # Shockwave VAE -- from scratch, 10 epochs, cosine @ 5e-5. ONE variable changed
-# against configs/finetune_vae_inflate_more.yaml: inflate_init zeros -> mean.
+# against the zeros-init baseline (the retired finetune_vae_inflate_more.yaml,
+# preserved as outputs/vae_inflate4_more/training_config.yaml):
+# inflate_init zeros -> mean.
 #
 # WHAT THIS TESTS: how the new (4th) channel slot of encoder.conv_in /
 # decoder.conv_out is seeded. 'zeros' starts pressure invisible to the frozen
