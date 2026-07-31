@@ -102,7 +102,7 @@ wandb:
   tags: ["vae", "decoder", "adapter", "shockwave-cfd"]
 
 seed: 42
-output_dir: "outputs/vae_adapter128"
+output_dir: "$SCRATCH/windinet/outputs/vae_adapter128"
 # Wipe output_dir at the start of each run so stale checkpoints/visualizations
 # from previous runs don't get mixed in.
 clean_output_dir: true

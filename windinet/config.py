@@ -3,6 +3,7 @@
 # Modified: added ScalarConditioningConfig, removed LoRA and text conditioning.
 """Pydantic configuration models for WinDiNet training and inference."""
 
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -439,7 +440,7 @@ class VaeTrainerConfig(ConfigBaseModel):
     @field_validator("output_dir")
     @classmethod
     def expand_vae_output_path(cls, v: str) -> str:
-        return str(Path(v).expanduser().resolve())
+        return str(Path(os.path.expandvars(v)).expanduser().resolve())
 
 
 # ---------------------------------------------------------------------------
@@ -468,4 +469,4 @@ class LtxvTrainerConfig(ConfigBaseModel):
     @field_validator("output_dir")
     @classmethod
     def expand_output_path(cls, v: str) -> str:
-        return str(Path(v).expanduser().resolve())
+        return str(Path(os.path.expandvars(v)).expanduser().resolve())
