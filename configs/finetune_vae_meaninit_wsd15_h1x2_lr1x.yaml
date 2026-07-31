@@ -1,0 +1,145 @@
+# Shockwave VAE -- mean init, wsd15 schedule, h1x2. ONE variable changed
+# against configs/finetune_vae_meaninit_wsd15_h1x2.yaml:
+# optimization.adapter_lr_multiplier  10.0 -> 1.0 (encoder.conv_in now trains
+# at the SAME LR as the decoder, 5e-5, instead of 5e-4).
+#
+# WHY: the 10x multiplier was introduced in commit 2a2de96 for the OLD
+# `adapter` mode, where the in/out adapters end in a tanh and get stuck near
+# its dead zone at init -- 10x was there to help them escape that dead zone
+# quickly. Every config since the move to `inflate` mode (finetune_vae_mean-
+# init*.yaml, this lineage included) carried the 10x forward unchanged, even
+# though `encoder.conv_in` under mean-init is NOT a tanh-bottlenecked adapter
+# and starts from a deliberately reasonable mean-initialized point, not a
+# fresh random one. The 10x value has never been re-justified for conv_in and
+# has never been ablated against 1x. There is also a documented instability
+# precedent at 10x: finetune_vae_meaninit_wsd15.yaml notes that randinit's
+# freshly randomized conv_in hit 5e-4 (10x) after only 50 warmup steps and
+# needed warmup_steps=200 to survive it. Mean-init doesn't have that specific
+# failure mode, but it is still evidence that 10x is an aggressive, unvali-
+# dated choice rather than a settled one -- worth testing against the
+# straightforward baseline of "no special treatment for conv_in."
+#
+# WHAT TO READ AT THE END:
+#   - val_vrmse vs h1x2's own result and vs 21623's 0.094886 baseline (same
+#     weight-independent metric, so both comparisons are fair head-to-head).
+#   - Whether convergence of the density/momentum_x residual maps at the
+#     vortex/shock boundaries (the failure mode h1x2 targets) is slower to
+#     resolve across epochs than in h1x2 -- that would indicate conv_in is
+#     adapting too slowly at 1x and the multiplier is earning its keep.
+#   - If val_vrmse ties or improves on h1x2 with no visible slowdown in edge
+#     residual convergence, that's a clean win: same or better result with one
+#     fewer special-cased LR group.
+#
+# KILL CRITERIA: none set as a hard early-epoch number. Worst case at 1x is
+# slow adaptation, not divergence (unlike the opposite direction, where 10x
+# risked overshooting) -- so let it run the full schedule and compare val_vrmse
+# and residual maps at the end rather than killing early.
+#
+# Everything else -- inflate_init mean, wsd/0.7, 15 epochs, warmup 200, peak
+# 5e-5, min 1e-6, accum 8, h1 weight 50, seed 42 -- is byte-identical to
+# configs/finetune_vae_meaninit_wsd15_h1x2.yaml, so the LR multiplier is the
+# only attributable difference.
+#
+# NOTE ON THE LATENT SPACE: freeze_conv_in is still false, so encoder.conv_in
+# still trains (just at 1x instead of 10x) and the latent space still MOVES.
+# Latents from preprocess_dataset.py must be re-encoded before any DiT
+# training on this checkpoint. The fingerprint check in inference_shockwave.py
+# refuses a mismatched pairing rather than emitting wrong physics silently.
+#
+# Usage (4 GPUs):
+#   sbatch scripts/finetune_vae_4gpu.sbatch configs/finetune_vae_meaninit_wsd15_h1x2_lr1x.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # Carried over from 21623: mean beat zeros/random on every prior ablation.
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 675 eval sims as every prior run (same seed + randperm), so val_vrmse
+  # is measured on exactly the same simulations.
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  # Every field below is identical to configs/finetune_vae_meaninit_wsd15_h1x2.yaml
+  # except adapter_lr_multiplier.
+  learning_rate: 5e-5
+  # THE ONE CHANGE. 10.0 -> 1.0: encoder.conv_in trains at the same 5e-5 as
+  # the decoder, no special-cased fast group.
+  adapter_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  # 4 GPUs: overridden to 8 by the sbatch wrapper anyway, kept here so a bare
+  # `accelerate launch --num_processes 4` matches. CHANGE THIS TOGETHER WITH
+  # --num_processes, never one alone -- it sets both the effective batch and
+  # steps_per_epoch, and therefore the LR horizon.
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd"]
+
+seed: 42
+# NOT outputs/vae_meaninit_wsd15_h1x2 -- clean_output_dir would wipe that run's
+# checkpoint/results.
+output_dir: "outputs/vae_meaninit_wsd15_h1x2_lr1x"
+clean_output_dir: true
