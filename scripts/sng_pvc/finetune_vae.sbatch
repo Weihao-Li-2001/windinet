@@ -9,22 +9,23 @@
 #SBATCH -e sng_pvc_log/%j-%x.err
 
 # Batch submission for VAE finetuning on the sng_pvc cluster (Intel Data
-# Center GPU Max 1550 / XPU, 8 tiles per node). Takes the training config as
-# an argument, so any configs/finetune_vae_*.yaml can be run without editing
-# this script.
+# Center GPU Max 1550 / XPU, 8 tiles per node).
 #
-# Submit with:   sbatch scripts/sng_pvc/finetune_vae.sbatch configs/finetune_vae_meaninit.yaml
+# Defaults to the shared baseline config (see EXPERIMENTS.md) and patches in
+# the sng-specific bits (storage under $SCRATCH, effective-batch-preserving
+# gradient_accumulation_steps for 8 tiles, num_dataloader_workers=0) onto a
+# temp copy rather than forking another checked-in YAML -- same pattern as
+# scripts/lundquist/finetune_vae_4gpu.sbatch. Pass any other config as $1:
+#   sbatch scripts/sng_pvc/finetune_vae.sbatch configs/<your-config>.yaml
+#
+# Submit with:   sbatch scripts/sng_pvc/finetune_vae.sbatch
 # Watch with:    tail -f sng_pvc_log/<jobid>-vae_finetune.out
 # Cancel with:   scancel <jobid>
 #
 # Verified working interactively on a single XPU tile first (srun + plain
 # `python scripts/finetune_vae.py ...`) before moving to this 8-tile sbatch run.
 
-if [ -z "$1" ]; then
-    echo "Usage: sbatch scripts/sng_pvc/finetune_vae.sbatch <config.yaml>" >&2
-    exit 1
-fi
-CONFIG="$1"
+set -euo pipefail
 
 module load micromamba/2.1.1
 export PATH="$MICROMAMBA_BASE/bin:$PATH"
@@ -66,10 +67,47 @@ export TOKENIZERS_PARALLELISM=false
 # open object (can't open file)" under this much concurrent access -- disable it.
 export HDF5_USE_FILE_LOCKING=FALSE
 
+BASE_CONFIG=${1:-configs/finetune_vae_meaninit_wsd15_h1x2_lr1x.yaml}
+RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
+trap 'rm -f "${RUN_CONFIG}"' EXIT
+
+python - "${BASE_CONFIG}" "${RUN_CONFIG}" <<'PY'
+import os
+import sys
+
+import yaml
+
+src, dst = sys.argv[1], sys.argv[2]
+cfg = yaml.safe_load(open(src))
+
+scratch_root = os.path.join(os.environ["SCRATCH"], "windinet")
+cfg["data"]["data_root"] = os.path.join(
+    scratch_root, "euler_mq_dataset", "128x128_ds", "train.h5"
+)
+# 0 on sng_pvc: 8 ranks x N workers all opening train.h5 concurrently on the
+# DSS network filesystem was triggering transient open failures at N=4.
+cfg["data"]["num_dataloader_workers"] = 0
+
 # Effective batch = batch_size * gradient_accumulation_steps * num_processes.
-# Configs written for lundquist (4 GPUs) assume num_processes=4; check
-# gradient_accumulation_steps in $CONFIG still gives the intended effective
-# batch at num_processes=8 (NUM_XPUS below), and adjust if not.
+# Configs are written for lundquist (4 GPUs, accum 8 -> batch 32); sng_pvc
+# runs all 8 XPU tiles, so halve accum to land on the same effective batch:
+#   8 tiles x batch_size 1 x accum 4 = 32
+cfg["optimization"]["gradient_accumulation_steps"] = 4
+
+cfg["output_dir"] = os.path.join(
+    scratch_root, cfg["output_dir"].rstrip("/") + "_sng_pvc"
+)
+
+yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
+print(f"8 XPU tiles x accum 4 -> effective batch 32; output_dir {cfg['output_dir']}")
+PY
+
+# Make sng_pvc_log/ self-describing: one row per job mapping the log to the
+# config it ran and the output_dir it wrote, same convention as lundquist_log/.
+OUT_DIR=$(python -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
+printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
+    "${BASE_CONFIG}" "${OUT_DIR}" >> sng_pvc_log/INDEX.tsv
+
 srun --mpi=none accelerate launch \
     --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \
     --num_machines $SLURM_JOB_NUM_NODES \
@@ -77,6 +115,6 @@ srun --mpi=none accelerate launch \
     --main_process_ip "$MASTER_ADDR" \
     --main_process_port "$MASTER_PORT" \
     --mixed_precision bf16 \
-    scripts/finetune_vae.py "$CONFIG"
+    scripts/finetune_vae.py "${RUN_CONFIG}"
 
 echo "END TIME: $(date)"

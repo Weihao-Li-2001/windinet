@@ -12,9 +12,6 @@ __pycache__/
 # Checkpoints
 *.pt
 
-# Data
-euler_mq_dataset/*
-
 # Distribution / packaging
 .Python
 build/
@@ -37,7 +34,8 @@ MANIFEST
 
 # Data
 euler_mq_dataset/*
-!euler_mq_dataset/download_from_hf.py
+!euler_mq_dataset/sng_pvc/
+!euler_mq_dataset/sng_pvc/download_from_hf.py
 
 # SLURM job logs -- tracked only under sng_pvc_log/
 *.err
