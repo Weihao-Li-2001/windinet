@@ -1,0 +1,68 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/finetune_vae.py", line 43, in <module>
+    app()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+    raise e
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+    return get_command(self)(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+    return self.main(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+    return _main(
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+    rv = self.invoke(ctx)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+    return callback(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+    return callback(**use_params)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/finetune_vae.py", line 37, in main
+    saved_path = trainer.train()
+  File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/vae_trainer.py", line 611, in train
+    for i, batch in enumerate(train_loader):
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/data_loader.py", line 585, in __iter__
+    current_batch = next(dataloader_iter)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 741, in __next__
+    data = self._next_data()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 801, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = self.dataset.__getitems__(possibly_batched_index)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/data/dataset.py", line 413, in __getitems__
+    return [self.dataset[self.indices[idx]] for idx in indices]
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/data/dataset.py", line 413, in <listcomp>
+    return [self.dataset[self.indices[idx]] for idx in indices]
+  File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/shockwave_data.py", line 250, in __getitem__
+    self._init_file()
+  File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/shockwave_data.py", line 213, in _init_file
+    self._get_group(sid)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/shockwave_data.py", line 239, in _get_group
+    return self.file[sid]
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/h5py/_hl/group.py", line 407, in __getitem__
+    return self._get(name)
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/h5py/_hl/group.py", line 421, in _get
+    oid = h5o.open(self.id, self._e(name), lapl=lapl)
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "h5py/h5o.pyx", line 255, in h5py.h5o.open
+KeyError: "Unable to synchronously open object (can't open file)"
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/accelerate", line 6, in <module>
+    sys.exit(main())
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1407, in launch_command
+    simple_launcher(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 993, in simple_launcher
+    raise subprocess.CalledProcessError(returncode=process.returncode, cmd=cmd)
+subprocess.CalledProcessError: Command '['/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/python3.10', 'scripts/finetune_vae.py', 'configs/finetune_vae_meaninit.yaml']' returned non-zero exit status 1.
+srun: error: i20r06c05s06: task 0: Exited with exit code 1
+srun: Terminating StepId=519199.0

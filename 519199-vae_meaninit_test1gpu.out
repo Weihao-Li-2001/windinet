@@ -1,0 +1,164 @@
+START TIME: Thu 30 Jul 2026 12:25:30 PM CEST
+job=519199 node=i20r06c05s06
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+MASTER_ADDR: i20r06c05s06  MASTER_PORT: 51843
+INFO     Failed to extract font properties from             font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     generated new fontManager                          font_manager.py:1639
+                          VAE Finetuning Configuration                          
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ adapter.enabled                      │ True                                  │
+│ adapter.checkpoint                   │ None                                  │
+│ adapter.channels                     │ ['density', 'momentum_x',             │
+│                                      │ 'momentum_y', 'pressure']             │
+│ adapter.mode                         │ inflate                               │
+│ adapter.inflate_init                 │ mean                                  │
+│ adapter.freeze_conv_in               │ False                                 │
+│ adapter.hidden_channels              │ 32                                    │
+│ adapter.activation                   │ gelu                                  │
+│ adapter.identity_init                │ False                                 │
+│ adapter.default_temb                 │ 0.0                                   │
+│ data.data_root                       │ /dss/dsshome1/0D/go76fuz2/windinet/e… │
+│ data.eval_sims                       │ 675                                   │
+│ data.num_dataloader_workers          │ 0                                     │
+│ data.num_sim_frames                  │ None                                  │
+│ data.overfit_sims                    │ None                                  │
+│ data.overfit_repeat                  │ 1                                     │
+│ data.channel_mean                    │ [0.905097647712509,                   │
+│                                      │ 0.0040453659499771295,                │
+│                                      │ -0.0019089379643528095, 0.9           │
+│ data.channel_std                     │ [0.6607349375392083,                  │
+│                                      │ 0.5328754120427532,                   │
+│                                      │ 0.5262512462358824, 0.8050358         │
+│ data.normalization_clip              │ 5.0                                   │
+│ optimization.learning_rate           │ 5e-05                                 │
+│ optimization.adapter_lr_multiplier   │ 10.0                                  │
+│ optimization.min_learning_rate       │ 1e-06                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.stable_fraction         │ 0.7                                   │
+│ optimization.epochs                  │ 10                                    │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 5.0                                   │
+│ optimization.weight_decay            │ 0.0                                   │
+│ optimization.warmup_steps            │ 50                                    │
+│ optimization.warmup_start_factor     │ 0.01                                  │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ loss.wavelet                         │ db2                                   │
+│ loss.spatial_level                   │ 2                                     │
+│ loss.temporal_level                  │ 2                                     │
+│ loss.mlw_beta                        │ 10.0                                  │
+│ loss.mlw_eps                         │ 1e-06                                 │
+│ loss_weighting.strategy              │ fixed                                 │
+│ loss_weighting.weights               │ {'rmse': 1.0, 'h1': 25.0, 'ssim':     │
+│                                      │ 0.15, 'mlw': 0.0}                     │
+│ loss_weighting.loss_names            │ ['rmse', 'h1', 'ssim', 'mlw']         │
+│ loss_weighting.alpha                 │ 1.5                                   │
+│ loss_weighting.weight_lr             │ 0.025                                 │
+│ loss_weighting.temperature           │ 0.1                                   │
+│ visualization.enabled                │ True                                  │
+│ visualization.interval_epochs        │ 1                                     │
+│ visualization.num_samples            │ 2                                     │
+│ visualization.frame_numbers          │ [25, 50, 75, 100]                     │
+│ visualization.dpi                    │ 150                                   │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ checkpoints.interval                 │ 1                                     │
+│ checkpoints.keep_last_n              │ 1                                     │
+│ checkpoints.save_best_only           │ True                                  │
+│ checkpoints.best_metric              │ val_vrmse                             │
+│ checkpoints.save_last_state          │ True                                  │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ windinet                              │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ ['vae', 'inflate', 'mean-init',       │
+│                                      │ 'shockwave-cfd']                      │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /dss/dsshome1/0D/go76fuz2/windinet/o… │
+│ clean_output_dir                     │ True                                  │
+│ resume_from                          │ None                                  │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     VAE inflated to 4 native channels (init=mean);       vae_trainer.py:155
+         encoder.conv_in is trainable                                           
+INFO     VAE gradient checkpointing enabled                   vae_trainer.py:203
+INFO     VAE loaded. Decoder params: 552,869,953              vae_trainer.py:209
+INFO     Trainable parameters: encoder_conv_in=221,312,       vae_trainer.py:257
+         decoder=552,869,953, in_adapter=0, out_adapter=0                       
+[ShockWaveDataset DEBUG] h5_path        = /dss/dsshome1/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5
+[ShockWaveDataset DEBUG] realpath        = /dss/dsshome1/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5
+[ShockWaveDataset DEBUG] st_size (bytes) = 520339
+[ShockWaveDataset DEBUG] first 5 keys    = ['0000_gamma1.1299999952', '0001_gamma1.1299999952', '0002_gamma1.1299999952', '0003_gamma1.1299999952', '0004_gamma1.1299999952']
+[ShockWaveDataset DEBUG] external targets to prewarm = 10
+INFO     Dataset: 3825 train, 675 eval samples                vae_trainer.py:458
+INFO     encoder.conv_in LR = 5.00e-04 (10x decoder LR        vae_trainer.py:482
+         5.00e-05)                                                              
+INFO     LR schedule 'cosine': 9570 steps (50 warmup, 0       vae_trainer.py:534
+         stable, 9520 anneal), peak 5.00e-05 -> floor                           
+         1.00e-06                                                               
+INFO     Cleaned output directory:                           vae_trainer.py:1067
+         /dss/dsshome1/0D/go76fuz2/windinet/outputs/vae_mean                    
+         init                                                                   
+INFO     Config saved:                                       vae_trainer.py:1161
+         /dss/dsshome1/0D/go76fuz2/windinet/outputs/vae_mean                    
+         init/training_config.yaml                                              
+INFO     Starting VAE decoder finetuning...                   vae_trainer.py:582
+[ShockWaveDataset DEBUG] fresh-handle probe OK for 0000_gamma1.1299999952
+[ShockWaveDataset DEBUG] prewarming target 1/10: 0000_gamma1.1299999952
+[ShockWaveDataset DEBUG] prewarming target 1/10: 0000_gamma1.1299999952 OK
+[ShockWaveDataset DEBUG] prewarming target 2/10: 0450_gamma1.2200000286
+[ShockWaveDataset DEBUG] prewarming target 2/10: 0450_gamma1.2200000286 OK
+[ShockWaveDataset DEBUG] prewarming target 3/10: 0900_gamma1.2999999523
+[ShockWaveDataset DEBUG] prewarming target 3/10: 0900_gamma1.2999999523 OK
+[ShockWaveDataset DEBUG] prewarming target 4/10: 1350_gamma1.3300000429
+[ShockWaveDataset DEBUG] prewarming target 4/10: 1350_gamma1.3300000429 OK
+[ShockWaveDataset DEBUG] prewarming target 5/10: 1800_gamma1.3650000095
+[ShockWaveDataset DEBUG] prewarming target 5/10: 1800_gamma1.3650000095 OK
+[ShockWaveDataset DEBUG] prewarming target 6/10: 2250_gamma1.3999999762
+[ShockWaveDataset DEBUG] prewarming target 6/10: 2250_gamma1.3999999762 OK
+[ShockWaveDataset DEBUG] prewarming target 7/10: 2700_gamma1.4040000439
+[ShockWaveDataset DEBUG] prewarming target 7/10: 2700_gamma1.4040000439 OK
+[ShockWaveDataset DEBUG] prewarming target 8/10: 3150_gamma1.4529999495
+[ShockWaveDataset DEBUG] prewarming target 8/10: 3150_gamma1.4529999495 OK
+[ShockWaveDataset DEBUG] prewarming target 9/10: 3600_gamma1.5970000029
+[ShockWaveDataset DEBUG] prewarm FAILED on target 9/10: 3600_gamma1.5970000029
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Epoch 1                       0/3825 Loss: 0.0000 LR: 5.00e-05 0:01:51 --:-- │
+╰──────────────────────────────────────────────────────────────────────────────╯END TIME: Thu 30 Jul 2026 12:40:22 PM CEST
