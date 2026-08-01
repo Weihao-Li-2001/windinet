@@ -1,22 +1,29 @@
 #!/bin/bash
-#SBATCH --job-name=vae_meaninit
+#SBATCH --job-name=shockwave_dit
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1                    # increase this for multi-node
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
 #SBATCH --account=pn82ku
-#SBATCH -o %j-%x.out
-#SBATCH -e %j-%x.err
+#SBATCH -o sng_pvc_log/%j-%x.out
+#SBATCH -e sng_pvc_log/%j-%x.err
 
-# Batch submission for the VAE mean-init finetune (configs/finetune_vae_meaninit.yaml)
-# on the sng_pvc cluster (Intel Data Center GPU Max 1550 / XPU, 8 tiles per node).
+# Batch submission for the ShockWaveNet DiT run on the sng_pvc cluster
+# (Intel Data Center GPU Max 1550 / XPU, 8 tiles per node). For the
+# NVIDIA/lundquist variant of this script, see the main branch.
 #
-# Submit with:   sbatch scripts/finetune_vae_meaninit.sbatch
-# Watch with:    tail -f <jobid>-vae_meaninit.out
+# Submit with:   sbatch scripts/sng_pvc/train_dit.sbatch
+# Watch with:    tail -f sng_pvc_log/<jobid>-shockwave_dit.out
 # Cancel with:   scancel <jobid>
 #
-# Verified working interactively on a single XPU tile first (srun + plain
-# `python scripts/finetune_vae.py ...`) before moving to this 8-tile sbatch run.
+# Adapted from a working sng_pvc sbatch template (micromamba env activation,
+# CCL/Level-Zero env vars, torchrun-style rendezvous).
+#
+# NOTE: the partition's time limit is a hard kill. Check the step rate in the
+# first few minutes; if 10000 steps will not fit, lower optimization.steps
+# rather than relying on a resume -- LtxvTrainer._load_checkpoint restores the
+# transformer weights only, not the optimizer or LR scheduler state, so a
+# resumed run restarts the cosine schedule from the top.
 
 module load micromamba/2.1.1
 export PATH="$MICROMAMBA_BASE/bin:$PATH"
@@ -53,14 +60,8 @@ export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline   # or WANDB_DISABLED=true
 export TOKENIZERS_PARALLELISM=false
 
-# 8 ranks all open train.h5 concurrently. HDF5's file locking is unreliable
-# on network filesystems like DSS/Lustre and throws "Unable to synchronously
-# open object (can't open file)" under this much concurrent access -- disable it.
-export HDF5_USE_FILE_LOCKING=FALSE
-
-# gradient_accumulation_steps=4 in the config is already tuned for
-# num_processes=8 (effective batch = batch_size 1 * grad_acc 4 * 8 = 32,
-# matching the 4-GPU lundquist baseline). RE-DERIVE IT IF YOU CHANGE NUM_XPUS.
+# --num_processes must match NUM_XPUS * num nodes, and the config's
+# checkpoints.interval assumes it (steps_per_epoch = 3825 / (4 * 4 * N)).
 srun --mpi=none accelerate launch \
     --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \
     --num_machines $SLURM_JOB_NUM_NODES \
@@ -68,6 +69,6 @@ srun --mpi=none accelerate launch \
     --main_process_ip "$MASTER_ADDR" \
     --main_process_port "$MASTER_PORT" \
     --mixed_precision bf16 \
-    scripts/finetune_vae.py configs/finetune_vae_meaninit.yaml
+    scripts/train.py configs/shockwavenet.yaml
 
 echo "END TIME: $(date)"

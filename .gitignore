@@ -39,6 +39,12 @@ MANIFEST
 euler_mq_dataset/*
 !euler_mq_dataset/download_from_hf.py
 
+# SLURM job logs -- tracked only under sng_pvc_log/
+*.err
+*.out
+!sng_pvc_log/*.err
+!sng_pvc_log/*.out
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
