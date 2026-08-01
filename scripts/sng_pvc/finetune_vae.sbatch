@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=vae_finetune
+#SBATCH --job-name=wh_finetune_vae
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1                    # increase this for multi-node
 #SBATCH --ntasks-per-node=1
@@ -19,7 +19,7 @@
 #   sbatch scripts/sng_pvc/finetune_vae.sbatch configs/<your-config>.yaml
 #
 # Submit with:   sbatch scripts/sng_pvc/finetune_vae.sbatch
-# Watch with:    tail -f log_sng_pvc/<jobid>-vae_finetune.out
+# Watch with:    tail -f log_sng_pvc/<jobid>-wh_finetune_vae.out
 # Cancel with:   scancel <jobid>
 #
 # Verified working interactively on a single XPU tile first (srun + plain

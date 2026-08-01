@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=vae_4gpu
+#SBATCH --job-name=wh_finetune_vae
 #SBATCH --partition=debug
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=24
@@ -10,7 +10,7 @@
 # 4-GPU variant of scripts/lundquist/finetune_vae_6gpu.sbatch.
 #
 # Submit with:   sbatch scripts/lundquist/finetune_vae_4gpu.sbatch
-# Watch with:    tail -f log_lundquist/vae_4gpu_<jobid>.log
+# Watch with:    tail -f log_lundquist/wh_finetune_vae_<jobid>.log
 #
 # THE COUPLING (see vae_trainer.py:499). batch_size is 1 and the prepared
 # loader is sharded, so each rank sees ceil(3825/4) = 957 batches:
