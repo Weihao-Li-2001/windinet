@@ -53,12 +53,12 @@ trap 'rm -f "${RUN_CONFIG}"' EXIT
 
 "${PYTHON}" - "${BASE_CONFIG}" "${RUN_CONFIG}" <<'PY'
 import sys, yaml
+from windinet.cluster_config import patch_config_for_cluster
 src, dst = sys.argv[1], sys.argv[2]
 cfg = yaml.safe_load(open(src))
-cfg["optimization"]["gradient_accumulation_steps"] = 16
-cfg["output_dir"] = cfg["output_dir"].rstrip("/") + "_2gpu"
+patch_config_for_cluster(cfg, cluster="lundquist", num_processes=2, output_suffix="_2gpu")
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
-print(f"2 GPUs x accum 16 -> effective batch 32; output_dir {cfg['output_dir']}")
+print(f"2 GPUs x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; output_dir {cfg['output_dir']}")
 PY
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"

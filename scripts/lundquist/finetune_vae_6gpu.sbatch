@@ -59,15 +59,16 @@ trap 'rm -f "${RUN_CONFIG}"' EXIT
 
 "${PYTHON}" - "${BASE_CONFIG}" "${RUN_CONFIG}" <<'PY'
 import sys, yaml
+from windinet.cluster_config import patch_config_for_cluster
 src, dst = sys.argv[1], sys.argv[2]
 cfg = yaml.safe_load(open(src))
-cfg["optimization"]["gradient_accumulation_steps"] = 5
-# Own directory, matching the 2-/4-GPU scripts. Also a guard: the config sets
-# clean_output_dir: true, so without this a resubmit would wipe the in-flight
-# job 21618's outputs/vae_inflate4_tail3x.
-cfg["output_dir"] = cfg["output_dir"].rstrip("/") + "_6gpu"
+# effective_batch=30, not the cluster default 32: 32 isn't divisible by 6
+# ranks. Own output_dir suffix, matching the 2-/4-GPU scripts -- also a
+# guard, since the config sets clean_output_dir: true and without this a
+# resubmit would wipe another run's outputs.
+patch_config_for_cluster(cfg, cluster="lundquist", num_processes=6, output_suffix="_6gpu", effective_batch=30)
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
-print(f"6 GPUs x accum 5 -> effective batch 30; output_dir {cfg['output_dir']}")
+print(f"6 GPUs x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 30; output_dir {cfg['output_dir']}")
 PY
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"

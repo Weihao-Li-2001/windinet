@@ -71,35 +71,21 @@ BASE_CONFIG=${1:-configs/finetune_vae_baseline.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
-python - "${BASE_CONFIG}" "${RUN_CONFIG}" <<'PY'
-import os
+python - "${BASE_CONFIG}" "${RUN_CONFIG}" "$((NUM_XPUS * SLURM_JOB_NUM_NODES))" <<'PY'
 import sys
 
 import yaml
 
-src, dst = sys.argv[1], sys.argv[2]
+from windinet.cluster_config import patch_config_for_cluster
+
+src, dst, num_processes = sys.argv[1], sys.argv[2], int(sys.argv[3])
 cfg = yaml.safe_load(open(src))
-
-scratch_root = os.path.join(os.environ["SCRATCH"], "windinet")
-cfg["data"]["data_root"] = os.path.join(
-    scratch_root, "euler_mq_dataset", "128x128_ds", "train.h5"
-)
-# 0 on sng_pvc: 8 ranks x N workers all opening train.h5 concurrently on the
-# DSS network filesystem was triggering transient open failures at N=4.
-cfg["data"]["num_dataloader_workers"] = 0
-
-# Effective batch = batch_size * gradient_accumulation_steps * num_processes.
-# Configs are written for lundquist (4 GPUs, accum 8 -> batch 32); sng_pvc
-# runs all 8 XPU tiles, so halve accum to land on the same effective batch:
-#   8 tiles x batch_size 1 x accum 4 = 32
-cfg["optimization"]["gradient_accumulation_steps"] = 4
-
-cfg["output_dir"] = os.path.join(
-    scratch_root, cfg["output_dir"].rstrip("/") + "_sng_pvc"
-)
-
+patch_config_for_cluster(cfg, cluster="sng_pvc", num_processes=num_processes, output_suffix="_sng_pvc")
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
-print(f"8 XPU tiles x accum 4 -> effective batch 32; output_dir {cfg['output_dir']}")
+print(
+    f"{num_processes} XPU tiles x accum {cfg['optimization']['gradient_accumulation_steps']} "
+    f"-> effective batch 32; output_dir {cfg['output_dir']}"
+)
 PY
 
 # Make log_sng_pvc/ self-describing: one row per job mapping the log to the
