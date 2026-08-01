@@ -4,13 +4,13 @@
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=12
 #SBATCH --time=10:00:00
-#SBATCH --output=vae_2gpu_%j.log
-#SBATCH --error=vae_2gpu_%j.log
+#SBATCH --output=lundquist_log/%x_%j.log
+#SBATCH --error=lundquist_log/%x_%j.log
 
-# 2-GPU variant of scripts/finetune_vae_6gpu.sbatch.
+# 2-GPU variant of scripts/lundquist/finetune_vae_6gpu.sbatch.
 #
-# Submit with:   sbatch scripts/finetune_vae_2gpu.sbatch
-# Watch with:    tail -f vae_2gpu_<jobid>.log
+# Submit with:   sbatch scripts/lundquist/finetune_vae_2gpu.sbatch
+# Watch with:    tail -f lundquist_log/vae_2gpu_<jobid>.log
 #
 # THE COUPLING (see vae_trainer.py:499). batch_size is 1 and the prepared
 # loader is sharded, so each rank sees ceil(3825/2) = 1913 batches:
@@ -22,7 +22,7 @@
 # Same 32 / 1200 as the 4-GPU reference runs, so the optimization trajectory
 # matches; only wall clock differs.
 #
-# The base config ships gradient_accumulation_steps: 5 for 6 GPUs, so this
+# The baseline config ships gradient_accumulation_steps: 8, so this
 # script patches it to 16 rather than forking another checked-in YAML.
 #
 # --cpus-per-task=12 covers 2 ranks x num_dataloader_workers: 4 = 8 loader
@@ -44,9 +44,10 @@ set -euo pipefail
 PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python
 cd /local/disk/hramachandran/work/wh_work/windinet
 
-# Defaults to the tail3x config; pass any other config as $1, e.g.
-#   sbatch scripts/finetune_vae_2gpu.sbatch configs/finetune_vae_randinit.yaml
-BASE_CONFIG=${1:-configs/finetune_vae_inflate_tail3x.yaml}
+# Defaults to the baseline config (EXPERIMENTS.md row 3); pass any other
+# config as $1, e.g.
+#   sbatch scripts/lundquist/finetune_vae_2gpu.sbatch configs/<your-config>.yaml
+BASE_CONFIG=${1:-configs/finetune_vae_meaninit_wsd15_h1x2_lr1x.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_2gpu_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
@@ -61,6 +62,13 @@ print(f"2 GPUs x accum 16 -> effective batch 32; output_dir {cfg['output_dir']}"
 PY
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"
+
+# Make lundquist_log/ self-describing: one row per job mapping the log file to
+# the config it ran and the output_dir it wrote. Without this, recovering
+# "which log belongs to which run" means grepping every log by hand.
+OUT_DIR=$("${PYTHON}" -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
+printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
+    "${BASE_CONFIG}" "${OUT_DIR}" >> lundquist_log/INDEX.tsv
 
 # Mixed precision is NOT passed here on purpose: VaeTrainer builds its own
 # Accelerator from acceleration.mixed_precision_mode (bf16) in the config.

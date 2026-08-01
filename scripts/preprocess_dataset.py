@@ -38,7 +38,7 @@ only the held-out one. Pass ``val/`` to the DiT trainer as
 Usage:
     python scripts/preprocess_dataset.py /data/shockwave_dataset/train.h5 \
         --output-dir /data/preprocessed \
-        --inflate-checkpoint outputs/vae_inflate4_resume3/checkpoints/vae_shockwave_epoch010.safetensors \
+        --inflate-checkpoint outputs/vae_meaninit_wsd15_h1x2_lr1x_2gpu/checkpoints/vae_shockwave_best.safetensors \
         --eval-sims 675
 """
 
@@ -223,7 +223,7 @@ def main(
         raise typer.BadParameter(
             "--inflate-checkpoint is required: the base VAE reads only 3 channels and "
             "cannot encode the 4-channel CFD fields. Pass the finetuned inflate VAE, e.g. "
-            "outputs/vae_inflate4_resume/checkpoints/vae_shockwave_epoch010.safetensors"
+            "outputs/vae_meaninit_wsd15_h1x2_lr1x_2gpu/checkpoints/vae_shockwave_best.safetensors"
         )
     logger.info(f"Loading inflated VAE ({model_source}) + checkpoint {inflate_checkpoint}...")
     vae = load_inflated_vae(model_source, inflate_checkpoint, dtype=torch.bfloat16, device=device)

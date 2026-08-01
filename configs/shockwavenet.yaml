@@ -47,7 +47,7 @@ data:
   # Produced by:
   #   python scripts/preprocess_dataset.py euler_mq_dataset/128x128_ds/train.h5 \
   #       --output-dir <this path> \
-  #       --inflate-checkpoint outputs/vae_inflate4_resume3/checkpoints/vae_shockwave_epoch010.safetensors \
+  #       --inflate-checkpoint outputs/vae_meaninit_wsd15_h1x2_lr1x_2gpu/checkpoints/vae_shockwave_best.safetensors \
   #       --eval-sims 675
   preprocessed_data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_preprocessed"
   # Each sample is a ~57 KB .pt, so loading is cheap either way, but 0 workers

@@ -4,13 +4,13 @@
 #SBATCH --gres=gpu:6
 #SBATCH --cpus-per-task=32
 #SBATCH --time=08:00:00
-#SBATCH --output=vae_6gpu_%j.log
-#SBATCH --error=vae_6gpu_%j.log
+#SBATCH --output=lundquist_log/%x_%j.log
+#SBATCH --error=lundquist_log/%x_%j.log
 
 # Batch submission for the VAE inflate-mode finetune with the 3x LR tail.
 #
-# Submit with:   sbatch scripts/finetune_vae_6gpu.sbatch
-# Watch with:    tail -f vae_6gpu_<jobid>.log
+# Submit with:   sbatch scripts/lundquist/finetune_vae_6gpu.sbatch
+# Watch with:    tail -f lundquist_log/vae_6gpu_<jobid>.log
 # Cancel with:   scancel <jobid>
 #
 # 2- and 4-GPU siblings: scripts/finetune_vae_{2,4}gpu.sbatch. All three derive
@@ -50,9 +50,10 @@ set -euo pipefail
 PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python
 cd /local/disk/hramachandran/work/wh_work/windinet
 
-# Defaults to the tail3x config; pass any other config as $1, e.g.
-#   sbatch scripts/finetune_vae_6gpu.sbatch configs/finetune_vae_randinit.yaml
-BASE_CONFIG=${1:-configs/finetune_vae_inflate_tail3x.yaml}
+# Defaults to the baseline config (EXPERIMENTS.md row 3); pass any other
+# config as $1, e.g.
+#   sbatch scripts/lundquist/finetune_vae_6gpu.sbatch configs/<your-config>.yaml
+BASE_CONFIG=${1:-configs/finetune_vae_meaninit_wsd15_h1x2_lr1x.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_6gpu_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
@@ -70,6 +71,13 @@ print(f"6 GPUs x accum 5 -> effective batch 30; output_dir {cfg['output_dir']}")
 PY
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"
+
+# Make lundquist_log/ self-describing: one row per job mapping the log file to
+# the config it ran and the output_dir it wrote. Without this, recovering
+# "which log belongs to which run" means grepping every log by hand.
+OUT_DIR=$("${PYTHON}" -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
+printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
+    "${BASE_CONFIG}" "${OUT_DIR}" >> lundquist_log/INDEX.tsv
 
 # Mixed precision is NOT passed here on purpose: VaeTrainer builds its own
 # Accelerator from acceleration.mixed_precision_mode (bf16) in the config.
