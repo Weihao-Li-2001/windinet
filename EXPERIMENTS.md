@@ -8,7 +8,7 @@ verdict **after** it finishes.
   (density, momentum_x, momentum_y, pressure), 128x128, inflate mode.
 - **Metric**: `val_vrmse` on 675 held-out sims (fixed seed + randperm, identical
   across all runs).
-- **Baseline (as of 2026-08-01)**: `finetune_vae_meaninit_wsd15_h1x2_lr1x.yaml`
+- **Baseline (as of 2026-08-01)**: `finetune_vae_baseline.yaml`
   -> `outputs/vae_meaninit_wsd15_h1x2_lr1x_2gpu`, **val_vrmse 0.095396**.
 
 ## Fixed setup (identical in every 15-epoch run)
@@ -210,8 +210,8 @@ discontinuities. 5x spread, same model, same epoch.
 | Rationale, hypotheses, verdicts | **this file** |
 | Cluster job launchers | `scripts/lundquist/*.sbatch` (submit from repo root) |
 | Portable entry points | `scripts/*.py` |
-| Slurm logs | `lundquist_log/<jobname>_<jobid>.log` |
-| job -> config -> output_dir map | `lundquist_log/INDEX.tsv` (appended by the sbatch scripts) |
+| Slurm logs | `log_lundquist/<jobname>_<jobid>.log` |
+| job -> config -> output_dir map | `log_lundquist/INDEX.tsv` (appended by the sbatch scripts) |
 | Per-run metrics, panels, resolved config | `outputs/<run>/{metrics,visualizations,training_config.yaml}` |
 | Checkpoints | `outputs/<run>/checkpoints/vae_shockwave_best.safetensors` |
 

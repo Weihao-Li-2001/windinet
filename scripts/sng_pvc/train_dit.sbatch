@@ -5,15 +5,15 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
 #SBATCH --account=pn82ku
-#SBATCH -o sng_pvc_log/%j-%x.out
-#SBATCH -e sng_pvc_log/%j-%x.err
+#SBATCH -o log_sng_pvc/%j-%x.out
+#SBATCH -e log_sng_pvc/%j-%x.err
 
 # Batch submission for the ShockWaveNet DiT run on the sng_pvc cluster
 # (Intel Data Center GPU Max 1550 / XPU, 8 tiles per node). For the
 # NVIDIA/lundquist variant of this script, see the main branch.
 #
 # Submit with:   sbatch scripts/sng_pvc/train_dit.sbatch
-# Watch with:    tail -f sng_pvc_log/<jobid>-shockwave_dit.out
+# Watch with:    tail -f log_sng_pvc/<jobid>-shockwave_dit.out
 # Cancel with:   scancel <jobid>
 #
 # Adapted from a working sng_pvc sbatch template (micromamba env activation,

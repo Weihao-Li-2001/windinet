@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
 #SBATCH --account=pn82ku
-#SBATCH -o sng_pvc_log/%j-%x.out
-#SBATCH -e sng_pvc_log/%j-%x.err
+#SBATCH -o log_sng_pvc/%j-%x.out
+#SBATCH -e log_sng_pvc/%j-%x.err
 
 # Batch submission for VAE finetuning on the sng_pvc cluster (Intel Data
 # Center GPU Max 1550 / XPU, 8 tiles per node).
@@ -19,7 +19,7 @@
 #   sbatch scripts/sng_pvc/finetune_vae.sbatch configs/<your-config>.yaml
 #
 # Submit with:   sbatch scripts/sng_pvc/finetune_vae.sbatch
-# Watch with:    tail -f sng_pvc_log/<jobid>-vae_finetune.out
+# Watch with:    tail -f log_sng_pvc/<jobid>-vae_finetune.out
 # Cancel with:   scancel <jobid>
 #
 # Verified working interactively on a single XPU tile first (srun + plain
@@ -67,7 +67,7 @@ export TOKENIZERS_PARALLELISM=false
 # open object (can't open file)" under this much concurrent access -- disable it.
 export HDF5_USE_FILE_LOCKING=FALSE
 
-BASE_CONFIG=${1:-configs/finetune_vae_meaninit_wsd15_h1x2_lr1x.yaml}
+BASE_CONFIG=${1:-configs/finetune_vae_baseline.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
@@ -102,11 +102,11 @@ yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(f"8 XPU tiles x accum 4 -> effective batch 32; output_dir {cfg['output_dir']}")
 PY
 
-# Make sng_pvc_log/ self-describing: one row per job mapping the log to the
-# config it ran and the output_dir it wrote, same convention as lundquist_log/.
+# Make log_sng_pvc/ self-describing: one row per job mapping the log to the
+# config it ran and the output_dir it wrote, same convention as log_lundquist/.
 OUT_DIR=$(python -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> sng_pvc_log/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> log_sng_pvc/INDEX.tsv
 
 srun --mpi=none accelerate launch \
     --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \
