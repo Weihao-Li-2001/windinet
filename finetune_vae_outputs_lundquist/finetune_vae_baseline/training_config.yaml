@@ -60,7 +60,7 @@ loss_weighting:
   weight_lr: 0.025
   weights:
     h1: 50.0
-    mlw: 0.0001
+    mlw: 0.0
     rmse: 1.0
     ssim: 0.15
 model:
@@ -72,7 +72,7 @@ optimization:
   batch_size: 1
   enable_gradient_checkpointing: true
   epochs: 15
-  gradient_accumulation_steps: 8
+  gradient_accumulation_steps: 16
   learning_rate: 5.0e-05
   max_grad_norm: 5.0
   min_learning_rate: 1.0e-06
@@ -81,7 +81,7 @@ optimization:
   warmup_start_factor: 0.01
   warmup_steps: 200
   weight_decay: 0.0
-output_dir: /local/disk/hramachandran/work/wh_work/windinet/outputs/vae_meaninit_wsd15_h1x2_lr1x_mlw_4gpu
+output_dir: /local/disk/hramachandran/work/wh_work/windinet/finetune_vae_outputs_lundquist/finetune_vae_baseline
 resume_from: null
 resume_weights_only: false
 seed: 42
@@ -107,5 +107,4 @@ wandb:
   - 15ep
   - h1x2
   - lr1x
-  - mlw-low
   - shockwave-cfd

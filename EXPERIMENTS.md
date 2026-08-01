@@ -8,8 +8,13 @@ verdict **after** it finishes.
   (density, momentum_x, momentum_y, pressure), 128x128, inflate mode.
 - **Metric**: `val_vrmse` on 675 held-out sims (fixed seed + randperm, identical
   across all runs).
-- **Baseline (as of 2026-08-01)**: `finetune_vae_baseline.yaml`
-  -> `outputs/vae_meaninit_wsd15_h1x2_lr1x_2gpu`, **val_vrmse 0.095396**.
+- **Baseline (as of 2026-08-01)**: `finetune_vae_baseline.yaml`, **val_vrmse
+  0.095396** (ledger #3). Its output dir no longer exists -- job 21664 re-ran
+  into the same `output_dir` with `clean_output_dir: true` and was cancelled at
+  step 20, wiping it. The only surviving record of that run is
+  `log_finetuning_vae/lundquist/vae_2gpu_21632.log` (21664's own log is gone
+  too, and it never got an INDEX.tsv row). Job **21666** is re-running the same
+  config at the same seed to restore it.
 
 ## Fixed setup (identical in every 15-epoch run)
 
@@ -107,6 +112,56 @@ that trainer-side VAE is either unused or a 3-channel landmine.
 
 `admul` = `optimization.adapter_lr_multiplier` (applies to `encoder.conv_in`).
 
+**Artifact retention (2026-08-01).** All ten run directories above have been
+deleted to start the next round clean. What survives:
+
+- **In git at `f88eb09`** -- metrics, loss curves, reconstruction panels and
+  resolved configs for #1, #2, #4, #6, #8, #9 (plus the config-only remains of
+  #3). Retrieve with
+  `git show f88eb09:finetune_vae_outputs_lundquist/<run>/metrics/metrics.csv`.
+- **Numbers in this table only** -- #5, #7, #10 were already gone before that
+  commit; their Slurm logs are in `log_finetuning_vae/lundquist/`, which is
+  where every lundquist log now lives (the old `lundquist_log/` and
+  `log_lundquist/` directories are gone). `*.log` is gitignored, so those are
+  on this disk only.
+- **No weights at all.** Every `vae_shockwave_best.safetensors` was deleted,
+  including #1's (0.094739), which was never in git -- `checkpoints/` is
+  gitignored. There is currently no finetuned VAE, so stage 2 (DiT on
+  precomputed latents) is blocked until 21666 finishes.
+
+## In flight
+
+| job | config | output dir | what it answers | read-out |
+|---|---|---|---|---|
+| 21666 | `finetune_vae_baseline.yaml` | `finetune_vae_baseline` | restores #3 (mean, 15 ep, wsd, admul 1, h1 50, mlw 0, seed 42) | should land near 0.0954. Same seed, so this is a reproduction, **not** an answer to Open Question 1 -- that still needs seeds 1 and 2. |
+
+### 21667 -- capacity diagnostic, DIVERGED, inconclusive
+
+First execution of `finetune_vae_overfit.yaml` (Open Question 2). It **did not
+answer the question** -- the run blew up in epoch 2 and never recovered:
+
+| epoch | lr | train_loss | val_vrmse |
+|---|---|---|---|
+| 1 | 1.6e-4 (warmup) | 0.288 | 0.892 |
+| 2 | 2e-4 | **2.106** | 1.112 |
+| 3 | 2e-4 | 0.452 | 1.087 |
+| 25 | 2e-4 | 0.377 | 1.025 |
+
+`val_vrmse ~= 1.0` means the output is no better than a trivial predictor;
+`val_rmse` sits at 0.238 against 0.014 for the working full-data runs. Loss is
+flat from epoch 3 to 25 -- collapsed, not converging.
+
+Cause is almost certainly the LR: `learning_rate: 2e-4` with
+`scheduler_type: constant` and only 50 warmup steps, i.e. **4x the 5e-5 every
+successful run uses, with no decay** -- and `adapter_lr_multiplier: 10.0` puts
+`encoder.conv_in` at an effective 2e-3. Note this config also uses
+`inflate_init: zeros`, unlike the baseline's `mean`.
+
+Two things to fix before re-running: drop LR to 5e-5 (matching the runs that
+work) and check the checkpoint write -- the log reports
+`Training complete. Checkpoint: .../vae_shockwave_last.safetensors` but
+`checkpoints/` is empty, so nothing was actually saved.
+
 ## Established
 
 - **`inflate_init: random` destroys the run.** 0.162905 vs 0.094739 (+72%). The
@@ -149,7 +204,8 @@ Measured band-limited VRMSE floors on this dataset (recorded in
 perfect recovery of everything below the 64x64 cutoff were achieved. Anything
 beyond that requires more latent bandwidth, not a better objective.
 
-Qualitative confirmation from epoch-15 reconstruction panels: per-sample RMSE
+Qualitative confirmation from #1's epoch-15 reconstruction panels (now only in
+git at `f88eb09`): per-sample RMSE
 tracks the sample's high-wavenumber content, not its magnitude. A turbulent
 sample (2507, gamma=1.40) gives 4.85e-2 with broadband speckle residual and a
 visibly smoothed prediction; a smooth sample with sharp interfaces (1859,
@@ -161,9 +217,11 @@ discontinuities. 5x spread, same model, same epoch.
 1. **What is the seed noise floor?** Re-run the baseline at seeds 1 and 2.
    Until this number exists, no result under ~2% is interpretable. Cost: 2 runs.
    *This gates everything below.*
-2. **Is the bottleneck the latent or the objective?** Run
-   `configs/finetune_vae/finetune_vae_overfit.yaml` -- designed for exactly this, never executed. Train
-   and eval on the same 8 sims; 553M params vs 8 samples is pure memorization.
+2. **Is the bottleneck the latent or the objective?** **Attempted as job 21667
+   and still open** -- that run diverged at 2e-4 constant LR (see above) and
+   says nothing about latent capacity. Re-run
+   `configs/finetune_vae/finetune_vae_overfit.yaml` at lr 5e-5 first. Train and
+   eval on the same 8 sims; 553M params vs 8 samples is pure memorization.
    Read-out thresholds are in that file's header. Cost: 1 GPU, ~32 min.
 3. **Does unfreezing the encoder trunk help?** Only worth running if (2) says
    the information reaches the decoder. Proposed LRs: decoder 5e-5 (unchanged),
@@ -186,8 +244,9 @@ discontinuities. 5x spread, same model, same epoch.
 | Portable entry points | `scripts/*.py` |
 | Slurm logs | `log_finetuning_vae/lundquist/<jobname>_<jobid>.log`, `log_finetuning_vae/sng_pvc/<jobid>-<jobname>.{out,err}` |
 | job -> config -> output_dir map | `log_finetuning_vae/{lundquist,sng_pvc}/INDEX.tsv` (appended by the sbatch scripts) |
-| Per-run metrics, panels, resolved config | `outputs/<run>/{metrics,visualizations,training_config.yaml}` |
-| Checkpoints | `outputs/<run>/checkpoints/vae_shockwave_best.safetensors` |
+| Per-run metrics, panels, resolved config | `finetune_vae_outputs_lundquist/<run>/{metrics,visualizations,training_config.yaml}` -- **tracked in git** since `f88eb09` |
+| Checkpoints | `finetune_vae_outputs_lundquist/<run>/checkpoints/vae_shockwave_best.safetensors` -- **gitignored**, this machine is the only copy |
+| Retired runs | git history, see Artifact retention under the Ledger |
 
 ## Protocol going forward
 
@@ -202,3 +261,7 @@ discontinuities. 5x spread, same model, same epoch.
    single-variable experiment.
 5. Rationale lives here, not in config headers. Config files carry the diff and
    a one-line pointer to the ledger row.
+6. **Never re-run into an existing `output_dir`.** `clean_output_dir: true`
+   wipes it at startup, before a single step -- that is how #3 was lost. Give
+   every launch its own directory, and commit metrics + panels once the run
+   finishes; the weights stay gitignored, so they are only ever on this disk.
