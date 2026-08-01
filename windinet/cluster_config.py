@@ -15,13 +15,17 @@ import os
 CLUSTER_DEFAULTS = {
     "lundquist": {
         "data_root": "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5",
-        "output_root": None,  # keep output_dir as the config's own repo-relative value
+        # Repo-relative, shared by every lundquist GPU-count variant on
+        # purpose: there's one lundquist result at a time, not one per GPU
+        # count, so the 2/4/6-GPU scripts all land here regardless of
+        # output_suffix. clean_output_dir wipes it at the start of each run.
+        "output_root": "finetune_vae_outputs_lundquist",
         "num_dataloader_workers": 4,
         "effective_batch": 32,
     },
     "sng_pvc": {
         "data_root": "{scratch}/windinet/euler_mq_dataset/128x128_ds/train.h5",
-        "output_root": "{scratch}/windinet",
+        "output_root": "{scratch}/windinet/finetune_vae_outputs_sng_pvc",
         # 8 ranks x N workers all opening train.h5 concurrently on the DSS
         # network filesystem was triggering transient open failures at N=4.
         "num_dataloader_workers": 0,
@@ -45,9 +49,13 @@ def patch_config_for_cluster(
     override it -- e.g. lundquist's 6-GPU script targets 30, not 32, because
     32 isn't divisible by 6 ranks) and num_processes, so every cluster/GPU
     count combination trains on the same effective batch without hand-tuning
-    the multiplier. output_dir gets output_suffix appended (so runs from
-    different clusters/GPU counts never collide) and, if the cluster has an
-    output_root, gets relocated under it (e.g. sng_pvc's $SCRATCH).
+    the multiplier. output_dir gets output_suffix appended, then gets
+    relocated under the cluster's output_root (its own top-level results
+    folder, e.g. sng_pvc's $SCRATCH). output_suffix is typically "" for
+    scripts that intentionally share one cluster-wide output_dir (lundquist's
+    2/4/6-GPU variants all overwrite the same run on purpose -- see
+    CLUSTER_DEFAULTS); pass a real suffix only when two scripts sharing a
+    cluster must NOT overwrite each other's output.
     """
     defaults = CLUSTER_DEFAULTS[cluster]
     scratch = os.environ.get("SCRATCH", "")

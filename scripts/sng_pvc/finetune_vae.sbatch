@@ -86,7 +86,7 @@ from windinet.cluster_config import patch_config_for_cluster
 
 src, dst, num_processes = sys.argv[1], sys.argv[2], int(sys.argv[3])
 cfg = yaml.safe_load(open(src))
-patch_config_for_cluster(cfg, cluster="sng_pvc", num_processes=num_processes, output_suffix="_sng_pvc")
+patch_config_for_cluster(cfg, cluster="sng_pvc", num_processes=num_processes, output_suffix="")
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(
     f"{num_processes} XPU tiles x accum {cfg['optimization']['gradient_accumulation_steps']} "

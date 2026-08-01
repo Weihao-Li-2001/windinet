@@ -63,10 +63,11 @@ from windinet.cluster_config import patch_config_for_cluster
 src, dst = sys.argv[1], sys.argv[2]
 cfg = yaml.safe_load(open(src))
 # effective_batch=30, not the cluster default 32: 32 isn't divisible by 6
-# ranks. Own output_dir suffix, matching the 2-/4-GPU scripts -- also a
-# guard, since the config sets clean_output_dir: true and without this a
-# resubmit would wipe another run's outputs.
-patch_config_for_cluster(cfg, cluster="lundquist", num_processes=6, output_suffix="_6gpu", effective_batch=30)
+# ranks. Empty output_suffix like the 2-/4-GPU scripts: all lundquist
+# variants intentionally share one output_dir (see cluster_config.py), so
+# resubmitting with a different GPU count overwrites the previous run on
+# purpose (clean_output_dir: true) rather than keeping per-variant results.
+patch_config_for_cluster(cfg, cluster="lundquist", num_processes=6, output_suffix="", effective_batch=30)
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(f"6 GPUs x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 30; output_dir {cfg['output_dir']}")
 PY

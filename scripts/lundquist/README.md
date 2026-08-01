@@ -41,5 +41,13 @@ effective batch 32 and 1800 optimizer steps -- results from them are directly
 comparable. **The 6-GPU variant is not** (batch 30, different step count); do
 not compare its `val_vrmse` against the ledger without noting this.
 
+**All three write to the same `output_dir`** (`finetune_vae_outputs_lundquist/<run>`,
+no per-GPU-count suffix -- see `windinet/cluster_config.py`), on purpose:
+there's one current lundquist result, not one per GPU count. `clean_output_dir:
+true` wipes that directory at the start of every run, so submitting a
+different variant overwrites whatever the previous one produced. If you need
+to keep results from two variants side by side, copy the output_dir out
+before submitting the next one.
+
 Each job appends a row to `log_lundquist/INDEX.tsv` mapping job id -> config ->
 output_dir. See `../../EXPERIMENTS.md` for results and rationale.

@@ -55,7 +55,7 @@ import sys, yaml
 from windinet.cluster_config import patch_config_for_cluster
 src, dst = sys.argv[1], sys.argv[2]
 cfg = yaml.safe_load(open(src))
-patch_config_for_cluster(cfg, cluster="lundquist", num_processes=4, output_suffix="_4gpu")
+patch_config_for_cluster(cfg, cluster="lundquist", num_processes=4, output_suffix="")
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(f"4 GPUs x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; output_dir {cfg['output_dir']}")
 PY

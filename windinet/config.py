@@ -420,7 +420,7 @@ class VaeTrainerConfig(ConfigBaseModel):
     wandb: WandbConfig = Field(default_factory=WandbConfig)
 
     seed: int = Field(default=42)
-    output_dir: str = Field(default="outputs/vae_finetune")
+    output_dir: str = Field(default="finetune_vae_outputs/vae_finetune")
     clean_output_dir: bool = Field(
         default=False,
         description="Delete output_dir before training so each run starts from a clean directory.",
