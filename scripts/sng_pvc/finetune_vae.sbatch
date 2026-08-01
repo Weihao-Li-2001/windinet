@@ -25,19 +25,19 @@
 # Verified working interactively on a single XPU tile first (srun + plain
 # `python scripts/finetune_vae.py ...`) before moving to this 8-tile sbatch run.
 
-set -euo pipefail
+# No `-u`: `module load micromamba` itself (not just the later shell hook/
+# activate calls) references variables like MAMBA_ROOT_PREFIX that the
+# module never exports and that aren't given internal defaults -- fatal
+# under nounset before our own code even runs. `-e`/pipefail stay on so a
+# real failure in our own commands (the yaml patch step, the launch) still
+# stops the script.
+set -eo pipefail
 
 module load micromamba/2.1.1
 export PATH="$MICROMAMBA_BASE/bin:$PATH"
-# micromamba's own shell hook/activate scripts reference variables (e.g.
-# MAMBA_ROOT_PREFIX) that the module doesn't export and that aren't given
-# defaults internally -- fatal under `set -u` above. Not our unbound
-# variable to fix, so bracket just this third-party init with `set +u`.
-set +u
 eval "$(micromamba shell hook -s bash)"
 micromamba activate windinet   # env with an XPU-enabled torch +
                                 # intel-extension-for-pytorch installed
-set -u
 
 cd /dss/dsshome1/0D/go76fuz2/windinet
 
