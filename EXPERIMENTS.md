@@ -137,7 +137,7 @@ that trainer-side VAE is either unused or a 3-channel landmine.
 ## The bandwidth ceiling
 
 Measured band-limited VRMSE floors on this dataset (recorded in
-`configs/finetune_vae/overfit8.yaml`):
+`configs/finetune_vae/finetune_vae_overfit.yaml`):
 
 | ideal reconstruction bandwidth | VRMSE floor |
 |---|---|
@@ -162,7 +162,7 @@ discontinuities. 5x spread, same model, same epoch.
    Until this number exists, no result under ~2% is interpretable. Cost: 2 runs.
    *This gates everything below.*
 2. **Is the bottleneck the latent or the objective?** Run
-   `configs/finetune_vae/overfit8.yaml` -- designed for exactly this, never executed. Train
+   `configs/finetune_vae/finetune_vae_overfit.yaml` -- designed for exactly this, never executed. Train
    and eval on the same 8 sims; 553M params vs 8 samples is pure memorization.
    Read-out thresholds are in that file's header. Cost: 1 GPU, ~32 min.
 3. **Does unfreezing the encoder trunk help?** Only worth running if (2) says

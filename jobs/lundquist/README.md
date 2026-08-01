@@ -10,7 +10,7 @@ here hard-codes:
 - `cd /local/disk/hramachandran/work/wh_work/windinet`
 - `#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log`
 
-Moving the repo to another machine means rewriting all four, not porting them.
+Moving the repo to another machine means rewriting all five, not porting them.
 
 ## Submitting
 
@@ -37,11 +37,20 @@ script lives.
 | `finetune_vae_4gpu.sbatch` | 4 | 8 | 32 | `scripts/finetune_vae.py` |
 | `finetune_vae_6gpu.sbatch` | 6 | 5 | 30 | `scripts/finetune_vae.py` |
 | `train_dit.sbatch` | 4 | - | - | `scripts/train.py` |
+| `finetune_vae_debug.sbatch` | 1 | 1 | 1 | `scripts/finetune_vae.py` |
 
 The 2- and 4-GPU variants patch `gradient_accumulation_steps` so both land on
 effective batch 32 and 1800 optimizer steps -- results from them are directly
 comparable. **The 6-GPU variant is not** (batch 30, different step count); do
 not compare its `val_vrmse` against the ledger without noting this.
+
+`finetune_vae_debug.sbatch` is a different kind of script, not a smaller version of the
+others: its default config is `finetune_vae_overfit.yaml`, the overfit-8
+capacity diagnostic, which measures memorization and needs one optimizer step
+per sim, not a comparable effective batch. It patches `effective_batch=1`
+explicitly rather than taking the cluster default of 32, and its `val_vrmse`
+is not comparable to the ledger at all -- see `EXPERIMENTS.md` Open
+Questions #2.
 
 **All three write to the same `output_dir`** (`finetune_vae_outputs_lundquist/<run>`,
 no per-GPU-count suffix -- see `windinet/cluster_config.py`), on purpose:

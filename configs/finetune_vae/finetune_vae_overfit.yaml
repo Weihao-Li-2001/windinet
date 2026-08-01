@@ -46,7 +46,12 @@
 #
 # Usage (1 GPU, ~32 min):
 #   accelerate launch --num_processes 1 scripts/finetune_vae.py \
-#       configs/finetune_vae/overfit8.yaml
+#       configs/finetune_vae/finetune_vae_overfit.yaml
+#
+# On lundquist, submit via jobs/lundquist/finetune_vae_debug.sbatch instead -- it patches
+# gradient_accumulation_steps back to 1 (patch_config_for_cluster's default
+# effective_batch=32 would otherwise wreck the "one optimizer step per sim"
+# design here) and relocates output_dir under the cluster's output root.
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -148,5 +153,5 @@ wandb:
   tags: ["vae", "diagnostic", "overfit"]
 
 seed: 42
-output_dir: "$SCRATCH/windinet/outputs/vae_overfit8"
+output_dir: "finetune_vae_overfit"
 clean_output_dir: true
