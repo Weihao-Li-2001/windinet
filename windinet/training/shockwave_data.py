@@ -70,16 +70,6 @@ class ShockWaveDataset(Dataset):
             self.ids = sorted(list(f.keys()))
             self._prewarm_ids = self._pick_prewarm_ids(f, self.ids)
 
-            # DEBUG: prove which file is actually being read, not just what the
-            # config claims. Rank0 only to avoid 8x duplicate spam.
-            if int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0"))) == 0:
-                real_path = os.path.realpath(self.h5_path)
-                print(f"[ShockWaveDataset DEBUG] h5_path        = {self.h5_path}", flush=True)
-                print(f"[ShockWaveDataset DEBUG] realpath        = {real_path}", flush=True)
-                print(f"[ShockWaveDataset DEBUG] st_size (bytes) = {os.stat(self.h5_path).st_size}", flush=True)
-                print(f"[ShockWaveDataset DEBUG] first 5 keys    = {self.ids[:5]}", flush=True)
-                print(f"[ShockWaveDataset DEBUG] external targets to prewarm = {len(self._prewarm_ids)}", flush=True)
-
         self.num_sim_frames = num_sim_frames
 
     @staticmethod
@@ -188,35 +178,8 @@ class ShockWaveDataset(Dataset):
             time.sleep(self._rank_stagger_delay())
             self.file = self._open(self.h5_path)
 
-            # DEBUG: does a brand-new h5py.File opened right here, inside the
-            # live (already accelerate/torch/XPU-initialized) process, also
-            # fail to resolve the same external link that every standalone
-            # `python3 -c` repro outside this process has resolved fine?
-            # Distinguishes "something wrong with this Dataset's file handle"
-            # from "something about this process's state at this point breaks
-            # HDF5 external-link resolution regardless of which handle is used".
-            if int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0"))) == 0 and self._prewarm_ids:
-                probe_id = self._prewarm_ids[0]
-                try:
-                    probe_file = h5py.File(self.h5_path, "r", locking=False)
-                    _ = probe_file[probe_id]
-                    print(f"[ShockWaveDataset DEBUG] fresh-handle probe OK for {probe_id}", flush=True)
-                    probe_file.close()
-                except Exception as e:
-                    print(f"[ShockWaveDataset DEBUG] fresh-handle probe FAILED for {probe_id}: {e!r}", flush=True)
-
-            is_rank0 = int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0"))) == 0
-            for i, sid in enumerate(self._prewarm_ids):
-                if is_rank0:
-                    print(f"[ShockWaveDataset DEBUG] prewarming target {i+1}/{len(self._prewarm_ids)}: {sid}", flush=True)
-                try:
-                    self._get_group(sid)
-                except Exception:
-                    if is_rank0:
-                        print(f"[ShockWaveDataset DEBUG] prewarm FAILED on target {i+1}/{len(self._prewarm_ids)}: {sid}", flush=True)
-                    raise
-                if is_rank0:
-                    print(f"[ShockWaveDataset DEBUG] prewarming target {i+1}/{len(self._prewarm_ids)}: {sid} OK", flush=True)
+            for sid in self._prewarm_ids:
+                self._get_group(sid)
 
     def __del__(self):
         if self.file is not None:
