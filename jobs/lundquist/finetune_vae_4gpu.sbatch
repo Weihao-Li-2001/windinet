@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=wh_finetune_vae
+#SBATCH --job-name=wh_finetune_vae_4gpu
 #SBATCH --partition=debug
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=24
