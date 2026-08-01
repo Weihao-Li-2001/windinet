@@ -34,17 +34,42 @@
 # 32x32 cutoff = 0.165, 64x64 = 0.089, i.e. the current model behaves like a
 # ~56x56 Fourier truncation.
 #
+# ATTEMPT 1 (job 21667) DIVERGED -- read this before changing anything back.
+# It ran lr 2e-4 constant with adapter_lr_multiplier 10.0, and blew up the
+# moment warmup released the full LR: train_loss 0.288 -> 2.106 across epoch 2,
+# then flat at val_vrmse ~1.03 for 23 epochs (val_rmse 0.238 against 0.014 for
+# the working full-data runs). It measured nothing about latent capacity.
+#
+# The cause was in this file. It moved LR and batch size in opposite
+# directions: 4x the 5e-5 that every converging run uses, with no decay, while
+# effective batch went from 32 to 1 -- an order of magnitude more gradient
+# noise per step, which calls for a LOWER LR, not a higher one. admul 10 on top
+# put encoder.conv_in at an effective 2e-3, 40x the baseline.
+#
+# The original argument for the high LR ("a low LR would confound cannot-fit
+# with not-trained-enough") is sound, but the fix for not-trained-enough is
+# more STEPS, not a bigger step size. Attempt 2 therefore runs the baseline's
+# optimizer settings and doubles the epoch count instead. See EXPERIMENTS.md.
+#
 # STEP MATH (1 GPU): 8 sims x 5 repeats = 40 samples/epoch, accum 1 -> 40
-# optimizer steps/epoch. 25 epochs = 1000 steps, ~32 min. Validation runs once
-# per epoch -> 25 points on the curve.
+# optimizer steps/epoch. 50 epochs = 2000 steps, ~64 min (25 ep / 1000 steps
+# measured at ~32 min). Validation runs once per epoch -> 50 points on the
+# curve. The debug sbatch needs --time 02:00:00 for this, not 01:00:00.
+#
+# KILL CRITERION: if epoch 2's train_loss exceeds epoch 1's, it is diverging
+# again -- kill the job and halve the LR to 2.5e-5. If it survives to epoch 5
+# with val_vrmse below epoch 1's, let it run.
 #
 # ONE GPU IS DELIBERATE. Memorization needs update COUNT, not batch size. A
 # full-batch variant (4 GPUs, accum 2, all 8 sims per step) costs 8000 sim
 # forward+backwards for the same 1000 steps -- 8x the compute and 2x the wall
 # clock -- and buys only a less noisy gradient, which is worthless when the
 # question is "can it fit at all". Leaving 3 GPUs free for the LR scan.
+# If 5e-5 still proves unstable at effective batch 1, the next lever is
+# effective_batch=4 in the debug sbatch with epochs x4 to hold the step count
+# -- but change one thing at a time.
 #
-# Usage (1 GPU, ~32 min):
+# Usage (1 GPU, ~64 min):
 #   accelerate launch --num_processes 1 scripts/finetune_vae.py \
 #       configs/finetune_vae/finetune_vae_overfit.yaml
 #
@@ -59,7 +84,9 @@ model:
 adapter:
   enabled: true
   mode: "inflate"
-  inflate_init: "zeros"
+  # mean, matching the baseline: the diagnostic has to measure the model that
+  # is actually being trained, not a variant. (zeros in attempt 1.)
+  inflate_init: "mean"
   freeze_conv_in: false
   checkpoint: null
   channels: ["density", "momentum_x", "momentum_y", "pressure"]
@@ -86,16 +113,21 @@ data:
   num_dataloader_workers: 4
 
 optimization:
-  # Higher than any real run on purpose. Generalization does not exist here, so
-  # there is nothing to regularize and a low LR would only confound "cannot fit"
-  # with "not trained enough" -- the exact ambiguity this run exists to remove.
-  learning_rate: 2e-4
-  adapter_lr_multiplier: 10.0
+  # Baseline value. 2e-4 in attempt 1 diverged in epoch 2 -- see the header.
+  # The budget that the lower LR costs is bought back with epochs 25 -> 50.
+  learning_rate: 5e-5
+  # 1.0, as in the baseline. At 10.0 encoder.conv_in ran 40x the baseline rate
+  # and was the most explosive term in attempt 1. admul 10 vs 1 was already
+  # tested on full data (#1 vs #3) and the difference was inside seed noise,
+  # so matching the baseline here costs no comparability.
+  adapter_lr_multiplier: 1.0
   min_learning_rate: 1e-6
   # Constant: a decaying LR would flatten the curve on its own and reintroduce
-  # the ambiguity.
+  # the ambiguity. Kept from attempt 1 -- it was not the problem.
   scheduler_type: "constant"
-  epochs: 25
+  # 50, not 25: 2000 optimizer steps, so a plateau cannot be blamed on the
+  # 4x smaller LR.
+  epochs: 50
   batch_size: 1
   # 1, not 2: one optimizer step per sim. See STEP MATH above.
   gradient_accumulation_steps: 1
@@ -106,12 +138,13 @@ optimization:
   enable_gradient_checkpointing: true
 
 loss_weighting:
-  # Same weights as the vae_inflate4_more run so the VRMSE here is on the same
-  # footing as the 0.105 it is being compared against.
+  # Baseline weights. Attempt 1 used h1 25 to match vae_inflate4_more (0.105),
+  # but that run is retired -- the number this diagnostic is measured against
+  # is now #1/#3 at 0.0947-0.0954, which ran h1 50.
   strategy: "fixed"
   weights:
     rmse: 1.0
-    h1: 25.0
+    h1: 50.0
     ssim: 0.15
     mlw: 0.0
 
@@ -137,13 +170,16 @@ acceleration:
   compile_with_inductor: false
 
 checkpoints:
-  # Every 5 epochs, not every epoch: a save writes 2.1 GB and would dominate a
-  # run whose epochs are only ~75 s.
-  interval: 5
+  # null = never save. This run answers a question; its weights are worthless --
+  # 8 memorized sims are not a model. null + save_best_only + no last state
+  # means not one byte is written, which also keeps ~75 s epochs from being
+  # dominated by 2.1 GB saves. Validation still runs every epoch (it is not
+  # gated by this field), so metrics.csv and the panels are unaffected.
+  # NOT 0: the schema is `int | None` with gt=0, so 0 fails validation and the
+  # job dies at config parse -- that is what killed job 21669.
+  interval: null
   save_best_only: true
   best_metric: "val_vrmse"
-  # No resume needed for a one-hour throwaway diagnostic; skipping the optimizer
-  # state keeps this to a single 2.1 GB file.
   save_last_state: false
   keep_last_n: 1
 
@@ -153,5 +189,7 @@ wandb:
   tags: ["vae", "diagnostic", "overfit"]
 
 seed: 42
-output_dir: "finetune_vae_overfit"
+# Fresh directory per attempt. clean_output_dir wipes the target at startup,
+# before a single step -- reusing a name is how baseline #3 was lost.
+output_dir: "finetune_vae_overfit_lr5e5"
 clean_output_dir: true

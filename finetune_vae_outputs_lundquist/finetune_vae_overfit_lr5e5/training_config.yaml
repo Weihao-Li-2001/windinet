@@ -15,11 +15,11 @@ adapter:
   freeze_conv_in: false
   hidden_channels: 32
   identity_init: false
-  inflate_init: zeros
+  inflate_init: mean
   mode: inflate
 checkpoints:
   best_metric: val_vrmse
-  interval: 5
+  interval: null
   keep_last_n: 1
   save_best_only: true
   save_last_state: false
@@ -59,7 +59,7 @@ loss_weighting:
   temperature: 0.1
   weight_lr: 0.025
   weights:
-    h1: 25.0
+    h1: 50.0
     mlw: 0.0
     rmse: 1.0
     ssim: 0.15
@@ -68,12 +68,12 @@ model:
   model_source: !!python/object/apply:windinet.inference.model_loader.LtxvModelVersion
   - LTXV_2B_0.9.6_DEV
 optimization:
-  adapter_lr_multiplier: 10.0
+  adapter_lr_multiplier: 1.0
   batch_size: 1
   enable_gradient_checkpointing: true
-  epochs: 25
+  epochs: 50
   gradient_accumulation_steps: 1
-  learning_rate: 0.0002
+  learning_rate: 5.0e-05
   max_grad_norm: 5.0
   min_learning_rate: 1.0e-06
   scheduler_type: constant
@@ -81,7 +81,7 @@ optimization:
   warmup_start_factor: 0.01
   warmup_steps: 50
   weight_decay: 0.0
-output_dir: /local/disk/hramachandran/work/wh_work/windinet/finetune_vae_outputs_lundquist/finetune_vae_overfit
+output_dir: /local/disk/hramachandran/work/wh_work/windinet/finetune_vae_outputs_lundquist/finetune_vae_overfit_lr5e5
 resume_from: null
 resume_weights_only: false
 seed: 42

@@ -3,7 +3,7 @@
 #SBATCH --partition=debug
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
-#SBATCH --time=01:00:00
+#SBATCH --time=02:00:00
 #SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
 #SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
 
@@ -25,8 +25,9 @@
 # would force accum=32 and silently break the diagnostic. Pass
 # effective_batch=1 here so 1 rank x batch_size 1 x accum 1 stays 1.
 #
-# TIME: ~32 min measured for 25 epochs / 1000 steps (see config header).
-# 1h leaves ~2x margin; check after epoch 1 if that ever looks tight.
+# TIME: ~32 min measured for 25 epochs / 1000 steps. Attempt 2 of the overfit
+# diagnostic runs 50 epochs / 2000 steps at a 4x lower LR, so ~64 min -- hence
+# 2h here, not the 1h that fitted attempt 1.
 
 set -euo pipefail
 

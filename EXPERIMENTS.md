@@ -157,10 +157,45 @@ successful run uses, with no decay** -- and `adapter_lr_multiplier: 10.0` puts
 `encoder.conv_in` at an effective 2e-3. Note this config also uses
 `inflate_init: zeros`, unlike the baseline's `mean`.
 
-Two things to fix before re-running: drop LR to 5e-5 (matching the runs that
-work) and check the checkpoint write -- the log reports
-`Training complete. Checkpoint: .../vae_shockwave_last.safetensors` but
-`checkpoints/` is empty, so nothing was actually saved.
+The empty `checkpoints/` is not a separate mystery: `_save_checkpoint` is only
+called on `interval` epochs (`vae_trainer.py:802`), the best epoch was 1, and
+1 is not a multiple of 5, so `improved` was never true at a save point. The
+final save passes `improved=False` under `save_best_only`, and
+`save_last_state` is off, so nothing was written and
+`vae_trainer.py:1006` returned a path that does not exist -- which is the path
+the log printed. Not worth fixing here: this run's weights are worthless by
+design, and attempt 2 sets `checkpoints.interval: 0` to make that explicit.
+
+Its output directory has been deleted; the metrics, curves and panels are in
+git at `2782d67`.
+
+### 21667 attempt 2 -- not yet launched
+
+Hypothesis: 21667 measured the LR, not the latent. Run the same diagnostic on
+the baseline's optimizer settings and it will either fit the 8 sims or fail to,
+which is the actual question. Config changes, all in
+`configs/finetune_vae/finetune_vae_overfit.yaml`:
+
+| field | attempt 1 | attempt 2 | why |
+|---|---|---|---|
+| `learning_rate` | 2e-4 | 5e-5 | the only LR that has ever converged on this model |
+| `adapter_lr_multiplier` | 10.0 | 1.0 | removes the 40x on `encoder.conv_in`; already shown to be seed-noise on full data (#1 vs #3) |
+| `inflate_init` | zeros | mean | measure the model actually being trained |
+| `weights.h1` | 25 | 50 | the comparison target is #1/#3 (h1 50), not the retired 0.105 run |
+| `epochs` | 25 | 50 | 2000 steps, so a plateau cannot be blamed on the smaller LR. ~64 min |
+| `checkpoints.interval` | 5 | 0 | the weights are worthless; write nothing |
+| `output_dir` | `finetune_vae_overfit` | `finetune_vae_overfit_lr5e5` | protocol 6 |
+
+Unchanged: `constant` schedule, `warmup_steps` 50, `batch_size` 1 / accum 1
+(the debug sbatch force-patches `effective_batch=1`), `max_grad_norm` 5.0,
+seed 42, 8 sims x 5 repeats. `jobs/lundquist/finetune_vae_debug.sbatch` now
+requests `--time 02:00:00`.
+
+Kill criterion: epoch 2 `train_loss` above epoch 1's means it is diverging
+again -- kill, halve LR to 2.5e-5. Read-out thresholds are unchanged
+(`<=0.03` / `0.05-0.08` / `>=0.09`, see the config header). If 5e-5 is still
+unstable at effective batch 1, the next lever is `effective_batch=4` in the
+sbatch with `epochs` x4 -- one change at a time.
 
 ## Established
 
@@ -219,8 +254,8 @@ discontinuities. 5x spread, same model, same epoch.
    *This gates everything below.*
 2. **Is the bottleneck the latent or the objective?** **Attempted as job 21667
    and still open** -- that run diverged at 2e-4 constant LR (see above) and
-   says nothing about latent capacity. Re-run
-   `configs/finetune_vae/finetune_vae_overfit.yaml` at lr 5e-5 first. Train and
+   says nothing about latent capacity. Attempt 2 is configured and waiting to
+   be launched (`sbatch jobs/lundquist/finetune_vae_debug.sbatch`). Train and
    eval on the same 8 sims; 553M params vs 8 samples is pure memorization.
    Read-out thresholds are in that file's header. Cost: 1 GPU, ~32 min.
 3. **Does unfreezing the encoder trunk help?** Only worth running if (2) says
