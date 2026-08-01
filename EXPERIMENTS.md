@@ -90,37 +90,6 @@ constructs a VAE inside `dit_trainer`. Since DiT training consumes precomputed
 latents from `preprocess_dataset.py` (encoded with the *finetuned inflate* VAE),
 that trainer-side VAE is either unused or a 3-channel landmine.
 
-### The published WinDiNet urban-wind weights are gone (deleted 2026-08-01)
-
-`checkpoints/` held the published WinDiNet model from HF `rabischof/windinet` --
-`dit.safetensors` (1.92B, 7.69 GB), `vae_decoder.safetensors` (553M, 2.21 GB),
-`scalar_embedding.safetensors` (17 MB), 9.3 GB total. That model targets a
-*different* task: 2-channel u/v velocity + building mask, 256x256, urban wind.
-It was never loaded by any Euler/shockwave code path -- `load_vae` and
-`load_transformer` both go straight to the Lightricks repos, and
-`shockwavenet.yaml` sets `load_checkpoint: null`.
-
-Deleted as dead weight. `ensure_checkpoint()` (`windinet/checkpoints.py:44`)
-still resolves the logical names (`"dit"`, `"scalar_embedding"`,
-`"vae_decoder"`) to `HF_REPO = "rabischof/windinet"` and re-downloads on miss,
-so nothing breaks if a path is ever passed one of them. Manual restore:
-
-```bash
-huggingface-cli download rabischof/windinet --local-dir checkpoints/
-```
-
-**Repo cleanup (2026-08-01):** the only caller of those logical names,
-`configs/inference.yaml` (pointed at a `scripts/inference.py` that no longer
-exists in this fork), was deleted along with the rest of the urban-wind-only
-code path: `windinet/training/{trainer.py,datasets.py,vae_dataset.py,
-process_videos.py,process_scalars.py}`, `windinet/ltxv_utils.py`, and
-`scripts/metrics.py` (u/v/building-mask metrics). None were reachable from the
-shockwave pipeline (`finetune_vae.py` -> `preprocess_dataset.py` ->
-`train.py` -> `inference_shockwave.py`); see `README.md` for the current
-pipeline. `windinet/checkpoints.py`'s `HF_REPO`/`CHECKPOINT_FILES` mapping was
-left in place as a cheap escape hatch in case the decoder-init question in
-Open Questions #5 is reopened.
-
 ## Ledger
 
 | # | run dir | job | init | ep | sched | admul | h1 | mlw | val_vrmse | verdict |
@@ -207,13 +176,6 @@ discontinuities. 5x spread, same model, same epoch.
 4. **Does more latent bandwidth help?** Feed 256x256 so the latent grid becomes
    8x8 (4x capacity). Independent of (3) -- unfreezing does not change the
    compression ratio.
-5. ~~Is the published WinDiNet `vae_decoder.safetensors` a better decoder init
-   than raw LTXV?~~ **Closed 2026-08-01, not pursued.** It was tuned for a
-   different task (2-channel u/v + building mask, 256x256, effectively
-   incompressible) versus 4-channel compressible Euler with shocks, so it was
-   never obviously better, and the weights have been deleted. Re-openable at the
-   cost of one `huggingface-cli download` if the decoder-init question ever
-   becomes interesting.
 
 ## Where things live
 
