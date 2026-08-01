@@ -29,9 +29,15 @@ set -euo pipefail
 
 module load micromamba/2.1.1
 export PATH="$MICROMAMBA_BASE/bin:$PATH"
+# micromamba's own shell hook/activate scripts reference variables (e.g.
+# MAMBA_ROOT_PREFIX) that the module doesn't export and that aren't given
+# defaults internally -- fatal under `set -u` above. Not our unbound
+# variable to fix, so bracket just this third-party init with `set +u`.
+set +u
 eval "$(micromamba shell hook -s bash)"
 micromamba activate windinet   # env with an XPU-enabled torch +
                                 # intel-extension-for-pytorch installed
+set -u
 
 cd /dss/dsshome1/0D/go76fuz2/windinet
 
