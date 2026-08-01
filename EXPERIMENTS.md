@@ -100,14 +100,26 @@ It was never loaded by any Euler/shockwave code path -- `load_vae` and
 `load_transformer` both go straight to the Lightricks repos, and
 `shockwavenet.yaml` sets `load_checkpoint: null`.
 
-Deleted as dead weight. This is self-healing: `ensure_checkpoint()`
-(`windinet/checkpoints.py:44`) re-downloads on miss, so `configs/inference.yaml`
-(which refers to them by logical name: `"dit"`, `"scalar_embedding"`,
-`"vae_decoder"`) still works, it just re-fetches. Manual restore:
+Deleted as dead weight. `ensure_checkpoint()` (`windinet/checkpoints.py:44`)
+still resolves the logical names (`"dit"`, `"scalar_embedding"`,
+`"vae_decoder"`) to `HF_REPO = "rabischof/windinet"` and re-downloads on miss,
+so nothing breaks if a path is ever passed one of them. Manual restore:
 
 ```bash
 huggingface-cli download rabischof/windinet --local-dir checkpoints/
 ```
+
+**Repo cleanup (2026-08-01):** the only caller of those logical names,
+`configs/inference.yaml` (pointed at a `scripts/inference.py` that no longer
+exists in this fork), was deleted along with the rest of the urban-wind-only
+code path: `windinet/training/{trainer.py,datasets.py,vae_dataset.py,
+process_videos.py,process_scalars.py}`, `windinet/ltxv_utils.py`, and
+`scripts/metrics.py` (u/v/building-mask metrics). None were reachable from the
+shockwave pipeline (`finetune_vae.py` -> `preprocess_dataset.py` ->
+`train.py` -> `inference_shockwave.py`); see `README.md` for the current
+pipeline. `windinet/checkpoints.py`'s `HF_REPO`/`CHECKPOINT_FILES` mapping was
+left in place as a cheap escape hatch in case the decoder-init question in
+Open Questions #5 is reopened.
 
 ## Ledger
 
@@ -156,7 +168,7 @@ huggingface-cli download rabischof/windinet --local-dir checkpoints/
 ## The bandwidth ceiling
 
 Measured band-limited VRMSE floors on this dataset (recorded in
-`configs/overfit8.yaml`):
+`configs/finetune_vae/overfit8.yaml`):
 
 | ideal reconstruction bandwidth | VRMSE floor |
 |---|---|
@@ -181,7 +193,7 @@ discontinuities. 5x spread, same model, same epoch.
    Until this number exists, no result under ~2% is interpretable. Cost: 2 runs.
    *This gates everything below.*
 2. **Is the bottleneck the latent or the objective?** Run
-   `configs/overfit8.yaml` -- designed for exactly this, never executed. Train
+   `configs/finetune_vae/overfit8.yaml` -- designed for exactly this, never executed. Train
    and eval on the same 8 sims; 553M params vs 8 samples is pure memorization.
    Read-out thresholds are in that file's header. Cost: 1 GPU, ~32 min.
 3. **Does unfreezing the encoder trunk help?** Only worth running if (2) says
@@ -208,10 +220,10 @@ discontinuities. 5x spread, same model, same epoch.
 | | |
 |---|---|
 | Rationale, hypotheses, verdicts | **this file** |
-| Cluster job launchers | `scripts/lundquist/*.sbatch` (submit from repo root) |
+| Cluster job launchers | `jobs/lundquist/*.sbatch`, `jobs/sng_pvc/*.sbatch` (submit from repo root) |
 | Portable entry points | `scripts/*.py` |
-| Slurm logs | `log_lundquist/<jobname>_<jobid>.log` |
-| job -> config -> output_dir map | `log_lundquist/INDEX.tsv` (appended by the sbatch scripts) |
+| Slurm logs | `log_finetuning_vae/lundquist/<jobname>_<jobid>.log`, `log_finetuning_vae/sng_pvc/<jobid>-<jobname>.{out,err}` |
+| job -> config -> output_dir map | `log_finetuning_vae/{lundquist,sng_pvc}/INDEX.tsv` (appended by the sbatch scripts) |
 | Per-run metrics, panels, resolved config | `outputs/<run>/{metrics,visualizations,training_config.yaml}` |
 | Checkpoints | `outputs/<run>/checkpoints/vae_shockwave_best.safetensors` |
 

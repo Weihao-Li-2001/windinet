@@ -5,7 +5,7 @@ location, dataloader worker count, target effective batch -- so each cluster's
 sbatch script calls one function instead of re-deriving these values inline.
 Everything else about a cluster launch script (partition, environment
 activation, working directory, ...) still hard-codes to that cluster and is
-not meant to be portable (see scripts/lundquist/README.md); this module is
+not meant to be portable (see jobs/lundquist/README.md); this module is
 the one shared piece, since it's plain Python imported by scripts on both
 clusters rather than a script that itself needs to move between them.
 """

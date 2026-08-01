@@ -1,18 +1,14 @@
-# WinDiNet: Pretrained Video Models as Differentiable Physics Simulators for Urban Wind Flows
+# WinDiNet: Pretrained Video Models as Differentiable Physics Simulators
 
 <p>
   <a href="https://arxiv.org/abs/2603.21210" target="_blank">
     <img src="https://img.shields.io/badge/arXiv-2603.21210-b31b1b.svg" alt="arXiv Paper"/>
   </a>
-  <a href="https://huggingface.co/rabischof/windinet" target="_blank">
-    <img src="https://img.shields.io/badge/%F0%9F%A4%97_Model-Hugging_Face-ffcc4d" alt="Hugging Face Model"/>
-  </a>
-  <a href="https://rbischof.github.io/windinet_web/" target="_blank">
-    <img src="https://img.shields.io/badge/Web_Demo-Launch-2ea44f" alt="Web Demo"/>
-  </a>
 </p>
 
-WinDiNet repurposes the [LTX-Video](https://github.com/Lightricks/LTX-Video) video diffusion transformer as a fast, differentiable surrogate for computational fluid dynamics (CFD) simulations of urban wind patterns. Fine-tuned on 10,000 CFD simulations, it generates full **112-frame velocity rollouts in under a second**.
+WinDiNet repurposes the [LTX-Video](https://github.com/Lightricks/LTX-Video) video diffusion transformer as a fast, differentiable surrogate for computational fluid dynamics (CFD) simulations. This fork adapts the original urban-wind-flow model (2-channel u/v velocity + building mask, 256x256) to **ShockWaveNet**: 4-channel compressible Euler CFD fields (density, momentum_x, momentum_y, pressure) with shocks, 128x128, conditioned on the scalar `gamma`.
+
+For experiment status, results, and open questions, see [EXPERIMENTS.md](EXPERIMENTS.md) -- that file, not this one, is the source of truth for what has actually been run and what it showed.
 
 ## Installation
 
@@ -23,135 +19,70 @@ pip install -e .
 
 # For training (adds decord, pandas, scipy):
 pip install -e ".[training]"
-
-# For inverse design optimization (adds scipy):
-pip install -e ".[inverse]"
 ```
-
-## Checkpoints
-
-Pretrained checkpoints are hosted on [HuggingFace](https://huggingface.co/rabischof/windinet) and **downloaded automatically** on first use. No manual setup is needed.
-
-The repository contains three files:
-- `dit.safetensors` -- Finetuned diffusion transformer (DiT)
-- `scalar_embedding.safetensors` -- Scalar conditioning module
-- `vae_decoder.safetensors` -- Physics-informed VAE decoder
-
-To download manually:
-
-```bash
-huggingface-cli download rabischof/windinet --local-dir checkpoints/
-```
-
-## Inference
-
-### Input format
-
-Each sample consists of a pair of files in the input directory:
-- `name.png` -- Building footprint image (black=building, white=fluid). Resized to 256x256 internally.
-- `name.json` -- Scalar conditioning: `{"inlet_speed_mps": 10.0, "field_size_m": 1400}`
-
-See `examples/footprints/` for sample inputs and `examples/predictions/` for corresponding outputs.
-
-### Running
-
-```bash
-python scripts/inference.py configs/inference.yaml \
-    --input_dir examples/footprints/
-```
-
-All three checkpoints are downloaded automatically on first run. Settings are in `configs/inference.yaml`. CLI flags (`--checkpoint`, `--num_inference_steps`, etc.) override the config.
-
-### Output format
-
-Each prediction is saved as `{name}.npz` and `{name}.mp4`:
-
-**NPZ fields:**
-- `u_fields`: horizontal velocity [T, H, W] in m/s (float16)
-- `v_fields`: vertical velocity [T, H, W] in m/s (float16)
-- `bldg_mask`: building footprint [H, W] (bool)
-
-**MP4 video:** wind magnitude with coolwarm colormap.
 
 ## Training
 
-WinDiNet training has two stages: (1) finetuning the VAE decoder with physics-informed losses, then (2) training the diffusion transformer with scalar conditioning.
+Training has two stages: (1) finetuning the VAE to reconstruct the 4-channel CFD fields, then (2) training the diffusion transformer (DiT) on the resulting latents.
 
-### Stage 1: VAE decoder finetuning
-
-Finetune the VAE decoder to improve reconstruction of wind velocity fields. The physics-informed loss enforces incompressibility and wall boundary conditions:
+### Stage 1: VAE finetuning
 
 ```bash
-python scripts/finetune_vae.py configs/finetune_vae.yaml
+python scripts/finetune_vae.py configs/finetune_vae/finetune_vae_baseline.yaml
 ```
 
-Edit `configs/finetune_vae.yaml` to set `data.data_root` to your wind simulation dataset. The dataset should contain subdirectories, each with a `fields.npz` (keys: `u_fields`, `v_fields`, `bldg_mask`) and a `meta.json` (key: `wind_speed_mps`).
+Edit `data.data_root` in the config to point at your shockwave HDF5 dataset (`<sample_id>/{density,momentum_x,momentum_y,pressure}`, see `windinet/training/shockwave_data.py` for the expected layout). Checkpoints, per-epoch reconstruction panels, metrics and the resolved config are written under `output_dir`:
 
-The loss function combines three terms (see `windinet/training/losses.py`):
-- **Distance-weighted MSE**: reconstruction loss with higher weight near building boundaries
-- **Divergence loss**: penalises violations of incompressibility (du/dx + dv/dy ~ 0)
-- **Wall no-penetration loss**: enforces zero normal velocity at building walls
+```
+<output_dir>/
+    checkpoints/vae_shockwave_{best,last,epoch###}.safetensors
+    checkpoints/*.state.pt        # optimizer/scheduler/RNG, for resume_from
+    visualizations/epoch_####/    # GT/prediction/residual panels
+    metrics/{metrics.csv,loss_curves.png}
+    training_config.yaml
+```
 
-The resulting checkpoint is used at inference via `WINDINET_VAE_ADAPTER_CKPT`.
+Cluster launchers (Slurm): `jobs/lundquist/finetune_vae_{2,4,6}gpu.sbatch`, `jobs/sng_pvc/finetune_vae.sbatch`. Per-cluster storage/worker-count defaults live in `windinet/cluster_config.py`.
 
-### Stage 2: Diffusion model training
+### Stage 2: Data preprocessing
 
-#### Data preprocessing
-
-Encode wind field simulations into VAE latents and extract scalar conditioning values:
+Encode the CFD fields into VAE latents for DiT training:
 
 ```bash
-python scripts/preprocess_dataset.py /path/to/wind_dataset/train \
-    --output-dir /path/to/preprocessed
+python scripts/preprocess_dataset.py /path/to/shockwave_dataset/train.h5 \
+    --output-dir /path/to/preprocessed \
+    --inflate-checkpoint <output_dir>/checkpoints/vae_shockwave_best.safetensors \
+    --eval-sims 675
 ```
 
-The script reads `fields.npz` + `meta.json` from each sample directory, truncates to 112 simulation frames, prepends a conditioning frame, encodes through the VAE, and saves latent tensors + scalars as `.pt` files.
+This must use the *finetuned* VAE checkpoint from stage 1 -- see `scripts/preprocess_dataset.py`'s docstring for the exact output layout (`latents/`, `scalars/`, `normalization.json`, and a `val/` split when `--eval-sims` is set).
 
-#### Running training
+### Stage 3: DiT training
 
 ```bash
-python scripts/train.py configs/windinet.yaml
+python scripts/train.py configs/shockwavenet.yaml
 ```
 
-Edit `configs/windinet.yaml` to set `data.preprocessed_data_root` and `output_dir`.
+Set `data.preprocessed_data_root` (and `validation.data_root` to the `val/` split from preprocessing) and `output_dir` in the config. DiT training consumes precomputed latents only -- it never re-runs the VAE encoder -- and records which VAE checkpoint produced them in `<output_dir>/latent_provenance.json` for later verification.
 
-## Metrics
+Cluster launchers: `jobs/lundquist/train_dit.sbatch`, `jobs/sng_pvc/train_dit.sbatch`.
+
+## Inference
 
 ```bash
-python scripts/metrics.py \
-    --pred_dir /path/to/predictions \
-    --samples_root /path/to/gt_samples \
-    --manifest /path/to/dataset.json \
-    --out_dir /path/to/metrics
+python scripts/inference_shockwave.py configs/inference_shockwave.yaml \
+    --h5 euler_mq_dataset/128x128_ds/train.h5 \
+    --out_dir predictions/ --num_samples 8
 ```
 
-Outputs `per_sample.csv` and `summary.csv` with: vRMSE, MAE (m/s), MRE (%), MSE, Spectral Divergence, Wasserstein distance.
-
-## Inverse Design
-
-Optimise building layouts for pedestrian wind comfort using WinDiNet as a differentiable surrogate:
-
-```bash
-python scripts/inverse_design.py configs/inverse_opt.yaml
-```
-
-See `configs/inverse_opt.yaml` for all parameters. An example building layout is provided in `examples/inverse_optimization/`. The optimizer adjusts building positions to minimise a Pedestrian Wind Comfort (PWC) loss that penalises dangerous (>15 m/s), uncomfortable (>5 m/s), and stagnant (<1 m/s) wind conditions.
-
-### Extending the inverse optimization
-
-The inverse design framework is designed to be extensible in two directions:
-
-**Custom objectives** (`inverse/objective.py`): Add new loss functions that operate on the predicted velocity fields (u, v) and a spatial mask. Any function returning a dict with a `"total"` key works as a drop-in replacement. For example, you could add building-code compliance checks, noise-based comfort metrics, or pollutant dispersion penalties. See the module docstring for the expected interface.
-
-**Custom building parametrizations** (`inverse/footprint.py`): Replace the axis-aligned rectangle representation with arbitrary differentiable shapes (splines, polygons, level sets). Any `nn.Module` that returns a soft `(H, W)` occupancy map from its `forward()` method is compatible with the optimizer. See the module docstring for the required interface.
+Conditions on the initial condition (frame 0 of a simulation) plus scalar `gamma`, and rolls out the remaining frames as 4-channel `.npz` fields. The VAE checkpoint in the config must be the exact one the DiT's latents were encoded with -- the script refuses to decode (`verify_latent_space`) if the stored latent-space fingerprint doesn't match, since a mismatched decoder silently produces physically wrong output.
 
 ## Architecture
 
 WinDiNet modifies LTX-Video in two ways:
 
-1. **VAE Physics Adapter** (`windinet/vae_adapter.py`): The VAE decoder is finetuned with physics-informed losses (`windinet/training/losses.py`), improving reconstruction fidelity for wind velocity fields. Loaded at inference time via `WINDINET_VAE_ADAPTER_CKPT`.
-
-2. **Scalar Conditioning** (`windinet/scalar_embeddings.py`): Replaces text conditioning with Fourier-feature-encoded scalar inputs (inlet speed, field size), enabling precise physical parameterization.
+1. **VAE channel adapter** (`windinet/vae_adapter.py`): grows the pretrained 3-channel encoder/decoder to 4 channels (`inflate` mode) so the CFD fields pass through natively, then finetunes the decoder (and `encoder.conv_in`) with reconstruction losses (`windinet/losses/`, weighted via `windinet/loss_weighting/`).
+2. **Scalar conditioning** (`windinet/scalar_embeddings.py`): replaces text conditioning with Fourier-feature-encoded scalar inputs (currently just `gamma`), enabling physical parameterization instead of prompts.
 
 ## Acknowledgements
 

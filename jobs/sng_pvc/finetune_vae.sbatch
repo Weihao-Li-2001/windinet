@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
 #SBATCH --account=pn82ku
-#SBATCH -o log_sng_pvc/%j-%x.out
-#SBATCH -e log_sng_pvc/%j-%x.err
+#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
+#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
 
 # Batch submission for VAE finetuning on the sng_pvc cluster (Intel Data
 # Center GPU Max 1550 / XPU, 8 tiles per node).
@@ -15,11 +15,11 @@
 # the sng-specific bits (storage under $SCRATCH, effective-batch-preserving
 # gradient_accumulation_steps for 8 tiles, num_dataloader_workers=0) onto a
 # temp copy rather than forking another checked-in YAML -- same pattern as
-# scripts/lundquist/finetune_vae_4gpu.sbatch. Pass any other config as $1:
-#   sbatch scripts/sng_pvc/finetune_vae.sbatch configs/<your-config>.yaml
+# jobs/lundquist/finetune_vae_4gpu.sbatch. Pass any other config as $1:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/<your-config>.yaml
 #
-# Submit with:   sbatch scripts/sng_pvc/finetune_vae.sbatch
-# Watch with:    tail -f log_sng_pvc/<jobid>-wh_finetune_vae.out
+# Submit with:   sbatch jobs/sng_pvc/finetune_vae.sbatch
+# Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_finetune_vae.out
 # Cancel with:   scancel <jobid>
 #
 # Verified working interactively on a single XPU tile first (srun + plain
@@ -73,7 +73,7 @@ export TOKENIZERS_PARALLELISM=false
 # open object (can't open file)" under this much concurrent access -- disable it.
 export HDF5_USE_FILE_LOCKING=FALSE
 
-BASE_CONFIG=${1:-configs/finetune_vae_baseline.yaml}
+BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
@@ -94,11 +94,11 @@ print(
 )
 PY
 
-# Make log_sng_pvc/ self-describing: one row per job mapping the log to the
-# config it ran and the output_dir it wrote, same convention as log_lundquist/.
+# Make log_finetuning_vae/sng_pvc/ self-describing: one row per job mapping the log to the
+# config it ran and the output_dir it wrote, same convention as log_finetuning_vae/lundquist/.
 OUT_DIR=$(python -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> log_sng_pvc/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/sng_pvc/INDEX.tsv
 
 srun --mpi=none accelerate launch \
     --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \
@@ -108,5 +108,20 @@ srun --mpi=none accelerate launch \
     --main_process_port "$MASTER_PORT" \
     --mixed_precision bf16 \
     scripts/finetune_vae.py "${RUN_CONFIG}"
+
+# Mirror the run's visualizations/metrics/config back onto the DSS-backed repo
+# checkout so they're browsable without touching $SCRATCH -- but not
+# checkpoints/ (weights + optimizer state), which stay scratch-only since
+# they're large and already addressed via OUT_DIR in log_finetuning_vae/sng_pvc/INDEX.tsv.
+OUTPUT_ROOT=$(python -c "
+from windinet.cluster_config import CLUSTER_DEFAULTS
+import os
+print(CLUSTER_DEFAULTS['sng_pvc']['output_root'].format(scratch=os.environ.get('SCRATCH', '')))
+")
+RUN_NAME=${OUT_DIR#"${OUTPUT_ROOT}/"}
+LOCAL_DIR="finetune_vae_outputs_sng_pvc/${RUN_NAME}"
+mkdir -p "${LOCAL_DIR}"
+rsync -a --exclude='checkpoints/' "${OUT_DIR}/" "${LOCAL_DIR}/"
+echo "Mirrored (excl. checkpoints/) to ${LOCAL_DIR}"
 
 echo "END TIME: $(date)"

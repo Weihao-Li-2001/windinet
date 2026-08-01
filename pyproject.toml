@@ -29,10 +29,9 @@ dependencies = [
 
 [project.optional-dependencies]
 training = ["scipy"]
-inverse = ["scipy"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["windinet", "inverse"]
+packages = ["windinet"]
 
 [build-system]
 requires = ["hatchling"]

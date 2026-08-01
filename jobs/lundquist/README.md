@@ -1,31 +1,33 @@
 # Lundquist cluster job scripts
 
-Slurm launchers for this specific cluster. Separated from `scripts/*.py`
-because the two are not the same kind of thing: the Python entry points run
-anywhere, these do not. Every file here hard-codes:
+Slurm launchers for this specific cluster. Live under top-level `jobs/`,
+parallel to `scripts/`, because the two are not the same kind of thing: the
+Python entry points in `scripts/*.py` run anywhere, these do not. Every file
+here hard-codes:
 
 - `#SBATCH --partition=debug` -- this cluster's partition name
 - `PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python`
 - `cd /local/disk/hramachandran/work/wh_work/windinet`
-- `#SBATCH --output=log_lundquist/%x_%j.log`
+- `#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log`
 
 Moving the repo to another machine means rewriting all four, not porting them.
 
 ## Submitting
 
 **Submit from the repo root.** Slurm resolves `--output` relative to the
-*submission* directory, not the script's location, so `log_lundquist/` must
-exist relative to wherever you run `sbatch`:
+*submission* directory, not the script's location, so `log_finetuning_vae/lundquist/`
+must exist relative to wherever you run `sbatch`:
 
 ```bash
 cd /local/disk/hramachandran/work/wh_work/windinet
-sbatch scripts/lundquist/finetune_vae_4gpu.sbatch                       # baseline config
-sbatch scripts/lundquist/finetune_vae_4gpu.sbatch configs/other.yaml    # or pass one
+sbatch jobs/lundquist/finetune_vae_4gpu.sbatch                                    # baseline config
+sbatch jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/other.yaml    # or pass one
 ```
 
 The scripts themselves `cd` to an absolute repo path before doing anything, so
-every path *inside* them (`scripts/finetune_vae.py`, `log_lundquist/INDEX.tsv`)
-resolves regardless of where the script lives.
+every path *inside* them (`scripts/finetune_vae.py`,
+`log_finetuning_vae/lundquist/INDEX.tsv`) resolves regardless of where the
+script lives.
 
 ## What each one does
 
@@ -49,5 +51,6 @@ different variant overwrites whatever the previous one produced. If you need
 to keep results from two variants side by side, copy the output_dir out
 before submitting the next one.
 
-Each job appends a row to `log_lundquist/INDEX.tsv` mapping job id -> config ->
-output_dir. See `../../EXPERIMENTS.md` for results and rationale.
+Each job appends a row to `log_finetuning_vae/lundquist/INDEX.tsv` mapping job
+id -> config -> output_dir. See `../../EXPERIMENTS.md` for results and
+rationale.

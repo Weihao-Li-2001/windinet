@@ -4,13 +4,13 @@
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=16
 #SBATCH --time=12:00:00
-#SBATCH --output=log_lundquist/%x_%j.log
-#SBATCH --error=log_lundquist/%x_%j.log
+#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
+#SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
 
 # Batch submission for the ShockWaveNet DiT run.
 #
-# Submit with:   sbatch scripts/lundquist/train_dit.sbatch
-# Watch with:    tail -f log_lundquist/train_dit_<jobid>.log
+# Submit with:   sbatch jobs/lundquist/train_dit.sbatch
+# Watch with:    tail -f log_finetuning_vae/lundquist/train_dit_<jobid>.log
 # Cancel with:   scancel <jobid>
 #
 # Why sbatch rather than running accelerate directly: this is a multi-hour run,
@@ -31,9 +31,9 @@ cd /local/disk/hramachandran/work/wh_work/windinet
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"
 
-# See the note in scripts/lundquist/finetune_vae_4gpu.sbatch -- keeps log_lundquist/ self-describing.
+# See the note in jobs/lundquist/finetune_vae_4gpu.sbatch -- keeps log_finetuning_vae/lundquist/ self-describing.
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "configs/shockwavenet.yaml" "-" >> log_lundquist/INDEX.tsv
+    "configs/shockwavenet.yaml" "-" >> log_finetuning_vae/lundquist/INDEX.tsv
 
 # --num_processes must match --gres=gpu:N above, and the config's
 # checkpoints.interval assumes it (steps_per_epoch = 3825 / (4 * 4 * N)).
