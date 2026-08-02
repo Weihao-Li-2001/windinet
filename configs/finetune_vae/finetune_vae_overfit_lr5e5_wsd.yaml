@@ -1,0 +1,186 @@
+# CAPACITY DIAGNOSTIC -- overfit 8 simulations. Not a training run.
+#
+# THE QUESTION: the full-data runs plateau at val_vrmse ~0.105. Is that because
+#   (a) the information is not in the latent -- the frozen encoder's 32x spatial
+#       compression puts a 128x128 field into a 4x4x128 grid, 240:1 overall -- or
+#   (b) the information IS there and the L2-family objective averages it away,
+#       plus 1200 steps was not enough training?
+#
+# Both produce the same flat curve on the full dataset, so no amount of longer
+# training on 3825 sims can separate them.
+#
+# THE TEST: train and evaluate on the SAME 8 sims. Generalization is removed
+# entirely, so whatever VRMSE this reaches is the reconstruction floor for these
+# exact samples given a frozen encoder. 553M trainable parameters against 8
+# samples is a memorization task; if it cannot memorize them, no loss function
+# and no schedule will fix it.
+#
+# HOW TO READ THE RESULT (val_vrmse == train reconstruction here, by design):
+#
+#   <= 0.03   The latent carries the information. The 0.105 on full data is a
+#             loss-function / training-budget problem. -> spectral or adversarial
+#             term to stop L2 averaging the small scales away, and more steps.
+#
+#   ~0.05-0.08  Partial. Some headroom from the objective, but the latent is
+#             already straining. Do both: better loss AND more latent budget.
+#
+#   >= 0.09   The information never reaches the decoder. Loss surgery is wasted
+#             effort; the fix is latent budget -- feed 256x256 (latent 4x4 ->
+#             8x8, 4x capacity) or 512x512 (16x16, 16x), or drop an encoder
+#             downsample stage. Note this also multiplies DiT token count
+#             (224 -> 896 -> 3584).
+#
+# For reference, the ideal band-limited VRMSE floors measured on this dataset:
+# 32x32 cutoff = 0.165, 64x64 = 0.089, i.e. the current model behaves like a
+# ~56x56 Fourier truncation.
+#
+# ATTEMPT 1 (job 21667) DIVERGED at lr 2e-4 constant, admul 10.0 -- see
+# EXPERIMENTS.md. Measured nothing about latent capacity.
+#
+# ATTEMPT 2 (finetune_vae_overfit_lr5e5.yaml, jobs 21669/21677) RAN BUT IS NOT
+# TRUSTWORTHY. It landed val_vrmse >= 0.09 (best 0.098856 at epoch 48 of 50),
+# agreeing directionally with the full-data plateau (0.095) and the
+# 64x64-cutoff floor (0.089) -- but val_vrmse oscillated between ~0.10 and
+# ~0.30 for most of the 50 epochs (e.g. epoch 22: 0.1223, epoch 28: 0.1835,
+# epoch 39: 0.1167, epoch 41: 0.1652) instead of descending cleanly, and the
+# run also violated its own kill criterion (epoch 2 train_loss 0.19901 above
+# epoch 1's 0.17803). That file's header deliberately chose a "constant"
+# schedule and argued against decay: "a decaying LR would flatten the curve
+# on its own and reintroduce the ambiguity" -- the worry being that decay
+# near the end could produce a low-looking floor as an artifact of the
+# optimizer simply stopping, rather than genuine convergence.
+#
+# ATTEMPT 4 (this file) tests that objection directly, as its own
+# single-variable run (see finetune_vae_overfit_lr25e5.yaml for the LR-only
+# follow-up instead, run separately -- don't combine both changes in one
+# run). Unlike attempt 2's plateau-at-the-end concern, what attempt 2 showed
+# was noise THROUGHOUT the run, not just an unresolved tail -- consistent
+# with batch_size 1 / accum 1 (single-sample gradients, the highest-variance
+# regime the trainer supports) rather than "needs more steps to land." A
+# schedule that anneals LR toward the end doesn't erase that distinction: if
+# the mid-run noise floor is still >=0.09 at, say, epoch 30 (LR still near
+# peak under wsd's stable phase), that's the same information attempt 2 gave,
+# just less noisy to read. What decay additionally buys is a clean LANDING
+# value in the last few epochs, so "did it ever get below 0.09" has one
+# trustworthy answer instead of a best-of-50 noisy minimum.
+#
+# CHANGE FROM ATTEMPT 2: scheduler_type "constant" -> "wsd" (warmup-stable-
+# decay), matching the only schedule ever shown to converge cleanly on this
+# model (EXPERIMENTS.md ledger #1/#3, baseline config). stable_fraction 0.7
+# and warmup_start_factor 0.01 also added/kept to match the baseline's wsd
+# usage -- these are schedule-shape parameters, not a second independent
+# variable. learning_rate, adapter_lr_multiplier, epochs, batch_size, accum
+# all UNCHANGED from attempt 2 (still 5e-5 peak, still 50 epochs / 2000
+# steps, still batch_size 1 / accum 1).
+#
+# KILL CRITERION (same rule as attempt 2, evaluated during the wsd warmup
+# phase where LR behaves like attempt 2's constant run): if epoch 2's
+# train_loss exceeds epoch 1's, kill the job. Read-out thresholds unchanged.
+#
+# STEP MATH (1 GPU): unchanged from attempt 2 -- 8 sims x 5 repeats = 40
+# optimizer steps/epoch, 50 epochs = 2000 steps, ~64 min.
+#
+# Usage (1 GPU, ~64 min):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd.yaml
+#
+# On lundquist, submit via jobs/lundquist/finetune_vae_debug.sbatch:
+#   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # mean, matching the baseline: the diagnostic has to measure the model that
+  # is actually being trained, not a variant. (zeros in attempt 1.)
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 8 sims as attempt 2 -- head of the seed-42 shuffle, spans gamma
+  # regimes 1.13 / 1.30 / 1.365 / 1.40 / 1.453 x3 / 1.597.
+  overfit_sims: 8
+  overfit_repeat: 5
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from attempt 2 -- this file isolates the schedule shape, not
+  # the LR magnitude.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  # CHANGED from attempt 2's "constant": wsd (warmup-stable-decay), matching
+  # the baseline's proven-converging schedule. See header for why.
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 50
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # null = never save -- this run answers a question, its weights are
+  # worthless. See attempt 2's header for why this must be null, not 0
+  # (0 fails schema validation and killed job 21669 at config-parse time).
+  interval: null
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit", "wsd"]
+
+seed: 42
+# Fresh directory, distinct from attempt 2's finetune_vae_overfit_lr5e5 --
+# clean_output_dir wipes the target at startup, reusing a name is how
+# baseline #3 was lost (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_overfit_lr5e5_wsd"
+clean_output_dir: true
