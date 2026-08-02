@@ -61,13 +61,6 @@ def build_loss_weighting(
             temperature=config.temperature,
         )
 
-    elif strategy == "uncertainty":
-
-        raise NotImplementedError(
-            "Uncertainty weighting is not implemented yet."
-        )
-
-
     else:
 
         raise ValueError(
