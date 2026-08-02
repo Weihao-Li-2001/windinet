@@ -1,0 +1,125 @@
+# Baseline VAE finetuning config for the ShockWave CFD adapter -- SLOWER DECAY
+# variant. Single-variable follow-up to finetune_vae_baseline.yaml (val_vrmse
+# 0.095396, ledger #3 / job 21666 reproduction at 0.09540).
+#
+# WHY THIS RUN: reading the baseline's own metrics.csv with the same S/D lens
+# used on the overfit-8 diagnostic (see EXPERIMENTS.md and the
+# finetune_vae_overfit_lr5e5_wsd_tail.yaml family) shows a smaller version of
+# the same pattern. Stable phase (epoch 2-11, constant 5e-5) is comparatively
+# well-behaved here -- low noise, a real if slow decline from 0.147 to 0.110 --
+# unlike the 8-sample overfit's noise-dominated stable phase, because 3825
+# sims / effective batch 32 already averages out most of the gradient noise.
+# But the decay phase (epoch 12-15, only 4 epochs = 30% of the post-warmup
+# budget under stable_fraction 0.7) still delivered a real ~14% relative drop
+# (0.1104 -> 0.0954), and the last logged step (14->15) was still moving
+# (-0.0005, ~0.5% relative) -- not fully flat. So even here, decay wasn't
+# given enough room to fully land, just less obviously than on the 8-sample
+# diagnostic.
+#
+# CHANGE: stable_fraction 0.7 -> 0.35 (halved). At the same total budget
+# (1800 opt steps, 15 epochs, warmup 200 unchanged), this roughly doubles the
+# decay phase's share of the post-warmup schedule: stable phase now ends
+# around epoch 6-7 instead of epoch 11, decay gets ~8-9 epochs instead of 4.
+# Nothing else changes: same 5e-5 peak, same 3825/675 split, same seed 42,
+# same loss weights. This is a genuine training run (unlike the overfit
+# diagnostic) -- checkpoints.save_best_only stays on, so a real improvement
+# here is a usable candidate checkpoint, not just an information-only number.
+#
+# READ-OUT: if val_vrmse lands materially below 0.0954, the baseline's own
+# decay was also cut short and this becomes the new reference point (update
+# EXPERIMENTS.md ledger #3). If it lands within noise of 0.0954 (recall Open
+# Question 1: seed noise floor is still unmeasured, so treat differences
+# under ~2% cautiously), stable_fraction 0.7 was already close enough to
+# right for the full-data regime, and the schedule-length effect is mostly an
+# 8-sample-diagnostic artifact, not a full-data one.
+#
+# Usage:
+#   sbatch jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_baseline_slowdecay.yaml
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_slowdecay.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  # CHANGED from 0.7 -- see header. Everything else in this block is
+  # unchanged from finetune_vae_baseline.yaml.
+  stable_fraction: 0.35
+  epochs: 15
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "slowdecay"]
+
+seed: 42
+# Distinct from finetune_vae_baseline's output_dir -- clean_output_dir wipes
+# the target at startup, reusing a name is how baseline #3 was lost once
+# already (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_baseline_slowdecay"
+clean_output_dir: true

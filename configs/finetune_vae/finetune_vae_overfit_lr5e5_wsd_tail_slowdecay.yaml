@@ -1,0 +1,166 @@
+# CAPACITY DIAGNOSTIC -- overfit 8 simulations. Not a training run.
+#
+# THE QUESTION: the full-data runs plateau at val_vrmse ~0.105. Is that because
+#   (a) the information is not in the latent -- the frozen encoder's 32x spatial
+#       compression puts a 128x128 field into a 4x4x128 grid, 240:1 overall -- or
+#   (b) the information IS there and the L2-family objective averages it away,
+#       plus 1200 steps was not enough training?
+#
+# HOW TO READ THE RESULT (val_vrmse == train reconstruction here, by design):
+#
+#   <= 0.03   The latent carries the information. The 0.105 on full data is a
+#             loss-function / training-budget problem.
+#   ~0.05-0.08  Partial. Some headroom from the objective, but the latent is
+#             already straining. Do both: better loss AND more latent budget.
+#   >= 0.09   The information never reaches the decoder. Loss surgery is
+#             wasted effort; the fix is latent budget.
+#
+# ATTEMPTS 1-4: see finetune_vae_overfit_lr5e5_wsd.yaml and
+# finetune_vae_overfit_lr25e5.yaml for the full history. Attempt 4 (5e-5,
+# wsd, stable_fraction 0.7) landed a clean 0.061.
+#
+# ATTEMPT 5 (finetune_vae_overfit_lr5e5_wsd_tail.yaml): unfroze the encoder
+# tail (down_blocks[-1] + mid_block + norm_out + conv_out, tail LR 5e-6) on
+# top of attempt 4's schedule. Landed 0.0588 -- only ~3% better than attempt
+# 4, read as within noise, i.e. the tail's channel selection is probably not
+# the bottleneck.
+#
+# ATTEMPT 6 (this file) does NOT touch capacity or LR. It re-examines whether
+# attempt 5's 0.0588 (and by extension attempt 4's 0.061) were actually
+# floors, or just cut off by an under-length decay phase. Reading attempt 5's
+# own metrics.csv with a stable/decay split:
+#   - Stable phase (epoch 2-35, constant LR under stable_fraction 0.7) NEVER
+#     plateaus cleanly -- val_vrmse wanders 0.13-0.21 through epoch 20-35
+#     with no clear trend, i.e. single-sample gradients (batch_size 1) don't
+#     average out at constant LR the way they do on the full 3825-sim
+#     baseline. The "stable phase reveals a true plateau, decay just cleans
+#     it up" assumption wsd was chosen for never actually held here.
+#   - Decay phase (epoch 36-50, only 15 epochs = 30% of the post-warmup
+#     budget) did essentially all the real convergence: 0.127 -> 0.0588, and
+#     the last logged step (49->50) was still moving (-0.00007, small but
+#     nonzero) -- not fully flat.
+# Conclusion: 0.0588 is very likely decay-length-limited, not a true floor.
+# If so, the "partial" verdict on Open Question 2/3 may currently be reading
+# a truncated number, and the small attempt-4-vs-5 gap may not be trustworthy
+# either (same truncation could be masking a larger real gap either way).
+#
+# CHANGE FROM ATTEMPT 5: stable_fraction 0.7 -> 0.35 (halved), same total
+# budget (2000 opt steps, 50 epochs, warmup 50 unchanged). This roughly
+# doubles decay's share of the post-warmup schedule: stable phase now ends
+# around epoch 18 instead of epoch 35, decay gets ~32 epochs instead of 15
+# (computed from the trainer's own lr_factor step math, not eyeballed).
+# Nothing else changes -- same 5e-5 decoder / 5e-6 tail peak LR, same
+# unfreeze_encoder_tail: true, same 8 sims x 5 repeats, same seed 42.
+#
+# READ-OUT: if val_vrmse lands materially below attempt 5's 0.0588 (toward
+# <=0.03), attempts 4/5 were schedule-limited and the true capacity floor is
+# better than "partial" suggested -- re-open Open Question 2's verdict. If it
+# lands within noise of 0.0588, the schedule wasn't the limiting factor after
+# all and 0.0588 stands as the real floor for this latent/tail combination --
+# Open Question 4 (latent bandwidth) is next.
+#
+# KILL CRITERION: unchanged -- if epoch 2's train_loss exceeds epoch 1's,
+# it is diverging, kill the job.
+#
+# STEP MATH (1 GPU): unchanged -- 8 sims x 5 repeats = 40 optimizer
+# steps/epoch, 50 epochs = 2000 steps, ~64 min.
+#
+# Usage (1 GPU, ~64 min):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail_slowdecay.yaml
+#
+# On lundquist, submit via jobs/lundquist/finetune_vae_debug.sbatch:
+#   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail_slowdecay.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # Unchanged from attempt 5.
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  overfit_sims: 8
+  overfit_repeat: 5
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.1
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  # CHANGED from 0.7 -- the one variable in this run, see header.
+  stable_fraction: 0.35
+  epochs: 50
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # null = never save -- this run answers a question, its weights are
+  # worthless.
+  interval: null
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit", "wsd", "tail-unfreeze", "slowdecay"]
+
+seed: 42
+# Distinct from every prior attempt's output_dir -- clean_output_dir wipes
+# the target at startup, reusing a name is how baseline #3 was lost once
+# already (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_overfit_lr5e5_wsd_tail_slowdecay"
+clean_output_dir: true
