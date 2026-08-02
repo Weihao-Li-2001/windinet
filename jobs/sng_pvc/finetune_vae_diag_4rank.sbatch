@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=wh_diag_vae_4rank
-#SBATCH --time=00:30:00
+#SBATCH --time=01:30:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --partition=test
+#SBATCH --partition=general           # NOT "test" (30 min cap) -- see finetune_vae_diag.sbatch's header for why; this run already strips ckpt/viz I/O but train+eval alone is still an unknown, don't risk the cap
 #SBATCH --account=pn82ku
 #SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
 #SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
@@ -92,7 +92,8 @@ patch_config_for_cluster(cfg, cluster="sng_pvc", num_processes=num_processes, ou
 
 # Same throwaway-diagnostic trim as finetune_vae_diag.sbatch's Exp 2, so this
 # run's "train=" isn't polluted by per-epoch checkpoint/viz I/O either.
-cfg["optimization"]["epochs"] = 3
+# 2 epochs: epoch1=warmup, epoch2=clean reading -- see finetune_vae_diag.sbatch's header.
+cfg["optimization"]["epochs"] = 2
 cfg["checkpoints"]["interval"] = 1
 cfg["checkpoints"]["save_last_state"] = False
 cfg["visualization"]["enabled"] = False

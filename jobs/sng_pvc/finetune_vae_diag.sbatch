@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=wh_diag_vae
-#SBATCH --time=00:30:00
+#SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --partition=test              # 30 min cap -- these are 3-epoch throughput probes, not real training
+#SBATCH --partition=general           # NOT "test" -- see caveat below, one unmodified epoch alone exceeds test's 30 min cap
 #SBATCH --account=pn82ku
 #SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
 #SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
@@ -16,16 +16,26 @@
 #
 # vae_trainer.py now logs a per-epoch phase breakdown
 # ("Epoch N timing: train=...s eval=...s viz=...s ckpt=...s total=...s"),
-# so a single 3-epoch run already tells you where the time goes -- no need
-# to guess from whole-job START/END like job 520211 had to be read.
+# so a short run already tells you where the time goes -- no need to guess
+# from whole-job START/END like job 520211 had to be read. Only 2 epochs are
+# run: epoch 1 eats one-time model-load/compile cost, epoch 2 is the clean
+# reading. A 3rd epoch would not add information -- every epoch does
+# identical work -- so it's not worth the extra ~40 min.
+#
+# WHY partition=general, NOT "test" (30 min cap): Exp 0 below changes
+# nothing, so its epoch takes the same ~38.7 min as job 520211's average.
+# 2 epochs of that is ~77 min, already over test's cap before a single
+# "Epoch 2 timing" line would print. 02:00:00 leaves headroom for queueing
+# variance; if Exp 1/2's fix works, the job will simply finish early and
+# free the allocation, no harm in the larger budget.
 #
 # Three things to try, one variable at a time (see EXPERIMENTS.md protocol
 # "one variable per run"), each its own submission:
 #
 #   sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
 #       Exp 0 -- baseline as-is (8 tiles, workers=0, full checkpoint+viz
-#       every epoch). Read epoch 2's and 3's timing line (skip epoch 1, it
-#       eats one-time model-load/compile cost). This alone tells you the
+#       every epoch). Read epoch 2's timing line (skip epoch 1, it eats
+#       one-time model-load/compile cost). This alone tells you the
 #       train/eval/viz/ckpt split -- run this FIRST, its output decides
 #       whether Exp 1 or Exp 2 below is worth running at all.
 #
@@ -96,7 +106,7 @@ export HDF5_USE_FILE_LOCKING=FALSE
 DIAG_TAG=${DIAG_TAG:-base}
 DIAG_WORKERS=${DIAG_WORKERS:-}          # empty = leave cluster default (0)
 DIAG_SKIP_HEAVY_IO=${DIAG_SKIP_HEAVY_IO:-0}
-DIAG_EPOCHS=${DIAG_EPOCHS:-3}
+DIAG_EPOCHS=${DIAG_EPOCHS:-2}            # epoch1=warmup, epoch2=clean reading
 echo "DIAG_TAG=${DIAG_TAG} DIAG_WORKERS=${DIAG_WORKERS:-<default>} DIAG_SKIP_HEAVY_IO=${DIAG_SKIP_HEAVY_IO} DIAG_EPOCHS=${DIAG_EPOCHS}"
 
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
