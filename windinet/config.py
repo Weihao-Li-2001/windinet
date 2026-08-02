@@ -297,6 +297,16 @@ class VaeOptimizationConfig(ConfigBaseModel):
             "adapter_lr_multiplier ratio is preserved for the whole schedule."
         ),
     )
+    encoder_tail_lr_multiplier: float = Field(
+        default=0.1,
+        gt=0.0,
+        description=(
+            "adapter.unfreeze_encoder_tail only: encoder tail LR = learning_rate * this. "
+            "Kept below the decoder LR (unlike adapter_lr_multiplier, which is typically "
+            ">=1) because these weights carry a pretrained basis instead of being freshly "
+            "grown like encoder.conv_in."
+        ),
+    )
     scheduler_type: Literal["cosine", "wsd", "constant"] = Field(
         default="cosine",
         description=(
@@ -365,6 +375,19 @@ class VaeAdapterConfig(ConfigBaseModel):
         description="Init adapters as identity + zero residual (no tanh dead zone). Recommended for training from scratch.",
     )
     default_temb: float = Field(default=0.0)
+    unfreeze_encoder_tail: bool = Field(
+        default=False,
+        description=(
+            "Unfreeze the encoder's last non-downsampling stage -- down_blocks[-1], "
+            "mid_block, norm_out, conv_out -- alongside the decoder. These already "
+            "operate on the fully-compressed 4x4 grid, so unfreezing them cannot change "
+            "the encoder's spatial compression ratio, only what the fixed 512->128 "
+            "channel projection keeps before it reaches the decoder. Everything upstream "
+            "(down_blocks[:-1], the actual spatial downsampling) stays frozen, so no "
+            "frozen layer ever consumes activations from an unfrozen layer that moved "
+            "since pretraining."
+        ),
+    )
 
 
 class LossWeightingConfig(ConfigBaseModel):

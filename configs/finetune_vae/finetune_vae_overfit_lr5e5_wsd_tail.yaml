@@ -1,0 +1,207 @@
+# CAPACITY DIAGNOSTIC -- overfit 8 simulations. Not a training run.
+#
+# THE QUESTION: the full-data runs plateau at val_vrmse ~0.105. Is that because
+#   (a) the information is not in the latent -- the frozen encoder's 32x spatial
+#       compression puts a 128x128 field into a 4x4x128 grid, 240:1 overall -- or
+#   (b) the information IS there and the L2-family objective averages it away,
+#       plus 1200 steps was not enough training?
+#
+# Both produce the same flat curve on the full dataset, so no amount of longer
+# training on 3825 sims can separate them.
+#
+# THE TEST: train and evaluate on the SAME 8 sims. Generalization is removed
+# entirely, so whatever VRMSE this reaches is the reconstruction floor for these
+# exact samples given the current encoder. 553M trainable parameters against 8
+# samples is a memorization task; if it cannot memorize them, no loss function
+# and no schedule will fix it.
+#
+# HOW TO READ THE RESULT (val_vrmse == train reconstruction here, by design):
+#
+#   <= 0.03   The latent carries the information. The 0.105 on full data is a
+#             loss-function / training-budget problem. -> spectral or adversarial
+#             term to stop L2 averaging the small scales away, and more steps.
+#
+#   ~0.05-0.08  Partial. Some headroom from the objective, but the latent is
+#             already straining. Do both: better loss AND more latent budget.
+#
+#   >= 0.09   The information never reaches the decoder. Loss surgery is wasted
+#             effort; the fix is latent budget -- feed 256x256 (latent 4x4 ->
+#             8x8, 4x capacity) or 512x512 (16x16, 16x), or drop an encoder
+#             downsample stage. Note this also multiplies DiT token count
+#             (224 -> 896 -> 3584).
+#
+# For reference, the ideal band-limited VRMSE floors measured on this dataset:
+# 32x32 cutoff = 0.165, 64x64 = 0.089, i.e. the full-data model behaves like a
+# ~56x56 Fourier truncation.
+#
+# ATTEMPT 1 (job 21667) DIVERGED at lr 2e-4 constant, admul 10.0. Measured
+# nothing about latent capacity.
+#
+# ATTEMPT 2 (finetune_vae_overfit_lr5e5.yaml) RAN BUT WAS NOT TRUSTWORTHY:
+# val_vrmse oscillated between ~0.10 and ~0.30 for most of 50 epochs instead
+# of descending cleanly, and it violated its own kill criterion without being
+# killed. Best 0.098856, directionally >=0.09 but not a clean read.
+#
+# ATTEMPT 3 (finetune_vae_overfit_lr25e5.yaml) halved the LR to 2.5e-5,
+# constant schedule. Reduced but did not remove the oscillation: best 0.0829
+# (epoch 46), ending near 0.09. Still not a clean landing value.
+#
+# ATTEMPT 4 (finetune_vae_overfit_lr5e5_wsd.yaml) kept peak LR at attempt 2's
+# 5e-5 and changed only the schedule, constant -> wsd. This is the clean
+# single-variable pair against attempt 2 (same peak LR, decay vs no decay):
+# attempt 2 never got below ~0.10 at that peak LR, wsd descended smoothly
+# through the decay phase to a FINAL val_vrmse of 0.061 (epoch 50, and
+# epochs 46-50 all sit in 0.061-0.066 -- a landing, not a lucky single point).
+# 0.061 is in the 0.05-0.08 "partial" band, not >=0.09. Combined with attempt
+# 3 (lower constant LR alone only reached 0.083, never 0.061), the schedule
+# -- not just a lower LR -- is what buys the improvement, so 0.061 is read as
+# real convergence, not a decay-masking artifact.
+#
+# VERDICT ON OPEN QUESTION 2: partial. The information does reach the decoder
+# to a meaningful degree, but there is still a gap to <=0.03. Per the readout
+# table, both the loss/training axis AND more latent budget remain live
+# options -- and per EXPERIMENTS.md Open Question 3, unfreezing part of the
+# encoder is now worth testing (it was previously gated on this answer).
+#
+# ATTEMPT 5 (this file) tests Open Question 3, scoped down from the ledger's
+# original "unfreeze the whole 694M trunk at 0.1x LR" proposal. Unfreezes
+# ONLY down_blocks[-1] + mid_block + norm_out + conv_out (the tail): these
+# already run on the fully-compressed 4x4 grid (down_blocks[-1] does not
+# spatially downsample), so unfreezing them cannot change the compression
+# ratio -- only what the fixed 512->128 channel projection keeps before the
+# decoder sees it, which is exactly the axis "partial" points at. Everything
+# upstream (down_blocks[:-1], the actual spatial downsampling, which carries
+# the fragile pretrained basis -- see the inflate_init: random finding) stays
+# frozen, so this never creates a frozen layer consuming activations from an
+# unfrozen layer that moved since pretraining. Also far cheaper: the tail
+# runs on 4x4 feature maps, the downsampling blocks run on up to 32x32.
+#
+# SINGLE VARIABLE: base is attempt 4 (wsd, 5e-5 peak) unchanged in every
+# field except adapter.unfreeze_encoder_tail (new, false -> true) and its
+# accompanying optimization.encoder_tail_lr_multiplier (new field, only takes
+# effect when unfreeze_encoder_tail is set). 0.1 matches the ledger's own
+# Q3 proposal of trunk LR = 0.1x decoder LR = 5e-6.
+#
+# HOW TO READ THIS RUN: if val_vrmse drops materially below attempt 4's 0.061
+# (toward <=0.03), the tail was part of the bottleneck -- worth carrying into
+# a real training run. If it lands at ~0.061 again (no material change),
+# the tail's channel selection was not the limiting factor and Open Question
+# 4 (more latent bandwidth / higher input resolution) becomes the next lever,
+# not unfreezing further into the trunk.
+#
+# KILL CRITERION (same rule as every attempt): if epoch 2's train_loss
+# exceeds epoch 1's, it is diverging -- kill the job.
+#
+# STEP MATH (1 GPU): unchanged -- 8 sims x 5 repeats = 40 optimizer
+# steps/epoch, 50 epochs = 2000 steps, ~64 min.
+#
+# Usage (1 GPU, ~64 min):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail.yaml
+#
+# On lundquist, submit via jobs/lundquist/finetune_vae_debug.sbatch:
+#   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # mean, matching the baseline: the diagnostic has to measure the model that
+  # is actually being trained, not a variant. (zeros in attempt 1.)
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # NEW, the one variable in this run: down_blocks[-1] + mid_block + norm_out
+  # + conv_out become trainable alongside the decoder and encoder.conv_in.
+  # down_blocks[:-1] (the actual spatial downsampling) stay frozen.
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 8 sims as every attempt -- head of the seed-42 shuffle, spans gamma
+  # regimes 1.13 / 1.30 / 1.365 / 1.40 / 1.453 x3 / 1.597.
+  overfit_sims: 8
+  overfit_repeat: 5
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from attempt 4.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  # NEW, only takes effect because adapter.unfreeze_encoder_tail is true.
+  # 0.1x decoder LR = 5e-6, matching EXPERIMENTS.md Open Question 3's proposal
+  # for the (much larger) full-trunk unfreeze. Kept low: the tail carries a
+  # pretrained basis, unlike encoder.conv_in which was grown from scratch.
+  encoder_tail_lr_multiplier: 0.1
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 50
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # null = never save -- this run answers a question, its weights are
+  # worthless (and load_inflated_vae_checkpoint doesn't restore tail weights
+  # yet regardless, see windinet/training/vae_trainer.py _save_checkpoint).
+  interval: null
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit", "wsd", "tail-unfreeze"]
+
+seed: 42
+# Fresh directory, distinct from every prior attempt -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_overfit_lr5e5_wsd_tail"
+clean_output_dir: true

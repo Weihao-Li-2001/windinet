@@ -135,67 +135,77 @@ deleted to start the next round clean. What survives:
 |---|---|---|---|---|
 | 21666 | `finetune_vae_baseline.yaml` | `finetune_vae_baseline` | restores #3 (mean, 15 ep, wsd, admul 1, h1 50, mlw 0, seed 42) | should land near 0.0954. Same seed, so this is a reproduction, **not** an answer to Open Question 1 -- that still needs seeds 1 and 2. |
 
-### 21667 -- capacity diagnostic, DIVERGED, inconclusive
+### Capacity diagnostic (Open Question 2) -- RESOLVED: partial
 
-First execution of `finetune_vae_overfit.yaml` (Open Question 2). It **did not
-answer the question** -- the run blew up in epoch 2 and never recovered:
+Five attempts, all overfitting the same 8 sims (`overfit_sims: 8,
+overfit_repeat: 5`, 40 opt steps/epoch, 1 GPU):
 
-| epoch | lr | train_loss | val_vrmse |
-|---|---|---|---|
-| 1 | 1.6e-4 (warmup) | 0.288 | 0.892 |
-| 2 | 2e-4 | **2.106** | 1.112 |
-| 3 | 2e-4 | 0.452 | 1.087 |
-| 25 | 2e-4 | 0.377 | 1.025 |
+| attempt | config | job | lr | sched | best val_vrmse | verdict |
+|---|---|---|---|---|---|---|
+| 1 | `finetune_vae_overfit.yaml` (orig.) | 21667 | 2e-4 | constant | ~1.0 | diverged, measured nothing |
+| 2 | `finetune_vae_overfit_lr5e5.yaml` | 21669/21677 | 5e-5 | constant | 0.0989 (ep48) | ran but untrustworthy: violated its own kill criterion, oscillated 0.10-0.30 all 50 epochs |
+| 3 | `finetune_vae_overfit_lr25e5.yaml` | 21684/21686 | 2.5e-5 | constant | 0.0829 (ep46) | still oscillating, no clean landing |
+| 4 | `finetune_vae_overfit_lr5e5_wsd.yaml` | 21685 | 5e-5 | wsd | **0.061** (ep46-50, stable) | **clean landing, trustworthy** |
+| 5 | `finetune_vae_overfit_lr5e5_wsd_tail.yaml` | - | 5e-5 (tail 5e-6) | wsd | - | in flight, see below |
 
-`val_vrmse ~= 1.0` means the output is no better than a trivial predictor;
-`val_rmse` sits at 0.238 against 0.014 for the working full-data runs. Loss is
-flat from epoch 3 to 25 -- collapsed, not converging.
+**Attempt 1** (job 21667): blew up in epoch 2 (train_loss 0.288 -> 2.106),
+flat at val_vrmse ~1.0 for 23 epochs -- collapsed, not converging. Cause:
+`learning_rate: 2e-4` constant with only 50 warmup steps (4x the 5e-5 every
+successful run uses, no decay) plus `adapter_lr_multiplier: 10.0` (effective
+2e-3 on `encoder.conv_in`). Also used `inflate_init: zeros`, unlike the
+baseline's `mean`. Empty `checkpoints/` is expected, not a bug: `interval: 5`
+never lined up with the (epoch-1) best, and `save_last_state` was off --
+nothing was written by design. Output dir deleted; metrics/curves/panels are
+in git at `2782d67`.
 
-Cause is almost certainly the LR: `learning_rate: 2e-4` with
-`scheduler_type: constant` and only 50 warmup steps, i.e. **4x the 5e-5 every
-successful run uses, with no decay** -- and `adapter_lr_multiplier: 10.0` puts
-`encoder.conv_in` at an effective 2e-3. Note this config also uses
-`inflate_init: zeros`, unlike the baseline's `mean`.
+**Attempts 2-4** (this file's earlier revisions had 2 written up as "not yet
+launched" -- it has since run). The clean comparison is 2 vs 4: **same peak LR
+(5e-5)**, only the schedule differs. Constant (2) never got below ~0.10 across
+50 epochs; wsd (4) descended smoothly through the decay phase to a stable
+0.061 (epochs 46-50 all in 0.061-0.066). Attempt 3 (lower constant LR alone,
+no decay) only reached 0.083 -- confirms it's the *decay*, not just a lower
+LR, buying the improvement, so attempt 4's 0.061 reads as genuine convergence
+rather than a decay-masking artifact. Full headers/analysis are in
+`configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd.yaml` and
+`finetune_vae_overfit_lr25e5.yaml`.
 
-The empty `checkpoints/` is not a separate mystery: `_save_checkpoint` is only
-called on `interval` epochs (`vae_trainer.py:802`), the best epoch was 1, and
-1 is not a multiple of 5, so `improved` was never true at a save point. The
-final save passes `improved=False` under `save_best_only`, and
-`save_last_state` is off, so nothing was written and
-`vae_trainer.py:1006` returned a path that does not exist -- which is the path
-the log printed. Not worth fixing here: this run's weights are worthless by
-design, and attempt 2 sets `checkpoints.interval: 0` to make that explicit.
+**Verdict: 0.061 falls in the 0.05-0.08 "partial" band**, not `>=0.09`. The
+information does reach the decoder to a meaningful degree, but there's still
+a gap to `<=0.03`. Per the readout table this unblocks Open Question 3
+(encoder unfreezing), which was explicitly gated on this answer.
 
-Its output directory has been deleted; the metrics, curves and panels are in
-git at `2782d67`.
+### Attempt 5 -- encoder tail unfreeze, in flight
 
-### 21667 attempt 2 -- not yet launched
+Tests Open Question 3, scoped down from "unfreeze the whole 694M trunk at
+0.1x LR" to just `down_blocks[-1] + mid_block + norm_out + conv_out` (the
+tail): these already run on the fully-compressed 4x4 grid, so unfreezing them
+cannot change the compression ratio, only what the 512->128 channel
+projection keeps -- the axis "partial" points at. `down_blocks[:-1]` (the
+actual spatial downsampling, carrying the fragile pretrained basis -- see
+`inflate_init: random` below) stays frozen. Also far cheaper: tail activations
+are 4x4 vs up to 32x32 for the downsampling blocks.
 
-Hypothesis: 21667 measured the LR, not the latent. Run the same diagnostic on
-the baseline's optimizer settings and it will either fit the 8 sims or fail to,
-which is the actual question. Config changes, all in
-`configs/finetune_vae/finetune_vae_overfit.yaml`:
+Code: `windinet/config.py` (`adapter.unfreeze_encoder_tail`,
+`optimization.encoder_tail_lr_multiplier`, default 0.1 = 5e-6 absolute,
+matching the Q3 proposal below) and `windinet/training/vae_trainer.py`
+(`_get_encoder_tail_modules`, freeze/unfreeze in `_load_vae`, the
+`_collect_trainable_params` assertion, `_set_trainable_modules_mode`, a third
+optimizer param group). `_save_checkpoint` writes `encoder_tail.*` keys, but
+`load_inflated_vae_checkpoint` does not restore them yet -- fine for this
+diagnostic (`checkpoints.interval: null`, `resume_from: null`), not yet wired
+for a real training run.
 
-| field | attempt 1 | attempt 2 | why |
-|---|---|---|---|
-| `learning_rate` | 2e-4 | 5e-5 | the only LR that has ever converged on this model |
-| `adapter_lr_multiplier` | 10.0 | 1.0 | removes the 40x on `encoder.conv_in`; already shown to be seed-noise on full data (#1 vs #3) |
-| `inflate_init` | zeros | mean | measure the model actually being trained |
-| `weights.h1` | 25 | 50 | the comparison target is #1/#3 (h1 50), not the retired 0.105 run |
-| `epochs` | 25 | 50 | 2000 steps, so a plateau cannot be blamed on the smaller LR. ~64 min |
-| `checkpoints.interval` | 5 | 0 | the weights are worthless; write nothing |
-| `output_dir` | `finetune_vae_overfit` | `finetune_vae_overfit_lr5e5` | protocol 6 |
+Single variable vs attempt 4: `adapter.unfreeze_encoder_tail: false -> true`.
+Everything else (5e-5 peak, wsd, 50 epochs, same 8 sims) unchanged.
 
-Unchanged: `constant` schedule, `warmup_steps` 50, `batch_size` 1 / accum 1
-(the debug sbatch force-patches `effective_batch=1`), `max_grad_norm` 5.0,
-seed 42, 8 sims x 5 repeats. `jobs/lundquist/finetune_vae_debug.sbatch` now
-requests `--time 02:00:00`.
+Read-out: val_vrmse materially below 0.061 (toward `<=0.03`) means the tail
+was part of the bottleneck, worth carrying into a real run. Landing back at
+~0.061 means the tail's channel selection wasn't the limiting factor and
+Open Question 4 (latent bandwidth / input resolution) is the next lever, not
+unfreezing further into the trunk. Kill criterion unchanged (epoch 2
+train_loss above epoch 1's).
 
-Kill criterion: epoch 2 `train_loss` above epoch 1's means it is diverging
-again -- kill, halve LR to 2.5e-5. Read-out thresholds are unchanged
-(`<=0.03` / `0.05-0.08` / `>=0.09`, see the config header). If 5e-5 is still
-unstable at effective batch 1, the next lever is `effective_batch=4` in the
-sbatch with `epochs` x4 -- one change at a time.
+Launch: `sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail.yaml`
 
 ## Established
 
@@ -252,23 +262,24 @@ discontinuities. 5x spread, same model, same epoch.
 1. **What is the seed noise floor?** Re-run the baseline at seeds 1 and 2.
    Until this number exists, no result under ~2% is interpretable. Cost: 2 runs.
    *This gates everything below.*
-2. **Is the bottleneck the latent or the objective?** **Attempted as job 21667
-   and still open** -- that run diverged at 2e-4 constant LR (see above) and
-   says nothing about latent capacity. Attempt 2 is configured and waiting to
-   be launched (`sbatch jobs/lundquist/finetune_vae_debug.sbatch`). Train and
-   eval on the same 8 sims; 553M params vs 8 samples is pure memorization.
-   Read-out thresholds are in that file's header. Cost: 1 GPU, ~32 min.
-3. **Does unfreezing the encoder trunk help?** Only worth running if (2) says
-   the information reaches the decoder. Proposed LRs: decoder 5e-5 (unchanged),
-   `encoder.conv_in` 5e-5 (admul 1.0, unchanged), trunk **5e-6 (0.1x)**.
-   Requires code changes: relax the assertion in `vae_trainer.py:240-245`, add
-   the trunk to `_set_trainable_modules_mode` (`vae_trainer.py:335`), add a
-   third param group (`vae_trainer.py:475`), raise `warmup_steps` to ~500, and
-   check whether joint `clip_grad_norm_` (`vae_trainer.py:682`) starts biting
-   once trainable params go 553M -> 1247M. Memory: +8.3 GB/GPU.
+2. ~~Is the bottleneck the latent or the objective?~~ **ANSWERED: partial.**
+   See "Capacity diagnostic (Open Question 2)" above -- val_vrmse 0.061 with
+   proper convergence (wsd), landing in the 0.05-0.08 band. Neither a clean
+   `<=0.03` (pure objective problem) nor `>=0.09` (info never reaches the
+   decoder); both the loss/training axis and latent budget remain live.
+3. **Does unfreezing (part of) the encoder help?** **In flight as attempt 5**
+   (see above), scoped to the tail (`down_blocks[-1] + mid_block + norm_out +
+   conv_out`, tail LR 5e-6 = 0.1x decoder) rather than the full 694M trunk --
+   cheaper (4x4 activations, not up to 32x32) and structurally safer (never
+   leaves a frozen layer consuming activations from an unfrozen upstream
+   layer -- `down_blocks[:-1]`, the actual spatial downsampling with the
+   fragile pretrained basis, stays frozen throughout). If the tail alone
+   doesn't move val_vrmse, the next step -- not yet implemented -- would be
+   extending the trainable boundary one block earlier at a time
+   (`down_blocks[-2]` next), never skipping straight to the full trunk.
 4. **Does more latent bandwidth help?** Feed 256x256 so the latent grid becomes
    8x8 (4x capacity). Independent of (3) -- unfreezing does not change the
-   compression ratio.
+   compression ratio. Still open; next after attempt 5's read-out.
 
 ## Where things live
 

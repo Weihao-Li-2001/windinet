@@ -196,6 +196,22 @@ class VaeTrainer:
                 "them remain valid and this VAE can be swapped in at inference."
             )
 
+        # Encoder tail: down_blocks[-1] + mid_block + norm_out + conv_out. These run
+        # entirely on the already-4x4 grid (down_blocks[-1] does not spatially
+        # downsample), so unfreezing them cannot change the compression ratio -- only
+        # what the 512->128 channel projection keeps. down_blocks[:-1] (the actual
+        # spatial downsampling) stay frozen, so this never creates a frozen layer that
+        # has to consume activations from an unfrozen upstream layer.
+        self._tail_unfrozen = adapter_cfg.unfreeze_encoder_tail
+        if self._tail_unfrozen:
+            for module in self._get_encoder_tail_modules():
+                for p in module.parameters():
+                    p.requires_grad_(True)
+            logger.info(
+                "Encoder tail UNFROZEN (down_blocks[-1] + mid_block + norm_out + "
+                "conv_out): spatial compression (down_blocks[:-1]) stays frozen."
+            )
+
         if self._config.optimization.enable_gradient_checkpointing:
             base_vae = self._vae.vae if isinstance(self._vae, AdaptedVAE) else self._vae
             base_vae.enable_gradient_checkpointing()
@@ -227,21 +243,37 @@ class VaeTrainer:
     def _get_encoder_conv_in(self) -> nn.Module:
         return self._get_encoder().conv_in
 
+    def _get_encoder_tail_modules(self) -> list[nn.Module]:
+        encoder = self._get_encoder()
+        return [encoder.down_blocks[-1], encoder.mid_block, encoder.norm_out, encoder.conv_out]
+
     def _collect_trainable_params(self) -> None:
         self._trainable_params = [p for p in self._vae.parameters() if p.requires_grad]
         vae = self._unwrap_vae()
         base_vae = vae.vae if isinstance(vae, AdaptedVAE) else vae
-        # In inflate mode the grown encoder.conv_in is intentionally trainable;
-        # everything else in the encoder must still be frozen.
+        # In inflate mode the grown encoder.conv_in is intentionally trainable, and
+        # optionally the encoder tail (unfreeze_encoder_tail); everything else in the
+        # encoder must still be frozen.
         conv_in_trainable = (
             sum(p.numel() for p in self._get_encoder_conv_in().parameters() if p.requires_grad)
             if self._inflated else 0
         )
+        tail_trainable = (
+            sum(
+                p.numel()
+                for module in self._get_encoder_tail_modules()
+                for p in module.parameters()
+                if p.requires_grad
+            )
+            if self._tail_unfrozen else 0
+        )
         encoder_trainable = sum(p.numel() for p in base_vae.encoder.parameters() if p.requires_grad)
-        if encoder_trainable != conv_in_trainable:
+        expected_encoder_trainable = conv_in_trainable + tail_trainable
+        if encoder_trainable != expected_encoder_trainable:
             raise RuntimeError(
-                f"Only encoder.conv_in may be trainable, but {encoder_trainable:,} encoder "
-                f"parameters are trainable ({conv_in_trainable:,} expected)"
+                f"Only encoder.conv_in and (if enabled) the encoder tail may be trainable, "
+                f"but {encoder_trainable:,} encoder parameters are trainable "
+                f"({expected_encoder_trainable:,} expected)"
             )
 
         decoder_trainable = sum(p.numel() for p in self._get_decoder().parameters() if p.requires_grad)
@@ -255,8 +287,9 @@ class VaeTrainer:
         )
         logger.info(
             "Trainable parameters: "
-            f"encoder_conv_in={conv_in_trainable:,}, decoder={decoder_trainable:,}, "
-            f"in_adapter={in_adapter_trainable:,}, out_adapter={out_adapter_trainable:,}"
+            f"encoder_conv_in={conv_in_trainable:,}, encoder_tail={tail_trainable:,}, "
+            f"decoder={decoder_trainable:,}, in_adapter={in_adapter_trainable:,}, "
+            f"out_adapter={out_adapter_trainable:,}"
         )
 
     # ------------------------------------------------------------------
@@ -343,6 +376,9 @@ class VaeTrainer:
         # A frozen conv_in stays in eval mode with the rest of the frozen encoder.
         if self._inflated and not self._config.adapter.freeze_conv_in:
             self._get_encoder_conv_in().train(training)
+        if self._tail_unfrozen:
+            for module in self._get_encoder_tail_modules():
+                module.train(training)
 
     # ------------------------------------------------------------------
     # VAE encode / decode
@@ -481,6 +517,19 @@ class VaeTrainer:
             logger.info(
                 f"{fast_name} LR = {fast_lr:.2e} "
                 f"({cfg.optimization.adapter_lr_multiplier:g}x decoder LR {base_lr:.2e})"
+            )
+        if self._tail_unfrozen:
+            tail_lr = base_lr * cfg.optimization.encoder_tail_lr_multiplier
+            tail_params = [
+                p
+                for module in self._get_encoder_tail_modules()
+                for p in module.parameters()
+                if p.requires_grad
+            ]
+            param_groups.append({"params": tail_params, "lr": tail_lr})
+            logger.info(
+                f"encoder tail LR = {tail_lr:.2e} "
+                f"({cfg.optimization.encoder_tail_lr_multiplier:g}x decoder LR {base_lr:.2e})"
             )
         optimizer = torch.optim.AdamW(
             param_groups,
@@ -960,6 +1009,19 @@ class VaeTrainer:
                 f"encoder_conv_in.{k}": v.detach().cpu().contiguous()
                 for k, v in self._get_encoder_conv_in().state_dict().items()
             })
+        if self._tail_unfrozen:
+            # NOTE: load_inflated_vae_checkpoint() (windinet/vae_adapter.py) does not
+            # yet restore these keys -- resuming a tail-unfrozen run isn't wired up.
+            # Fine for a diagnostic (checkpoints disabled, resume_from: null); revisit
+            # before using unfreeze_encoder_tail on a real training run.
+            for name, module in zip(
+                ("down_blocks_last", "mid_block", "norm_out", "conv_out"),
+                self._get_encoder_tail_modules(),
+            ):
+                tensors.update({
+                    f"encoder_tail.{name}.{k}": v.detach().cpu().contiguous()
+                    for k, v in module.state_dict().items()
+                })
 
         metadata = {
             "format": "ltx-inflated-io-v1" if self._inflated else "ltx-decoder-plus-adapters-v1",
