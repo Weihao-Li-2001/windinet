@@ -1,0 +1,156 @@
+#!/bin/bash
+#SBATCH --job-name=wh_diag_vae
+#SBATCH --time=00:30:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --partition=test              # 30 min cap -- these are 3-epoch throughput probes, not real training
+#SBATCH --account=pn82ku
+#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
+#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+
+# Throughput diagnostic for the sng_pvc slowdown (see EXPERIMENTS.md /
+# 2026-08-02 discussion): baseline job 520211 averaged 38.7 min/epoch on
+# 8 XPU tiles, roughly the SAME as lundquist's 2-GPU (A6000) estimate of
+# 32-36 min/epoch in jobs/lundquist/finetune_vae_2gpu.sbatch. 4x the compute
+# should not land at parity -- this script isolates why.
+#
+# vae_trainer.py now logs a per-epoch phase breakdown
+# ("Epoch N timing: train=...s eval=...s viz=...s ckpt=...s total=...s"),
+# so a single 3-epoch run already tells you where the time goes -- no need
+# to guess from whole-job START/END like job 520211 had to be read.
+#
+# Three things to try, one variable at a time (see EXPERIMENTS.md protocol
+# "one variable per run"), each its own submission:
+#
+#   sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
+#       Exp 0 -- baseline as-is (8 tiles, workers=0, full checkpoint+viz
+#       every epoch). Read epoch 2's and 3's timing line (skip epoch 1, it
+#       eats one-time model-load/compile cost). This alone tells you the
+#       train/eval/viz/ckpt split -- run this FIRST, its output decides
+#       whether Exp 1 or Exp 2 below is worth running at all.
+#
+#   DIAG_TAG=workers2 DIAG_WORKERS=2 sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
+#       Exp 1 -- H1 (I/O-bound training step): num_dataloader_workers 0->2.
+#       cluster_config.py dropped this to 0 because 4 workers x 8 ranks
+#       crashed opening train.h5 concurrently on DSS; 0 was never shown to
+#       be the fastest safe value, just the one that didn't crash. Compare
+#       this run's "train=" time to Exp 0's.
+#
+#   DIAG_TAG=noio DIAG_SKIP_HEAVY_IO=1 sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
+#       Exp 2 -- H3 (checkpoint/viz I/O to the DSS network filesystem):
+#       baseline config has checkpoints.interval=1 + save_last_state=true,
+#       so EVERY epoch writes a ~1.1GB safetensors decoder checkpoint plus a
+#       ~4.4GB optimizer-state torch.save (AdamW m/v in fp32 over 552.9M
+#       trainable params) to $SCRATCH (network filesystem), on top of 8
+#       visualization PNGs. lundquist writes the equivalent to LOCAL disk.
+#       This run disables save_last_state and visualization so "ckpt="/"viz="
+#       collapse to ~0 -- compare this run's "total=" to Exp 0's "total=" to
+#       see how much of the 38.7 min/epoch that I/O actually was.
+#
+# Exp 0's breakdown should make it obvious which of Exp 1 / Exp 2 (or both)
+# is worth running. Communication-topology (H2: 8 ranks x accum4 vs
+# lundquist's 2 ranks x accum16) is NOT tested here -- see
+# jobs/sng_pvc/finetune_vae_diag_4rank.sbatch, it needs Exp 0/2 ruled out
+# first since heavy per-epoch I/O would confound a communication-only test.
+#
+# Weights from these runs are throwaway -- output_dir is suffixed
+# "_diag_<tag>" so nothing collides with or wipes the real baseline in
+# finetune_vae_outputs_sng_pvc/finetune_vae_baseline/.
+
+set -eo pipefail
+
+module load micromamba/2.1.1
+export PATH="$MICROMAMBA_BASE/bin:$PATH"
+eval "$(micromamba shell hook -s bash)"
+micromamba activate windinet
+
+cd /dss/dsshome1/0D/go76fuz2/windinet
+
+echo "START TIME: $(date)"
+echo "job=${SLURM_JOB_ID} node=$(hostname)"
+xpu-smi discovery || true
+
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=$(python - <<'PY'
+import socket
+s = socket.socket()
+s.bind(('', 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+echo "MASTER_ADDR: $MASTER_ADDR  MASTER_PORT: $MASTER_PORT"
+
+export NUM_XPUS=8
+export CCL_ATL_TRANSPORT=ofi
+export ZE_FLAT_DEVICE_HIERARCHY=FLAT
+export CCL_ALLREDUCE=ring
+
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export WANDB_MODE=offline
+export TOKENIZERS_PARALLELISM=false
+export HDF5_USE_FILE_LOCKING=FALSE
+
+# Diagnostic knobs -- see header for what each combination tests.
+DIAG_TAG=${DIAG_TAG:-base}
+DIAG_WORKERS=${DIAG_WORKERS:-}          # empty = leave cluster default (0)
+DIAG_SKIP_HEAVY_IO=${DIAG_SKIP_HEAVY_IO:-0}
+DIAG_EPOCHS=${DIAG_EPOCHS:-3}
+echo "DIAG_TAG=${DIAG_TAG} DIAG_WORKERS=${DIAG_WORKERS:-<default>} DIAG_SKIP_HEAVY_IO=${DIAG_SKIP_HEAVY_IO} DIAG_EPOCHS=${DIAG_EPOCHS}"
+
+BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_diag_XXXX.yaml)
+trap 'rm -f "${RUN_CONFIG}"' EXIT
+
+python - "${BASE_CONFIG}" "${RUN_CONFIG}" "$((NUM_XPUS * SLURM_JOB_NUM_NODES))" \
+    "${DIAG_TAG}" "${DIAG_WORKERS}" "${DIAG_SKIP_HEAVY_IO}" "${DIAG_EPOCHS}" <<'PY'
+import sys
+
+import yaml
+
+from windinet.cluster_config import patch_config_for_cluster
+
+src, dst, num_processes, tag, workers, skip_heavy_io, epochs = sys.argv[1:8]
+num_processes = int(num_processes)
+skip_heavy_io = skip_heavy_io == "1"
+epochs = int(epochs)
+
+cfg = yaml.safe_load(open(src))
+patch_config_for_cluster(
+    cfg, cluster="sng_pvc", num_processes=num_processes, output_suffix=f"_diag_{tag}"
+)
+
+if workers != "":
+    cfg["data"]["num_dataloader_workers"] = int(workers)
+
+# Diagnostic only: don't care about convergence, only wall clock.
+cfg["optimization"]["epochs"] = epochs
+cfg["checkpoints"]["interval"] = 1  # keep triggering _save_checkpoint every epoch...
+if skip_heavy_io:
+    cfg["checkpoints"]["save_last_state"] = False  # ...but skip the ~4.4GB optimizer-state write
+    cfg["visualization"]["enabled"] = False          # and the 8 PNGs/epoch
+
+yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
+print(
+    f"{num_processes} XPU tiles x accum {cfg['optimization']['gradient_accumulation_steps']} "
+    f"-> effective batch 32; workers={cfg['data']['num_dataloader_workers']}; "
+    f"skip_heavy_io={skip_heavy_io}; epochs={epochs}; output_dir {cfg['output_dir']}"
+)
+PY
+
+OUT_DIR=$(python -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
+printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}_${DIAG_TAG}" \
+    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/sng_pvc/INDEX.tsv
+
+srun --mpi=none accelerate launch \
+    --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \
+    --num_machines $SLURM_JOB_NUM_NODES \
+    --machine_rank $SLURM_PROCID \
+    --main_process_ip "$MASTER_ADDR" \
+    --main_process_port "$MASTER_PORT" \
+    --mixed_precision bf16 \
+    scripts/finetune_vae.py "${RUN_CONFIG}"
+
+echo "END TIME: $(date)"
+echo "Diagnostic run -- weights/state left on \$SCRATCH under ${OUT_DIR}, NOT mirrored to git (throwaway)."

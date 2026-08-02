@@ -582,6 +582,7 @@ class VaeTrainer:
 
         with live:
             for epoch in range(self._start_epoch, cfg.optimization.epochs + 1):
+                epoch_t0 = time.time()
                 self._set_trainable_modules_mode(True)
                 running_loss = 0.0
                 count = 0
@@ -746,11 +747,13 @@ class VaeTrainer:
                 # End of epoch: eval + checkpoint
 
                 train_progress.remove_task(task)
-                
+                train_elapsed = time.time() - epoch_t0
 
                 if IS_MAIN_PROCESS:
                     avg_loss = running_loss / max(count, 1)
+                    eval_t0 = time.time()
                     val_metrics = self._evaluate(eval_loader, device)
+                    eval_elapsed = time.time() - eval_t0
                     lr = optimizer.param_groups[0]["lr"]
                     logger.info(
                         f"Epoch {epoch}: train_loss={avg_loss:.6f}  "
@@ -785,9 +788,11 @@ class VaeTrainer:
                         "epoch/learning_rate": lr,
                     })
 
+                    vis_t0 = time.time()
                     vis_cfg = cfg.visualization
                     if vis_cfg.enabled and epoch % vis_cfg.interval_epochs == 0:
                         self._save_visualization(eval_loader, device, epoch)
+                    vis_elapsed = time.time() - vis_t0
 
                     monitored = (
                         val_metrics["vrmse"]
@@ -799,10 +804,18 @@ class VaeTrainer:
                         self._best_metric_value = monitored
                         self._best_epoch = epoch
 
+                    ckpt_t0 = time.time()
                     if cfg.checkpoints.interval and epoch % cfg.checkpoints.interval == 0:
                         saved_path = self._save_checkpoint(
                             epoch, global_opt_step, improved=improved
                         )
+                    ckpt_elapsed = time.time() - ckpt_t0
+
+                    logger.info(
+                        f"Epoch {epoch} timing: train={train_elapsed:.1f}s "
+                        f"eval={eval_elapsed:.1f}s viz={vis_elapsed:.1f}s "
+                        f"ckpt={ckpt_elapsed:.1f}s total={time.time() - epoch_t0:.1f}s"
+                    )
 
                 self._accelerator.wait_for_everyone()
 
