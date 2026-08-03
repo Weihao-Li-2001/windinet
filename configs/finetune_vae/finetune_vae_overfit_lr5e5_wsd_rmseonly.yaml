@@ -1,0 +1,193 @@
+# CAPACITY DIAGNOSTIC -- overfit 8 simulations. Not a training run.
+#
+# THE QUESTION: the full-data runs plateau at val_vrmse ~0.105. Is that because
+#   (a) the information is not in the latent -- the frozen encoder's 32x spatial
+#       compression puts a 128x128 field into a 4x4x128 grid, 240:1 overall -- or
+#   (b) the information IS there and the L2-family objective averages it away,
+#       plus 1200 steps was not enough training?
+#
+# Both produce the same flat curve on the full dataset, so no amount of longer
+# training on 3825 sims can separate them.
+#
+# THE TEST: train and evaluate on the SAME 8 sims. Generalization is removed
+# entirely, so whatever VRMSE this reaches is the reconstruction floor for these
+# exact samples given a frozen encoder. 553M trainable parameters against 8
+# samples is a memorization task; if it cannot memorize them, no loss function
+# and no schedule will fix it.
+#
+# HOW TO READ THE RESULT (val_vrmse == train reconstruction here, by design):
+#
+#   <= 0.03   The latent carries the information. The 0.105 on full data is a
+#             loss-function / training-budget problem. -> spectral or adversarial
+#             term to stop L2 averaging the small scales away, and more steps.
+#
+#   ~0.05-0.08  Partial. Some headroom from the objective, but the latent is
+#             already straining. Do both: better loss AND more latent budget.
+#
+#   >= 0.09   The information never reaches the decoder. Loss surgery is wasted
+#             effort; the fix is latent budget -- feed 256x256 (latent 4x4 ->
+#             8x8, 4x capacity) or 512x512 (16x16, 16x), or drop an encoder
+#             downsample stage. Note this also multiplies DiT token count
+#             (224 -> 896 -> 3584).
+#
+# For reference, the ideal band-limited VRMSE floors measured on this dataset:
+# 32x32 cutoff = 0.165, 64x64 = 0.089, i.e. the current model behaves like a
+# ~56x56 Fourier truncation.
+#
+# ATTEMPTS 1-3: see finetune_vae_overfit_lr5e5_wsd.yaml for the full history
+# (diverged / noisy-constant-schedule / lower-LR-constant, none trustworthy).
+#
+# ATTEMPT 4 (finetune_vae_overfit_lr5e5_wsd.yaml): wsd schedule, stable_fraction
+# 0.7, composite loss (rmse 1.0 / h1 50.0 / ssim 0.15). Landed a clean 0.061
+# (epoch 50, epochs 46-50 all sit in 0.061-0.066) -- read as "partial": the
+# latent carries meaningful information but there's still a gap to <=0.03.
+#
+# ATTEMPT 5 (finetune_vae_overfit_lr5e5_wsd_tail.yaml): same schedule + composite
+# loss, encoder tail unfrozen. Landed 0.0588 -- only ~3% better than attempt 4,
+# read as within noise.
+#
+# ATTEMPT 6 (finetune_vae_overfit_lr5e5_wsd_tail_slowdecay.yaml): tested whether
+# attempt 5's 0.0588 was decay-length-limited by halving stable_fraction to
+# 0.35. Landed 0.0608 -- no material change, so schedule length was not the
+# limiting factor either (job 21690).
+#
+# THE CONFOUND ATTEMPTS 4-6 SHARE: all three optimize the composite loss
+# (rmse + 50*h1 + 0.15*ssim), the same objective used in production. That
+# means the ~0.06 floor conflates two different things that "Partial" cannot
+# distinguish between:
+#   (a) the latent genuinely cannot carry enough information to push rmse
+#       below ~0.06 (the hypothesis the diagnostic is meant to test), or
+#   (b) the h1 term (weight 50, an edge/gradient penalty) is pulling the
+#       optimizer away from the rmse-only minimum -- i.e. the floor is a
+#       loss-shaping artifact, not an information-capacity limit.
+# Nothing in attempts 4-6 can tell these apart, because h1 was never turned
+# off.
+#
+# ATTEMPT 7 (this file) removes that confound: SAME base as attempt 4
+# (wsd, stable_fraction 0.7, encoder tail still frozen) with ONE change --
+# loss_weighting.weights h1 50.0 -> 0.0 and ssim 0.15 -> 0.0, so the only
+# term with nonzero weight is rmse. This isolates "how low can rmse alone go
+# given this latent" from "how low does it go once also asked to match
+# gradients/structure."
+#
+# HOW TO READ THIS RUN (compare directly to attempt 4's 0.061):
+#   - If val_vrmse lands materially below 0.061 (toward <=0.03): the h1
+#     constraint was actually the limiting factor in attempts 4-6, not the
+#     latent. The "Partial" verdict was reading a loss-shaping ceiling, not
+#     an information ceiling -- reconsider the h1 weight in production
+#     configs rather than expanding latent budget.
+#   - If it lands within noise of 0.061: the composite loss was not the
+#     bottleneck, h1/ssim were essentially free (consistent with train_rmse
+#     and train_h1 moving together in the full-data runs) -- latent capacity
+#     stands as the limiting factor and Open Question 4 (more latent
+#     bandwidth) remains the right next lever.
+#
+# KILL CRITERION (same rule as every attempt): if epoch 2's train_loss
+# exceeds epoch 1's, it is diverging -- kill the job.
+#
+# STEP MATH (1 GPU): unchanged -- 8 sims x 5 repeats = 40 optimizer
+# steps/epoch, 50 epochs = 2000 steps, ~64 min.
+#
+# Usage (1 GPU, ~64 min):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_rmseonly.yaml
+#
+# On lundquist, submit via jobs/lundquist/finetune_vae_debug.sbatch:
+#   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_rmseonly.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # mean, matching the baseline: the diagnostic has to measure the model that
+  # is actually being trained, not a variant.
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 8 sims as every attempt -- head of the seed-42 shuffle, spans gamma
+  # regimes 1.13 / 1.30 / 1.365 / 1.40 / 1.453 x3 / 1.597.
+  overfit_sims: 8
+  overfit_repeat: 5
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from attempt 4 -- this file isolates the loss weighting, not
+  # the LR or schedule shape.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 50
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    # CHANGED from attempt 4 -- the one variable in this run. h1 and ssim
+    # zeroed out so the only term reaching the optimizer is rmse.
+    rmse: 1.0
+    h1: 0.0
+    ssim: 0.0
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # null = never save -- this run answers a question, its weights are
+  # worthless.
+  interval: null
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit", "wsd", "rmse-only"]
+
+seed: 42
+# Fresh directory, distinct from every prior attempt -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_overfit_lr5e5_wsd_rmseonly"
+clean_output_dir: true

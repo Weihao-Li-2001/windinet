@@ -1150,6 +1150,26 @@ class VaeTrainer:
         self._accelerator = Accelerator(
             mixed_precision=self._config.acceleration.mixed_precision_mode,
             gradient_accumulation_steps=self._config.optimization.gradient_accumulation_steps,
+            # Default rng_types=["generator"] makes every accelerator.prepare()
+            # call broadcast the train_loader's shuffle-sampler RNG state from
+            # rank 0 to every other rank over the distributed backend. On
+            # sng_pvc's 4-rank ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE launch (job
+            # 520303) that broadcast corrupts in transit through oneCCL and
+            # crashes with "RuntimeError: Invalid mt19937 state" in
+            # accelerate/utils/random.py's synchronize_rng_state -- the
+            # identical 8-tile FLAT launches (520300-520302) hit the same code
+            # path every epoch without issue, so this is isolated to
+            # COMPOSITE, not a general bug in our seeding.
+            #
+            # It's safe to disable: train() calls accelerate's set_seed(cfg.seed)
+            # identically on every rank *before* the DataLoader/sampler is
+            # constructed, and no rank-divergent randomness happens between
+            # that call and accelerator.prepare(train_loader) (the train/eval
+            # split's own torch.Generator is seeded from cfg.seed directly, not
+            # the global RNG). So every rank's default RandomSampler already
+            # gets an identical generator seed without any cross-rank
+            # broadcast; rng_types=[] just skips the (buggy, redundant) sync.
+            rng_types=[],
         )
         if self._accelerator.num_processes > 1:
             logger.info(f"Distributed training: {self._accelerator.num_processes} processes")
