@@ -1,0 +1,249 @@
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+                          VAE Finetuning Configuration                          
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ adapter.enabled                      │ True                                  │
+│ adapter.checkpoint                   │ None                                  │
+│ adapter.channels                     │ ['density', 'momentum_x',             │
+│                                      │ 'momentum_y', 'pressure']             │
+│ adapter.mode                         │ inflate                               │
+│ adapter.inflate_init                 │ zeros                                 │
+│ adapter.hidden_channels              │ 32                                    │
+│ adapter.activation                   │ gelu                                  │
+│ adapter.identity_init                │ False                                 │
+│ adapter.default_temb                 │ 0.0                                   │
+│ data.data_root                       │ /local/disk/hramachandran/work/wh_wo… │
+│ data.eval_sims                       │ 675                                   │
+│ data.num_dataloader_workers          │ 4                                     │
+│ data.num_sim_frames                  │ None                                  │
+│ data.channel_mean                    │ [0.905097647712509,                   │
+│                                      │ 0.0040453659499771295,                │
+│                                      │ -0.0019089379643528095, 0.9           │
+│ data.channel_std                     │ [0.6607349375392083,                  │
+│                                      │ 0.5328754120427532,                   │
+│                                      │ 0.5262512462358824, 0.8050358         │
+│ data.normalization_clip              │ 5.0                                   │
+│ optimization.learning_rate           │ 5e-05                                 │
+│ optimization.adapter_lr_multiplier   │ 10.0                                  │
+│ optimization.min_learning_rate       │ 1e-06                                 │
+│ optimization.epochs                  │ 10                                    │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 8                                     │
+│ optimization.max_grad_norm           │ 5.0                                   │
+│ optimization.weight_decay            │ 0.0                                   │
+│ optimization.warmup_steps            │ 50                                    │
+│ optimization.warmup_start_factor     │ 0.01                                  │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ loss.wavelet                         │ db2                                   │
+│ loss.spatial_level                   │ 2                                     │
+│ loss.temporal_level                  │ 2                                     │
+│ loss.mlw_beta                        │ 10.0                                  │
+│ loss.mlw_eps                         │ 1e-06                                 │
+│ loss_weighting.strategy              │ fixed                                 │
+│ loss_weighting.weights               │ {'rmse': 1.0, 'h1': 0.0, 'ssim': 0.3, │
+│                                      │ 'mlw': 0.0}                           │
+│ loss_weighting.loss_names            │ ['rmse', 'h1', 'ssim', 'mlw']         │
+│ loss_weighting.alpha                 │ 1.5                                   │
+│ loss_weighting.weight_lr             │ 0.025                                 │
+│ loss_weighting.temperature           │ 0.1                                   │
+│ visualization.enabled                │ True                                  │
+│ visualization.interval_epochs        │ 1                                     │
+│ visualization.num_samples            │ 2                                     │
+│ visualization.frame_numbers          │ [25, 50, 75, 100]                     │
+│ visualization.dpi                    │ 150                                   │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ checkpoints.interval                 │ 1                                     │
+│ checkpoints.keep_last_n              │ 3                                     │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ windinet                              │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ ['vae', 'decoder', 'inflate',         │
+│                                      │ 'shockwave-cfd']                      │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /local/disk/hramachandran/work/wh_wo… │
+│ clean_output_dir                     │ True                                  │
+│ resume_from                          │ outputs/vae_inflate4_resume/checkpoi… │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 2] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 2] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     [rank 0] Distributed training: 4 processes           vae_trainer.py:957
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     [rank 2] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 3] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 3] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 3] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 0] VAE inflated to 4 native channels           vae_trainer.py:148
+         (init=zeros); encoder.conv_in is trainable                             
+[windinet] loaded inflated VAE checkpoint: outputs/vae_inflate4_resume/checkpoints/vae_shockwave_epoch004.safetensors (epoch=4, step=480)
+[windinet] loaded inflated VAE checkpoint: outputs/vae_inflate4_resume/checkpoints/vae_shockwave_epoch004.safetensors (epoch=4, step=480)
+[windinet] loaded inflated VAE checkpoint: outputs/vae_inflate4_resume/checkpoints/vae_shockwave_epoch004.safetensors (epoch=4, step=480)
+[windinet] loaded inflated VAE checkpoint: outputs/vae_inflate4_resume/checkpoints/vae_shockwave_epoch004.safetensors (epoch=4, step=480)
+INFO     [rank 0] Resumed inflated VAE weights from           vae_trainer.py:161
+         outputs/vae_inflate4_resume/checkpoints/vae_shockwav                   
+         e_epoch004.safetensors (checkpoint epoch=4)                            
+INFO     [rank 0] VAE gradient checkpointing enabled          vae_trainer.py:188
+INFO     [rank 0] VAE loaded. Decoder params: 552,869,953     vae_trainer.py:194
+INFO     [rank 0] Trainable parameters:                       vae_trainer.py:242
+         encoder_conv_in=221,312, decoder=552,869,953,                          
+         in_adapter=0, out_adapter=0                                            
+INFO     [rank 0] Loaded training state from                  vae_trainer.py:279
+         outputs/vae_inflate4_resume/checkpoints/vae_shockwav                   
+         e_epoch004.state.pt: resuming at epoch 5 (saved                        
+         epoch 4, global_opt_step 480)                                          
+INFO     [rank 0] Dataset: 3825 train, 675 eval samples       vae_trainer.py:413
+INFO     [rank 0] encoder.conv_in LR = 5.00e-04 (10x decoder  vae_trainer.py:437
+         LR 5.00e-05)                                                           
+INFO     [rank 0] Restored optimizer, scheduler, loss         vae_trainer.py:312
+         weights, and RNG state.                                                
+INFO     [rank 0] Config saved:                               vae_trainer.py:981
+         /local/disk/hramachandran/work/wh_work/windinet/outp                   
+         uts/vae_inflate4_resume2/training_config.yaml                          
+INFO     [rank 0] Resuming VAE finetuning at epoch 5 / 10     vae_trainer.py:519
+epoch 5 step 490  loss=0.041183  lr=3.43e-05  [rmse=0.0328 h1=0.0012 ssim=0.1061 mlw=60.2547]
+epoch 5 step 500  loss=0.039206  lr=3.37e-05  [rmse=0.0252 h1=0.0007 ssim=0.1645 mlw=56.2300]
+epoch 5 step 510  loss=0.040224  lr=3.31e-05  [rmse=0.0408 h1=0.0016 ssim=0.1001 mlw=83.6483]
+epoch 5 step 520  loss=0.040202  lr=3.24e-05  [rmse=0.0173 h1=0.0004 ssim=0.0847 mlw=58.4907]
+epoch 5 step 530  loss=0.039533  lr=3.18e-05  [rmse=0.0164 h1=0.0002 ssim=0.0678 mlw=54.1795]
+epoch 5 step 540  loss=0.039720  lr=3.11e-05  [rmse=0.0143 h1=0.0003 ssim=0.0746 mlw=61.5204]
+epoch 5 step 550  loss=0.039551  lr=3.05e-05  [rmse=0.0133 h1=0.0002 ssim=0.0500 mlw=61.6194]
+epoch 5 step 560  loss=0.039423  lr=2.98e-05  [rmse=0.0155 h1=0.0002 ssim=0.0984 mlw=64.6849]
+epoch 5 step 570  loss=0.039668  lr=2.92e-05  [rmse=0.0211 h1=0.0005 ssim=0.0375 mlw=80.6982]
+epoch 5 step 580  loss=0.039366  lr=2.85e-05  [rmse=0.0115 h1=0.0001 ssim=0.0367 mlw=87.0049]
+epoch 5 step 590  loss=0.039324  lr=2.78e-05  [rmse=0.0088 h1=0.0001 ssim=0.0371 mlw=62.4968]
+epoch 5 step 600  loss=0.039153  lr=2.72e-05  [rmse=0.0307 h1=0.0009 ssim=0.1140 mlw=61.7048]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=0.0000,       vae_trainer.py:679
+         ssim=0.3000, mlw=0.0000                                                
+INFO     [rank 0] Epoch 5: train_loss=0.039153                vae_trainer.py:698
+         val_loss=0.039158  val_VRMSE=0.117591  lr=2.72e-05                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,       vae_trainer.py:718
+         metrics/loss_curves.png                                                
+INFO     [rank 0] Saved 8 validation reconstruction PNGs for  vae_trainer.py:836
+         epoch 5                                                                
+INFO     [rank 0] VAE checkpoint saved:                       vae_trainer.py:896
+         checkpoints/vae_shockwave_epoch005.safetensors                         
+INFO     [rank 0] Training state saved:                       vae_trainer.py:931
+         checkpoints/vae_shockwave_epoch005.state.pt                            
+epoch 6 step 610  loss=0.038842  lr=2.65e-05  [rmse=0.0246 h1=0.0007 ssim=0.1163 mlw=54.2583]
+epoch 6 step 620  loss=0.040148  lr=2.58e-05  [rmse=0.0107 h1=0.0001 ssim=0.0444 mlw=60.3212]
+epoch 6 step 630  loss=0.039115  lr=2.52e-05  [rmse=0.0213 h1=0.0005 ssim=0.1314 mlw=54.5774]
+epoch 6 step 640  loss=0.037622  lr=2.45e-05  [rmse=0.0052 h1=0.0000 ssim=0.0330 mlw=107.5769]
+epoch 6 step 650  loss=0.036881  lr=2.38e-05  [rmse=0.0380 h1=0.0011 ssim=0.0915 mlw=78.1216]
+epoch 6 step 660  loss=0.037441  lr=2.32e-05  [rmse=0.0394 h1=0.0015 ssim=0.0859 mlw=82.2074]
+epoch 6 step 670  loss=0.037738  lr=2.25e-05  [rmse=0.0271 h1=0.0009 ssim=0.1374 mlw=54.4356]
+epoch 6 step 680  loss=0.037051  lr=2.18e-05  [rmse=0.0055 h1=0.0000 ssim=0.0262 mlw=62.6616]
+epoch 6 step 690  loss=0.036767  lr=2.12e-05  [rmse=0.0156 h1=0.0002 ssim=0.0400 mlw=66.2434]
+epoch 6 step 700  loss=0.036363  lr=2.05e-05  [rmse=0.0270 h1=0.0009 ssim=0.1286 mlw=57.3184]
+epoch 6 step 710  loss=0.036244  lr=1.99e-05  [rmse=0.0106 h1=0.0001 ssim=0.0543 mlw=54.8481]
+epoch 6 step 720  loss=0.035879  lr=1.92e-05  [rmse=0.0147 h1=0.0003 ssim=0.0703 mlw=57.1382]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=0.0000,       vae_trainer.py:679
+         ssim=0.3000, mlw=0.0000                                                
+INFO     [rank 0] Epoch 6: train_loss=0.035879                vae_trainer.py:698
+         val_loss=0.035981  val_VRMSE=0.110220  lr=1.92e-05                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,       vae_trainer.py:718
+         metrics/loss_curves.png                                                
+INFO     [rank 0] Saved 8 validation reconstruction PNGs for  vae_trainer.py:836
+         epoch 6                                                                
+INFO     [rank 0] VAE checkpoint saved:                       vae_trainer.py:896
+         checkpoints/vae_shockwave_epoch006.safetensors                         
+INFO     [rank 0] Training state saved:                       vae_trainer.py:931
+         checkpoints/vae_shockwave_epoch006.state.pt                            
+epoch 7 step 730  loss=0.035226  lr=1.86e-05  [rmse=0.0199 h1=0.0006 ssim=0.0739 mlw=68.2650]
+epoch 7 step 740  loss=0.036915  lr=1.79e-05  [rmse=0.0073 h1=0.0001 ssim=0.0344 mlw=58.2840]
+epoch 7 step 750  loss=0.036555  lr=1.73e-05  [rmse=0.0103 h1=0.0001 ssim=0.0231 mlw=94.7309]
+epoch 7 step 760  loss=0.036174  lr=1.67e-05  [rmse=0.0100 h1=0.0001 ssim=0.0385 mlw=62.7155]
+epoch 7 step 770  loss=0.035945  lr=1.60e-05  [rmse=0.0239 h1=0.0007 ssim=0.0866 mlw=72.1956]
+epoch 7 step 780  loss=0.035104  lr=1.54e-05  [rmse=0.0050 h1=0.0000 ssim=0.0169 mlw=74.4936]
+epoch 7 step 790  loss=0.035476  lr=1.48e-05  [rmse=0.0228 h1=0.0006 ssim=0.0992 mlw=56.1336]
+epoch 7 step 800  loss=0.035222  lr=1.42e-05  [rmse=0.0114 h1=0.0002 ssim=0.0329 mlw=84.2844]
+epoch 7 step 810  loss=0.035213  lr=1.36e-05  [rmse=0.0052 h1=0.0000 ssim=0.0183 mlw=62.6448]
+epoch 7 step 820  loss=0.034775  lr=1.31e-05  [rmse=0.0403 h1=0.0019 ssim=0.1268 mlw=87.1748]
+epoch 7 step 830  loss=0.034406  lr=1.25e-05  [rmse=0.0148 h1=0.0003 ssim=0.0581 mlw=63.9620]
+epoch 7 step 840  loss=0.034719  lr=1.19e-05  [rmse=0.0089 h1=0.0001 ssim=0.0320 mlw=58.5603]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=0.0000,       vae_trainer.py:679
+         ssim=0.3000, mlw=0.0000                                                
+W0726 14:46:04.095545 4040627 site-packages/torch/distributed/elastic/agent/server/api.py:719] Received Signals.SIGTERM death signal, shutting down workers
+W0726 14:46:04.098477 4040627 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 4040751 closing signal SIGTERM
+W0726 14:46:04.098967 4040627 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 4040752 closing signal SIGTERM
+W0726 14:46:04.099339 4040627 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 4040753 closing signal SIGTERM
+W0726 14:46:04.099784 4040627 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 4040754 closing signal SIGTERM
+Traceback (most recent call last):
+  File "/local/disk/hramachandran/miniconda/envs/windinet/bin/accelerate", line 6, in <module>
+    sys.exit(main())
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1396, in launch_command
+    multi_gpu_launcher(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    result = agent.run()
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+    result = self._invoke_run(role)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 870, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 84, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 4040627 got signal: 15

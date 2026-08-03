@@ -1,10 +1,10 @@
 # checked and changed
 
 """
-VAE physics adapter for wind field encoding/decoding.
+VAE physics adapter for multi-channel field encoding/decoding.
 
 Wraps the LTX-Video VAE with lightweight adapters that transform between
-n-channel wind fields (u, v, building mask) and 3-channel RGB space.
+n-channel physical fields and 3-channel RGB space.
 """
 
 from __future__ import annotations
@@ -113,11 +113,10 @@ class OutAdapter(nn.Module):
 
 class AdaptedVAE(nn.Module):
     """
-    Wraps an LTX-Video VAE with input/output adapters for wind field data.
+    Wraps an LTX-Video VAE with input/output adapters for n-channel field data.
 
-    All channels (u, v, b) are in [-1, 1]:
-      - u, v: wind velocity normalized by wind_norm
-      - b: footprint mask where -1 = building, +1 = fluid
+    All channels are expected to be normalized to [-1, 1] before reaching this
+    module.
     """
 
     DEFAULT_INFERENCE_TEMB: float = 0.025

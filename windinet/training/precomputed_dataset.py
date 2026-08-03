@@ -10,59 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from torch import Tensor
 from torch.utils.data import Dataset
 
 from windinet.utils import logger
 
 PRECOMPUTED_DIR_NAME = ".precomputed"
-
-
-class DummyDataset(Dataset):
-    """Produce random latents for minimal demonstration and benchmarking."""
-
-    def __init__(
-        self,
-        width: int = 1024,
-        height: int = 1024,
-        num_frames: int = 25,
-        fps: int = 24,
-        dataset_length: int = 200,
-        latent_dim: int = 128,
-        latent_spatial_compression_ratio: int = 32,
-        latent_temporal_compression_ratio: int = 8,
-    ) -> None:
-        if width % 32 != 0:
-            raise ValueError(f"Width must be divisible by 32, got {width=}")
-        if height % 32 != 0:
-            raise ValueError(f"Height must be divisible by 32, got {height=}")
-        if num_frames % 8 != 1:
-            raise ValueError(f"Number of frames must have a remainder of 1 when divided by 8, got {num_frames=}")
-
-        self.width = width
-        self.height = height
-        self.num_frames = num_frames
-        self.fps = fps
-        self.dataset_length = dataset_length
-        self.latent_dim = latent_dim
-        self.num_latent_frames = (num_frames - 1) // latent_temporal_compression_ratio + 1
-        self.latent_height = height // latent_spatial_compression_ratio
-        self.latent_width = width // latent_spatial_compression_ratio
-        self.latent_sequence_length = self.num_latent_frames * self.latent_height * self.latent_width
-
-    def __len__(self) -> int:
-        return self.dataset_length
-
-    def __getitem__(self, idx: int) -> dict[str, dict[str, Tensor]]:
-        return {
-            "latent_conditions": {
-                "latents": torch.randn(1, self.latent_sequence_length, self.latent_dim),
-                "num_frames": self.num_latent_frames,
-                "height": self.latent_height,
-                "width": self.latent_width,
-                "fps": self.fps,
-            },
-        }
 
 
 class PrecomputedDataset(Dataset):

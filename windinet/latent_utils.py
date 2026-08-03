@@ -56,58 +56,6 @@ def encode_video(
     return {"latents": latents, "num_frames": num_frames, "height": height, "width": width}
 
 
-def decode_video(
-    vae: AutoencoderKLLTXVideo,
-    latents: Tensor,
-    num_frames: int,
-    height: int,
-    width: int,
-    device: torch.device | None = None,
-    dtype: torch.dtype | None = None,
-    patch_size: int = 1,
-    patch_size_t: int = 1,
-    decode_timestep: float = 0.0,
-    decode_noise_scale: float | None = None,
-    generator: torch.Generator | None = None,
-) -> Tensor:
-    device = device or vae.device
-    latents = latents.to(device=device, dtype=vae.dtype)
-
-    if latents.dim() == 1:
-        latents = latents.unsqueeze(0)
-
-    latents = latents.reshape(
-        1,
-        num_frames // patch_size_t,
-        height // patch_size,
-        width // patch_size,
-        -1,
-        patch_size_t,
-        patch_size,
-        patch_size,
-    )
-    latents = latents.permute(0, 4, 1, 5, 2, 6, 3, 7)
-    latents = latents.reshape(1, -1, num_frames, height, width)
-
-    latents_mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(latents.device, latents.dtype)
-    latents_std = vae.latents_std.view(1, -1, 1, 1, 1).to(latents.device, latents.dtype)
-    latents = latents * latents_std / vae.config.scaling_factor + latents_mean
-
-    if decode_noise_scale is None:
-        decode_noise_scale = decode_timestep
-
-    noise = torch.randn(latents.shape, generator=generator, device=device, dtype=latents.dtype)
-    decode_noise_scale = torch.tensor([decode_noise_scale], device=device, dtype=latents.dtype).view(1, 1, 1, 1, 1)
-    latents = (1 - decode_noise_scale) * latents + decode_noise_scale * noise
-
-    timestep = torch.tensor([decode_timestep], device=device, dtype=latents.dtype)
-    video = vae.decode(latents, timestep, return_dict=False)[0]
-    video *= 0.5
-    video += 0.5
-    video = video.to(dtype=dtype) if dtype is not None else video
-    return video
-
-
 def get_rope_scale_factors(fps: float) -> list[float]:
     if fps <= 0:
         raise ValueError("FPS must be a positive number.")

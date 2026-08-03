@@ -3,8 +3,8 @@ Loss weighting strategies.
 
 Available strategies:
     - FixedWeighting
-    - GradNorm (future)
-    - UncertaintyWeighting (future)
+    - GradNorm
+    - SoftAdapt
 """
 
 

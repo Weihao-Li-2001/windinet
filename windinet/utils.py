@@ -2,7 +2,6 @@
 # https://github.com/Lightricks/LTX-Video-Trainer
 """Shared utilities: GPU memory, image loading, checkpoint conversion, logging."""
 
-import io
 import logging
 import os
 import subprocess
@@ -11,8 +10,6 @@ from pathlib import Path
 
 import rich
 import torch
-from PIL import ExifTags, Image, ImageCms, ImageOps
-from PIL.Image import Image as PilImage
 from safetensors.torch import load_file, save_file
 
 
@@ -49,37 +46,6 @@ def get_gpu_memory_gb(device: torch.device) -> float:
             return torch.cuda.memory_allocated(device) / 1024**3
 
     return 0.0
-
-
-def open_image_as_srgb(image_path: str | Path | io.BytesIO) -> PilImage:
-    """Open an image, apply EXIF rotation, and convert to sRGB."""
-    exif_colorspace_srgb = 1
-
-    with Image.open(image_path) as img_raw:
-        img = ImageOps.exif_transpose(img_raw)
-
-    input_icc_profile = img.info.get("icc_profile")
-
-    srgb_profile = ImageCms.createProfile(colorSpace="sRGB")
-    if input_icc_profile is not None:
-        input_profile = ImageCms.ImageCmsProfile(io.BytesIO(input_icc_profile))
-        srgb_img = ImageCms.profileToProfile(img, input_profile, srgb_profile, outputMode="RGB")
-    else:
-        exif_data = img.getexif()
-        if exif_data is not None:
-            color_space_value = exif_data.get(ExifTags.Base.ColorSpace.value)
-            if color_space_value is not None and color_space_value != exif_colorspace_srgb:
-                raise ValueError(
-                    "Image has colorspace tag in EXIF but it isn't set to sRGB,"
-                    " conversion is not supported."
-                    f" EXIF ColorSpace tag value is {color_space_value}",
-                )
-
-        srgb_img = img.convert("RGB")
-        srgb_profile_data = ImageCms.ImageCmsProfile(srgb_profile).tobytes()
-        srgb_img.info["icc_profile"] = srgb_profile_data
-
-    return srgb_img
 
 
 def convert_checkpoint(input_path: str, output_path: str, to_comfy: bool = True) -> None:

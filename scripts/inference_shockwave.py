@@ -6,9 +6,8 @@ Conditions on the initial condition (frame 0 of a simulation) plus the scalar
 gamma, and rolls out the remaining frames. Saves predictions as .npz holding
 the four physical fields (density, momentum_x, momentum_y, pressure).
 
-Unlike the wind pipeline (scripts/inference.py) there is no RGB encoding: the
-fields go through the VAE natively as 4 channels, so this script requires an
-inflate-mode finetuned VAE checkpoint.
+There is no RGB encoding: the fields go through the VAE natively as 4
+channels, so this script requires an inflate-mode finetuned VAE checkpoint.
 
 Usage:
     python scripts/inference_shockwave.py configs/inference_shockwave.yaml \\

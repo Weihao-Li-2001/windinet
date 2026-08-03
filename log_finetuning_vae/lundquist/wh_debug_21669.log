@@ -1,0 +1,46 @@
+1 GPU x accum 1 -> effective batch 1; output_dir finetune_vae_outputs_lundquist/finetune_vae_overfit_lr5e5
+job=21669 node=lundquist gpus=0
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/utils/launch.py:236: UserWarning: Port `29500` is already in use. Accelerate will attempt to launch in a standalone-like mode by finding an open port automatically for this session. If this current attempt fails, or for more control in future runs, please specify a different port (e.g., `--main_process_port <your_chosen_port>`) or use `--main_process_port 0` for automatic selection in your launch command or Accelerate config file.
+  warnings.warn(
+Configuration error: 1 validation error for VaeTrainerConfig
+checkpoints.interval
+  Input should be greater than 0 
+    For further information visit 
+https://errors.pydantic.dev/2.13/v/greater_than
+E0801 15:27:09.351605 3548314 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 0 (pid: 3548369) of binary: /local/disk/hramachandran/miniconda/envs/windinet/bin/python
+Traceback (most recent call last):
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1415, in <module>
+    main()
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1411, in main
+    launch_command(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1396, in launch_command
+    multi_gpu_launcher(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/finetune_vae.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-08-01_15:27:09
+  host      : lundquist.maas
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 3548369)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json?filters=%7B%22label%22%3A%7B%22slurm_job_id%3D21669%22%3Atrue%7D%7D": dial unix /var/run/docker.sock: connect: permission denied
