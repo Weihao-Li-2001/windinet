@@ -1,0 +1,136 @@
+# CAPACITY DIAGNOSTIC -- overfit 8 simulations. Not a training run.
+#
+# Part of the encoder head-vs-tail unfreezing sweep (EXPERIMENTS.md Open
+# Question 3). Baseline for this sweep is
+# finetune_vae_overfit_lr5e5_wsd.yaml (attempt 4, no encoder unfreeze beyond
+# conv_in, val_vrmse 0.061) and finetune_vae_overfit_lr5e5_wsd_tail.yaml
+# (attempt 5, down_blocks[3]+mid_block+norm_out+conv_out unfrozen). Every
+# config in the sweep changes only adapter.unfreeze_down_blocks /
+# adapter.unfreeze_encoder_tail against those two baselines -- everything
+# else (peak LR 5e-5, wsd schedule, 8 sims x 5 repeats, 50 epochs, seed 42)
+# is held fixed so the sweep is comparable run-to-run.
+#
+# THIS RUN unfreezes down_blocks[1,2,3] + mid_block + norm_out + conv_out.
+# extends the tail-unfreeze experiment two blocks earlier, folding
+# down_blocks[1,2] in alongside the existing
+# down_blocks[3]+mid_block+norm_out+conv_out.
+#
+# HOW TO READ: val_vrmse materially below attempt 4's 0.061 (toward <=0.03)
+# means this module set is part of the encoder-side bottleneck, worth
+# carrying into a full-data run (see the sibling
+# finetune_vae_baseline_tail3.yaml). Landing back at ~0.061 means this
+# particular set of modules isn't the limiting factor.
+#
+# KILL CRITERION (same as every attempt in this sweep): if epoch 2's
+# train_loss exceeds epoch 1's, it is diverging -- kill the job.
+#
+# Add a ledger row to EXPERIMENTS.md (Open Question 3 sweep table) before
+# launching -- see that file's Protocol point 2.
+#
+# Usage (1 GPU, ~64 min):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail3.yaml
+#
+# On lundquist, submit via jobs/lundquist/finetune_vae_debug.sbatch:
+#   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail3.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # THE variable in this run -- see header for what it unfreezes.
+  unfreeze_down_blocks: [1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 8 sims as every attempt in this sweep -- head of the seed-42 shuffle.
+  overfit_sims: 8
+  overfit_repeat: 5
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from attempts 4/5.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  # Only takes effect because unfreeze_down_blocks/unfreeze_encoder_tail is
+  # set: 0.1x decoder LR = 5e-6, matching attempt 5 and every other run in
+  # this sweep (kept low -- these are pretrained-basis weights, not a
+  # freshly-grown projection like encoder.conv_in).
+  encoder_tail_lr_multiplier: 0.1
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 50
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # null = never save -- this run answers a question, its weights are
+  # worthless (and load_inflated_vae_checkpoint doesn't restore
+  # down_block/tail weights yet regardless, see
+  # windinet/training/vae_trainer.py _save_checkpoint).
+  interval: null
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit", "wsd", "encoder-unfreeze-sweep", "tail3"]
+
+seed: 42
+# Fresh directory, distinct from every prior attempt -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_overfit_lr5e5_wsd_tail3"
+clean_output_dir: true
