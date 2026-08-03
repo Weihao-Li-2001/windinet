@@ -1,0 +1,239 @@
+START TIME: Sun 02 Aug 2026 05:36:25 PM CEST
+job=520302 node=i20r06c03s04
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+MASTER_ADDR: i20r06c03s04  MASTER_PORT: 34845
+DIAG_TAG=noio DIAG_WORKERS=<default> DIAG_SKIP_HEAVY_IO=1 DIAG_EPOCHS=2
+8 XPU tiles x accum 4 -> effective batch 32; workers=0; skip_heavy_io=True; epochs=2; output_dir /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_baseline_diag_noio
+INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 3] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 4] generated new fontManager                 font_manager.py:1639
+INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 5] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] generated new fontManager                 font_manager.py:1639
+INFO     [rank 1] generated new fontManager                 font_manager.py:1639
+INFO     [rank 3] generated new fontManager                 font_manager.py:1639
+INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+INFO     [rank 6] generated new fontManager                 font_manager.py:1639
+INFO     [rank 5] generated new fontManager                 font_manager.py:1639
+INFO     [rank 2] generated new fontManager                 font_manager.py:1639
+                          VAE Finetuning Configuration                          
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ adapter.enabled                      │ True                                  │
+│ adapter.checkpoint                   │ None                                  │
+│ adapter.channels                     │ ['density', 'momentum_x',             │
+│                                      │ 'momentum_y', 'pressure']             │
+│ adapter.mode                         │ inflate                               │
+│ adapter.inflate_init                 │ mean                                  │
+│ adapter.freeze_conv_in               │ False                                 │
+│ adapter.hidden_channels              │ 32                                    │
+│ adapter.activation                   │ gelu                                  │
+│ adapter.identity_init                │ False                                 │
+│ adapter.default_temb                 │ 0.0                                   │
+│ data.data_root                       │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ data.eval_sims                       │ 675                                   │
+│ data.num_dataloader_workers          │ 0                                     │
+│ data.num_sim_frames                  │ None                                  │
+│ data.overfit_sims                    │ None                                  │
+│ data.overfit_repeat                  │ 1                                     │
+│ data.channel_mean                    │ [0.905097647712509,                   │
+│                                      │ 0.0040453659499771295,                │
+│                                      │ -0.0019089379643528095, 0.9           │
+│ data.channel_std                     │ [0.6607349375392083,                  │
+│                                      │ 0.5328754120427532,                   │
+│                                      │ 0.5262512462358824, 0.8050358         │
+│ data.normalization_clip              │ 5.0                                   │
+│ optimization.learning_rate           │ 5e-05                                 │
+│ optimization.adapter_lr_multiplier   │ 1.0                                   │
+│ optimization.min_learning_rate       │ 1e-06                                 │
+│ optimization.scheduler_type          │ wsd                                   │
+│ optimization.stable_fraction         │ 0.7                                   │
+│ optimization.epochs                  │ 2                                     │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 5.0                                   │
+│ optimization.weight_decay            │ 0.0                                   │
+│ optimization.warmup_steps            │ 200                                   │
+│ optimization.warmup_start_factor     │ 0.01                                  │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ loss.wavelet                         │ db2                                   │
+│ loss.spatial_level                   │ 2                                     │
+│ loss.temporal_level                  │ 2                                     │
+│ loss.mlw_beta                        │ 10.0                                  │
+│ loss.mlw_eps                         │ 1e-06                                 │
+│ loss_weighting.strategy              │ fixed                                 │
+│ loss_weighting.weights               │ {'rmse': 1.0, 'h1': 50.0, 'ssim':     │
+│                                      │ 0.15, 'mlw': 0.0}                     │
+│ loss_weighting.loss_names            │ ['rmse', 'h1', 'ssim', 'mlw']         │
+│ loss_weighting.alpha                 │ 1.5                                   │
+│ loss_weighting.weight_lr             │ 0.025                                 │
+│ loss_weighting.temperature           │ 0.1                                   │
+│ visualization.enabled                │ False                                 │
+│ visualization.interval_epochs        │ 1                                     │
+│ visualization.num_samples            │ 2                                     │
+│ visualization.frame_numbers          │ [25, 50, 75, 100]                     │
+│ visualization.dpi                    │ 150                                   │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ checkpoints.interval                 │ 1                                     │
+│ checkpoints.keep_last_n              │ 1                                     │
+│ checkpoints.save_best_only           │ True                                  │
+│ checkpoints.best_metric              │ val_vrmse                             │
+│ checkpoints.save_last_state          │ False                                 │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ windinet                              │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ ['vae', 'inflate', 'mean-init',       │
+│                                      │ 'wsd', '15ep', 'h1x2', 'lr1x',        │
+│                                      │ 'shockw                               │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ clean_output_dir                     │ True                                  │
+│ resume_from                          │ None                                  │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 0] Distributed training: 8 processes          vae_trainer.py:1093
+INFO     [rank 0] VAE inflated to 4 native channels           vae_trainer.py:154
+         (init=mean); encoder.conv_in is trainable                              
+INFO     [rank 0] VAE gradient checkpointing enabled          vae_trainer.py:202
+INFO     [rank 0] VAE loaded. Decoder params: 552,869,953     vae_trainer.py:208
+INFO     [rank 0] Trainable parameters:                       vae_trainer.py:256
+         encoder_conv_in=221,312, decoder=552,869,953,                          
+         in_adapter=0, out_adapter=0                                            
+INFO     [rank 0] Dataset: 3825 train, 675 eval samples       vae_trainer.py:457
+INFO     [rank 0] encoder.conv_in LR = 5.00e-05 (1x decoder   vae_trainer.py:481
+         LR 5.00e-05)                                                           
+INFO     [rank 0] LR schedule 'wsd': 240 steps (200 warmup,   vae_trainer.py:533
+         28 stable, 12 anneal), peak 5.00e-05 -> floor                          
+         1.00e-06                                                               
+2026:08:02-17:37:01:152622 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:08:02-17:37:01:152622 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:08:02-17:37:01:152622 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:02-17:37:01:152623 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:02-17:37:01:152624 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:02-17:37:02:152625 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:02-17:37:02:152626 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:02-17:37:02:152627 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:02-17:37:03:152628 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:02-17:37:03:152629 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+INFO     [rank 0] Config saved:                              vae_trainer.py:1117
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_baseline_diag_noio/train                    
+         ing_config.yaml                                                        
+INFO     [rank 0] Starting VAE decoder finetuning...          vae_trainer.py:581
+epoch 1 step 10  loss=0.148493  lr=2.98e-06  [rmse=0.0545 h1=0.0002 ssim=0.3858 mlw=58.9472]
+epoch 1 step 20  loss=0.139486  lr=5.45e-06  [rmse=0.0491 h1=0.0003 ssim=0.3318 mlw=74.6620]
+epoch 1 step 30  loss=0.141103  lr=7.93e-06  [rmse=0.0430 h1=0.0005 ssim=0.2350 mlw=54.8063]
+epoch 1 step 40  loss=0.141882  lr=1.04e-05  [rmse=0.1787 h1=0.0021 ssim=0.5765 mlw=58.6068]
+epoch 1 step 50  loss=0.136527  lr=1.29e-05  [rmse=0.0562 h1=0.0004 ssim=0.3078 mlw=62.0587]
+epoch 1 step 60  loss=0.134479  lr=1.54e-05  [rmse=0.0139 h1=0.0000 ssim=0.0332 mlw=118.7669]
+epoch 1 step 70  loss=0.130283  lr=1.78e-05  [rmse=0.0394 h1=0.0005 ssim=0.3183 mlw=55.9760]
+epoch 1 step 80  loss=0.125843  lr=2.03e-05  [rmse=0.0701 h1=0.0007 ssim=0.3293 mlw=60.5151]
+epoch 1 step 90  loss=0.124559  lr=2.28e-05  [rmse=0.1940 h1=0.0020 ssim=0.3925 mlw=88.9121]
+epoch 1 step 100  loss=0.121209  lr=2.53e-05  [rmse=0.0595 h1=0.0007 ssim=0.1611 mlw=96.0402]
+epoch 1 step 110  loss=0.117278  lr=2.77e-05  [rmse=0.0249 h1=0.0003 ssim=0.1641 mlw=57.3042]
+epoch 1 step 120  loss=0.114826  lr=3.02e-05  [rmse=0.0394 h1=0.0007 ssim=0.2344 mlw=58.0092]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:737
+         ssim=0.1500, mlw=0.0000                                                
+INFO     [rank 0] Epoch 1: train_loss=0.114826                vae_trainer.py:758
+         val_loss=0.086018  val_VRMSE=0.236937  lr=3.02e-05                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,       vae_trainer.py:778
+         metrics/loss_curves.png                                                
+INFO     [rank 0] New best checkpoint (epoch 1,              vae_trainer.py:1007
+         val_vrmse=0.236937):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Epoch 1 timing: train=1364.7s eval=986.4s   vae_trainer.py:814
+         viz=0.0s ckpt=0.8s total=2352.9s                                       
+epoch 2 step 130  loss=0.084048  lr=3.27e-05  [rmse=0.0190 h1=0.0000 ssim=0.2120 mlw=100.3100]
+epoch 2 step 140  loss=0.085298  lr=3.52e-05  [rmse=0.0334 h1=0.0007 ssim=0.2626 mlw=54.2843]
+epoch 2 step 150  loss=0.084293  lr=3.76e-05  [rmse=0.0140 h1=0.0000 ssim=0.0938 mlw=111.4364]
+epoch 2 step 160  loss=0.079001  lr=4.01e-05  [rmse=0.0194 h1=0.0003 ssim=0.1407 mlw=59.2189]
+epoch 2 step 170  loss=0.074427  lr=4.26e-05  [rmse=0.0217 h1=0.0003 ssim=0.1412 mlw=58.7735]
+epoch 2 step 180  loss=0.076374  lr=4.51e-05  [rmse=0.0164 h1=0.0001 ssim=0.0856 mlw=64.2011]
+epoch 2 step 190  loss=0.076441  lr=4.75e-05  [rmse=0.0307 h1=0.0007 ssim=0.1677 mlw=64.9425]
+epoch 2 step 200  loss=0.074633  lr=5.00e-05  [rmse=0.0209 h1=0.0004 ssim=0.1234 mlw=66.6689]
+epoch 2 step 210  loss=0.073685  lr=5.00e-05  [rmse=0.0162 h1=0.0002 ssim=0.1013 mlw=68.1300]
+epoch 2 step 220  loss=0.072246  lr=5.00e-05  [rmse=0.0390 h1=0.0013 ssim=0.1576 mlw=66.1327]
+epoch 2 step 230  loss=0.071403  lr=4.67e-05  [rmse=0.0260 h1=0.0005 ssim=0.1274 mlw=53.8528]
+epoch 2 step 240  loss=0.069517  lr=1.00e-06  [rmse=0.0103 h1=0.0001 ssim=0.0473 mlw=93.3590]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:737
+         ssim=0.1500, mlw=0.0000                                                
+INFO     [rank 0] Epoch 2: train_loss=0.069517                vae_trainer.py:758
+         val_loss=0.055513  val_VRMSE=0.133584  lr=1.00e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,       vae_trainer.py:778
+         metrics/loss_curves.png                                                
+INFO     [rank 0] New best checkpoint (epoch 2,              vae_trainer.py:1007
+         val_vrmse=0.133584):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Epoch 2 timing: train=1441.9s eval=1002.1s  vae_trainer.py:814
+         viz=0.0s ckpt=0.8s total=2445.4s                                       
+╭──────────────────────────────────────────────────────────────────────────────╮
+╰──────────────────────────────────────────────────────────────────────────────╯INFO     [rank 0] Best epoch: 2 (val_vrmse=0.133584)          vae_trainer.py:832
+
+Training complete. Checkpoint: 
+/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_ba
+seline_diag_noio/checkpoints/vae_shockwave_best.safetensors
+END TIME: Sun 02 Aug 2026 06:57:05 PM CEST
+Diagnostic run -- weights/state left on $SCRATCH under /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_baseline_diag_noio, NOT mirrored to git (throwaway).
