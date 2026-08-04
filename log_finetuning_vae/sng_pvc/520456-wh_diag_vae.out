@@ -217,3 +217,35 @@ epoch 2 step 140  loss=0.085768  lr=3.52e-05  [rmse=0.0312 h1=0.0007 ssim=0.2303
 epoch 2 step 150  loss=0.082712  lr=3.76e-05  [rmse=0.0102 h1=0.0001 ssim=0.0479 mlw=111.6091]
 epoch 2 step 160  loss=0.077378  lr=4.01e-05  [rmse=0.0215 h1=0.0003 ssim=0.1466 mlw=59.0998]
 epoch 2 step 170  loss=0.073527  lr=4.26e-05  [rmse=0.0214 h1=0.0003 ssim=0.1367 mlw=58.7109]
+epoch 2 step 180  loss=0.074948  lr=4.51e-05  [rmse=0.0143 h1=0.0001 ssim=0.0707 mlw=63.9704]
+epoch 2 step 190  loss=0.074845  lr=4.75e-05  [rmse=0.0309 h1=0.0007 ssim=0.1954 mlw=64.5512]
+epoch 2 step 200  loss=0.073446  lr=5.00e-05  [rmse=0.0208 h1=0.0004 ssim=0.1247 mlw=66.4253]
+epoch 2 step 210  loss=0.072853  lr=5.00e-05  [rmse=0.0147 h1=0.0002 ssim=0.0797 mlw=67.8959]
+epoch 2 step 220  loss=0.071990  lr=5.00e-05  [rmse=0.0410 h1=0.0013 ssim=0.1774 mlw=66.1702]
+epoch 2 step 230  loss=0.071626  lr=4.67e-05  [rmse=0.0262 h1=0.0005 ssim=0.1302 mlw=54.4781]
+epoch 2 step 240  loss=0.069844  lr=1.00e-06  [rmse=0.0110 h1=0.0001 ssim=0.0531 mlw=94.5461]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:786
+         ssim=0.1500, mlw=0.0000                                                
+INFO     [rank 0] Epoch 2: train_loss=0.069844                vae_trainer.py:807
+         val_loss=0.057286  val_VRMSE=0.138967  lr=1.00e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,       vae_trainer.py:827
+         metrics/loss_curves.png                                                
+INFO     [rank 0] Saved 8 validation reconstruction PNGs for  vae_trainer.py:978
+         epoch 2                                                                
+INFO     [rank 0] New best checkpoint (epoch 2,              vae_trainer.py:1069
+         val_vrmse=0.138967):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1129
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 2 timing: train=869.3s eval=921.1s    vae_trainer.py:863
+         viz=10.8s ckpt=4.1s total=1805.9s                                      
+╭──────────────────────────────────────────────────────────────────────────────╮
+╰──────────────────────────────────────────────────────────────────────────────╯INFO     [rank 0] Training state saved:                      vae_trainer.py:1129
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Best epoch: 2 (val_vrmse=0.138967)          vae_trainer.py:881
+
+Training complete. Checkpoint: 
+/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_ba
+seline_diag_workers4/checkpoints/vae_shockwave_best.safetensors
+END TIME: Mon 03 Aug 2026 09:04:04 AM CEST
+Diagnostic run -- weights/state left on $SCRATCH under /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_baseline_diag_workers4, NOT mirrored to git (throwaway).

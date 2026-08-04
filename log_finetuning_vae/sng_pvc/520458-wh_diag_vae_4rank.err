@@ -1,0 +1,21 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+srun: Job step aborted: Waiting up to 4 seconds for job step to finish.
+slurmstepd: error: *** JOB 520458 ON i20r06c06s06 CANCELLED AT 2026-08-03T10:34:30 DUE TO TIME LIMIT ***
+slurmstepd: error: *** STEP 520458.0 ON i20r06c06s06 CANCELLED AT 2026-08-03T10:34:30 DUE TO TIME LIMIT ***
+W0803 10:34:30.039000 69672 site-packages/torch/distributed/elastic/agent/server/api.py:739] Received Signals.SIGTERM death signal, shutting down workers
+W0803 10:34:30.047000 69672 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 69814 closing signal SIGTERM
+W0803 10:34:30.063000 69672 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 69815 closing signal SIGTERM
+W0803 10:34:30.063000 69672 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 69816 closing signal SIGTERM
+W0803 10:34:30.064000 69672 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 69817 closing signal SIGTERM

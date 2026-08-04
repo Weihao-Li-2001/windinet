@@ -1,5 +1,5 @@
-START TIME: Mon 03 Aug 2026 07:49:27 AM CEST
-job=520457 node=i20r06c06s10
+START TIME: Mon 03 Aug 2026 09:04:16 AM CEST
+job=520458 node=i20r06c06s06
 +-----------+--------------------------------------------------------------------------------------+
 | Device ID | Device Information                                                                   |
 +-----------+--------------------------------------------------------------------------------------+
@@ -31,35 +31,9 @@ job=520457 node=i20r06c06s10
 |           | DRM Device: /dev/dri/card3                                                           |
 |           | Function Type: physical                                                              |
 +-----------+--------------------------------------------------------------------------------------+
-MASTER_ADDR: i20r06c06s10  MASTER_PORT: 39331
-DIAG_TAG=workers8 DIAG_WORKERS=8 DIAG_SKIP_HEAVY_IO=0 DIAG_EPOCHS=2
-8 XPU tiles x accum 4 -> effective batch 32; workers=8; skip_heavy_io=False; epochs=2; output_dir /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_baseline_diag_workers8
+MASTER_ADDR: i20r06c06s06  MASTER_PORT: 43755
+4 XPU ranks (COMPOSITE) x accum 8 -> effective batch 32; output_dir /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_baseline_diag_4rank
 INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 5] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 4] generated new fontManager                 font_manager.py:1639
-INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
@@ -67,13 +41,18 @@ INFO     [rank 3] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
+INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
 INFO     [rank 0] generated new fontManager                 font_manager.py:1639
 INFO     [rank 3] generated new fontManager                 font_manager.py:1639
-INFO     [rank 5] generated new fontManager                 font_manager.py:1639
-INFO     [rank 1] generated new fontManager                 font_manager.py:1639
-INFO     [rank 7] generated new fontManager                 font_manager.py:1639
 INFO     [rank 2] generated new fontManager                 font_manager.py:1639
-INFO     [rank 6] generated new fontManager                 font_manager.py:1639
+INFO     [rank 1] generated new fontManager                 font_manager.py:1639
                           VAE Finetuning Configuration                          
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Parameter                            ┃ Value                                 ┃
@@ -94,7 +73,7 @@ INFO     [rank 6] generated new fontManager                 font_manager.py:1639
 │ adapter.unfreeze_encoder_tail        │ False                                 │
 │ data.data_root                       │ /hppfs/scratch/0D/go76fuz2/windinet/… │
 │ data.eval_sims                       │ 675                                   │
-│ data.num_dataloader_workers          │ 8                                     │
+│ data.num_dataloader_workers          │ 0                                     │
 │ data.num_sim_frames                  │ None                                  │
 │ data.overfit_sims                    │ None                                  │
 │ data.overfit_repeat                  │ 1                                     │
@@ -113,7 +92,7 @@ INFO     [rank 6] generated new fontManager                 font_manager.py:1639
 │ optimization.stable_fraction         │ 0.7                                   │
 │ optimization.epochs                  │ 2                                     │
 │ optimization.batch_size              │ 1                                     │
-│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.gradient_accumulation_… │ 8                                     │
 │ optimization.max_grad_norm           │ 5.0                                   │
 │ optimization.weight_decay            │ 0.0                                   │
 │ optimization.warmup_steps            │ 200                                   │
@@ -131,7 +110,7 @@ INFO     [rank 6] generated new fontManager                 font_manager.py:1639
 │ loss_weighting.alpha                 │ 1.5                                   │
 │ loss_weighting.weight_lr             │ 0.025                                 │
 │ loss_weighting.temperature           │ 0.1                                   │
-│ visualization.enabled                │ True                                  │
+│ visualization.enabled                │ False                                 │
 │ visualization.interval_epochs        │ 1                                     │
 │ visualization.num_samples            │ 2                                     │
 │ visualization.frame_numbers          │ [25, 50, 75, 100]                     │
@@ -143,7 +122,7 @@ INFO     [rank 6] generated new fontManager                 font_manager.py:1639
 │ checkpoints.keep_last_n              │ 1                                     │
 │ checkpoints.save_best_only           │ True                                  │
 │ checkpoints.best_metric              │ val_vrmse                             │
-│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_last_state          │ False                                 │
 │ wandb.enabled                        │ False                                 │
 │ wandb.project                        │ windinet                              │
 │ wandb.entity                         │ None                                  │
@@ -156,7 +135,7 @@ INFO     [rank 6] generated new fontManager                 font_manager.py:1639
 │ resume_from                          │ None                                  │
 │ resume_weights_only                  │ False                                 │
 └──────────────────────────────────────┴───────────────────────────────────────┘
-INFO     [rank 0] Distributed training: 8 processes          vae_trainer.py:1175
+INFO     [rank 0] Distributed training: 4 processes          vae_trainer.py:1175
 INFO     [rank 0] VAE inflated to 4 native channels           vae_trainer.py:154
          (init=mean); encoder.conv_in is trainable                              
 INFO     [rank 0] VAE gradient checkpointing enabled          vae_trainer.py:218
@@ -170,82 +149,27 @@ INFO     [rank 0] encoder.conv_in LR = 5.00e-05 (1x decoder   vae_trainer.py:517
 INFO     [rank 0] LR schedule 'wsd': 240 steps (200 warmup,   vae_trainer.py:582
          28 stable, 12 anneal), peak 5.00e-05 -> floor                          
          1.00e-06                                                               
-2026:08:03-08:00:59:46566 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
-2026:08:03-08:00:59:46566 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
-2026:08:03-08:00:59:46568 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:08:03-08:00:59:46567 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:08:03-08:00:59:46566 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:08:03-08:00:59:46569 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:08:03-08:00:59:46570 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:08:03-08:01:00:46571 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:08:03-08:01:00:46572 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:08:03-08:01:00:46573 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+INFO     [rank 0] Cleaned output directory:                  vae_trainer.py:1140
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_baseline_diag_4rank                         
+2026:08:03-09:16:19:69814 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:08:03-09:16:19:69814 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:08:03-09:16:19:69815 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:03-09:16:19:69816 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:03-09:16:19:69814 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:03-09:16:19:69817 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
 INFO     [rank 0] Config saved:                              vae_trainer.py:1199
          /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
-         tputs_sng_pvc/finetune_vae_baseline_diag_workers8/t                    
-         raining_config.yaml                                                    
+         tputs_sng_pvc/finetune_vae_baseline_diag_4rank/trai                    
+         ning_config.yaml                                                       
 INFO     [rank 0] Starting VAE decoder finetuning...          vae_trainer.py:630
-epoch 1 step 10  loss=0.148493  lr=2.98e-06  [rmse=0.0545 h1=0.0002 ssim=0.3857 mlw=58.9240]
-epoch 1 step 20  loss=0.139484  lr=5.45e-06  [rmse=0.0491 h1=0.0003 ssim=0.3315 mlw=74.6621]
-epoch 1 step 30  loss=0.141106  lr=7.93e-06  [rmse=0.0430 h1=0.0005 ssim=0.2353 mlw=54.7980]
-epoch 1 step 40  loss=0.141884  lr=1.04e-05  [rmse=0.1787 h1=0.0021 ssim=0.5765 mlw=58.6163]
-epoch 1 step 50  loss=0.136535  lr=1.29e-05  [rmse=0.0562 h1=0.0004 ssim=0.3077 mlw=62.0493]
-epoch 1 step 60  loss=0.134485  lr=1.54e-05  [rmse=0.0141 h1=0.0000 ssim=0.0342 mlw=118.7587]
-epoch 1 step 70  loss=0.130326  lr=1.78e-05  [rmse=0.0398 h1=0.0005 ssim=0.3251 mlw=56.1386]
-epoch 1 step 80  loss=0.125956  lr=2.03e-05  [rmse=0.0689 h1=0.0007 ssim=0.3329 mlw=60.5766]
-epoch 1 step 90  loss=0.125218  lr=2.28e-05  [rmse=0.1931 h1=0.0020 ssim=0.4383 mlw=89.0229]
-epoch 1 step 100  loss=0.121619  lr=2.53e-05  [rmse=0.0601 h1=0.0007 ssim=0.1751 mlw=97.6747]
-epoch 1 step 110  loss=0.117936  lr=2.77e-05  [rmse=0.0294 h1=0.0003 ssim=0.1592 mlw=57.6527]
-epoch 1 step 120  loss=0.115594  lr=3.02e-05  [rmse=0.0376 h1=0.0007 ssim=0.1933 mlw=58.3691]
-INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:786
-         ssim=0.1500, mlw=0.0000                                                
-INFO     [rank 0] Epoch 1: train_loss=0.115594                vae_trainer.py:807
-         val_loss=0.077476  val_VRMSE=0.213954  lr=3.02e-05                     
-INFO     [rank 0] Metrics updated: metrics/metrics.csv,       vae_trainer.py:827
-         metrics/loss_curves.png                                                
-INFO     [rank 0] Saved 8 validation reconstruction PNGs for  vae_trainer.py:978
-         epoch 1                                                                
-INFO     [rank 0] New best checkpoint (epoch 1,              vae_trainer.py:1069
-         val_vrmse=0.213954):                                                   
-         checkpoints/vae_shockwave_best.safetensors                             
-INFO     [rank 0] Training state saved:                      vae_trainer.py:1129
-         checkpoints/vae_shockwave_last.state.pt                                
-INFO     [rank 0] Epoch 1 timing: train=891.2s eval=1057.1s   vae_trainer.py:863
-         viz=11.3s ckpt=4.9s total=1966.1s                                      
-epoch 2 step 130  loss=0.079294  lr=3.27e-05  [rmse=0.0135 h1=0.0000 ssim=0.1351 mlw=100.8672]
-epoch 2 step 140  loss=0.080750  lr=3.52e-05  [rmse=0.0344 h1=0.0006 ssim=0.2635 mlw=55.0528]
-epoch 2 step 150  loss=0.078737  lr=3.76e-05  [rmse=0.0140 h1=0.0001 ssim=0.0687 mlw=110.7896]
-epoch 2 step 160  loss=0.075405  lr=4.01e-05  [rmse=0.0199 h1=0.0003 ssim=0.1411 mlw=59.7630]
-epoch 2 step 170  loss=0.072257  lr=4.26e-05  [rmse=0.0226 h1=0.0003 ssim=0.1495 mlw=58.4429]
-epoch 2 step 180  loss=0.074477  lr=4.51e-05  [rmse=0.0169 h1=0.0001 ssim=0.0974 mlw=63.9810]
-epoch 2 step 190  loss=0.074696  lr=4.75e-05  [rmse=0.0345 h1=0.0007 ssim=0.2174 mlw=64.6063]
-epoch 2 step 200  loss=0.074204  lr=5.00e-05  [rmse=0.0257 h1=0.0004 ssim=0.1790 mlw=66.6673]
-epoch 2 step 210  loss=0.074450  lr=5.00e-05  [rmse=0.0231 h1=0.0002 ssim=0.1754 mlw=68.7979]
-epoch 2 step 220  loss=0.073523  lr=5.00e-05  [rmse=0.0454 h1=0.0013 ssim=0.1863 mlw=65.7952]
-epoch 2 step 230  loss=0.073193  lr=4.67e-05  [rmse=0.0267 h1=0.0006 ssim=0.1380 mlw=53.9239]
-epoch 2 step 240  loss=0.071396  lr=1.00e-06  [rmse=0.0118 h1=0.0001 ssim=0.0535 mlw=94.8234]
-INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:786
-         ssim=0.1500, mlw=0.0000                                                
-INFO     [rank 0] Epoch 2: train_loss=0.071396                vae_trainer.py:807
-         val_loss=0.056564  val_VRMSE=0.137375  lr=1.00e-06                     
-INFO     [rank 0] Metrics updated: metrics/metrics.csv,       vae_trainer.py:827
-         metrics/loss_curves.png                                                
-INFO     [rank 0] Saved 8 validation reconstruction PNGs for  vae_trainer.py:978
-         epoch 2                                                                
-INFO     [rank 0] New best checkpoint (epoch 2,              vae_trainer.py:1069
-         val_vrmse=0.137375):                                                   
-         checkpoints/vae_shockwave_best.safetensors                             
-INFO     [rank 0] Training state saved:                      vae_trainer.py:1129
-         checkpoints/vae_shockwave_last.state.pt                                
-INFO     [rank 0] Epoch 2 timing: train=866.8s eval=923.3s    vae_trainer.py:863
-         viz=10.8s ckpt=8.2s total=1809.6s                                      
-╭──────────────────────────────────────────────────────────────────────────────╮
-╰──────────────────────────────────────────────────────────────────────────────╯INFO     [rank 0] Training state saved:                      vae_trainer.py:1129
-         checkpoints/vae_shockwave_last.state.pt                                
-INFO     [rank 0] Best epoch: 2 (val_vrmse=0.137375)          vae_trainer.py:881
-
-Training complete. Checkpoint: 
-/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_ba
-seline_diag_workers8/checkpoints/vae_shockwave_best.safetensors
-END TIME: Mon 03 Aug 2026 09:04:06 AM CEST
-Diagnostic run -- weights/state left on $SCRATCH under /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_baseline_diag_workers8, NOT mirrored to git (throwaway).
+epoch 1 step 10  loss=0.158117  lr=2.98e-06  [rmse=0.1420 h1=0.0012 ssim=0.7808 mlw=55.2722]
+epoch 1 step 20  loss=0.143760  lr=5.45e-06  [rmse=0.0470 h1=0.0008 ssim=0.4345 mlw=59.2155]
+epoch 1 step 30  loss=0.142223  lr=7.93e-06  [rmse=0.2296 h1=0.0015 ssim=0.6397 mlw=73.5491]
+epoch 1 step 40  loss=0.141854  lr=1.04e-05  [rmse=0.0395 h1=0.0005 ssim=0.2852 mlw=59.5619]
+epoch 1 step 50  loss=0.139424  lr=1.29e-05  [rmse=0.0364 h1=0.0003 ssim=0.1266 mlw=56.6745]
+epoch 1 step 60  loss=0.135672  lr=1.54e-05  [rmse=0.0408 h1=0.0003 ssim=0.3470 mlw=62.3855]
+epoch 1 step 70  loss=0.132806  lr=1.78e-05  [rmse=0.0307 h1=0.0002 ssim=0.1495 mlw=64.5408]
+epoch 1 step 80  loss=0.129687  lr=2.03e-05  [rmse=0.0386 h1=0.0003 ssim=0.2604 mlw=66.5702]
+epoch 1 step 90  loss=0.127069  lr=2.28e-05  [rmse=0.0790 h1=0.0007 ssim=0.1767 mlw=91.1642]
+epoch 1 step 100  loss=0.123430  lr=2.53e-05  [rmse=0.0411 h1=0.0001 ssim=0.2455 mlw=92.3014]
