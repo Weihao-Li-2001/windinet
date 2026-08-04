@@ -449,7 +449,29 @@ full-length confirmation run first.
 matter?) -- job 520459 hit the diagnostic's time limit before finishing even
 epoch 1 (the `rng_types=[]` fix itself worked, no crash), so re-run
 `jobs/sng_pvc/finetune_vae_diag_4rank.sbatch` now that
-`rng_types=[]` unblocks it.
+`rng_types=[]` unblocks it. **Deprioritized** -- not being chased right now.
+
+**PLANNED, not yet run: H4 (node-count scaling).** Does requesting 2 nodes
+(16 XPU tiles) train faster than 1 node (8 tiles), or does crossing the
+inter-node fabric eat the extra compute? Hypothesis: if communication was
+already close to the bottleneck intra-node, going inter-node only makes it
+worse. Script: `jobs/sng_pvc/finetune_vae_diag_2node.sbatch` (2-epoch
+diagnostic, same `DIAG_TAG`/`DIAG_WORKERS`/`DIAG_EPOCHS` knobs as
+`finetune_vae_diag.sbatch`; `patch_config_for_cluster` halves
+`gradient_accumulation_steps` automatically to hold effective_batch=32 at 16
+ranks). **Read-out:** compare its epoch-2 `train=` time to job 520456's
+869.3s (1 node, workers=4, the fastest confirmed 1-node reference). **Kill
+criterion:** `train= >= 90%` of 869.3s means 2-node scaling isn't worth
+chasing further (don't try 4 nodes next). This is the first multi-node
+launch attempted on sng_pvc for this project -- the rendezvous logic was
+already scaffolded in `finetune_vae.sbatch` but never exercised past
+`--nodes=1`, so also watch for it hanging at communication-backend init
+instead of failing fast if the two nodes can't reach each other.
+
+Launch with:
+```
+sbatch jobs/sng_pvc/finetune_vae_diag_2node.sbatch
+```
 
 ## Where things live
 
