@@ -133,11 +133,11 @@ deleted to start the next round clean. What survives:
 
 | job | config | output dir | what it answers | read-out |
 |---|---|---|---|---|
-| 21666 | `finetune_vae_baseline.yaml` | `finetune_vae_baseline` | restores #3 (mean, 15 ep, wsd, admul 1, h1 50, mlw 0, seed 42) | should land near 0.0954. Same seed, so this is a reproduction, **not** an answer to Open Question 1 -- that still needs seeds 1 and 2. |
+| 21666 | `finetune_vae_baseline.yaml` | `finetune_vae_baseline` | restores #3 (mean, 15 ep, wsd, admul 1, h1 50, mlw 0, seed 42) | **done: 0.095396**, matches #3 to 6 significant figures -- reproduction confirmed. Same seed, so this is **not** an answer to Open Question 1 -- that still needs seeds 1 and 2. |
 
 ### Capacity diagnostic (Open Question 2) -- RESOLVED: partial
 
-Five attempts, all overfitting the same 8 sims (`overfit_sims: 8,
+Six attempts, all overfitting the same 8 sims (`overfit_sims: 8,
 overfit_repeat: 5`, 40 opt steps/epoch, 1 GPU):
 
 | attempt | config | job | lr | sched | best val_vrmse | verdict |
@@ -146,7 +146,8 @@ overfit_repeat: 5`, 40 opt steps/epoch, 1 GPU):
 | 2 | `finetune_vae_overfit_lr5e5.yaml` | 21669/21677 | 5e-5 | constant | 0.0989 (ep48) | ran but untrustworthy: violated its own kill criterion, oscillated 0.10-0.30 all 50 epochs |
 | 3 | `finetune_vae_overfit_lr25e5.yaml` | 21684/21686 | 2.5e-5 | constant | 0.0829 (ep46) | still oscillating, no clean landing |
 | 4 | `finetune_vae_overfit_lr5e5_wsd.yaml` | 21685 | 5e-5 | wsd | **0.061** (ep46-50, stable) | **clean landing, trustworthy** |
-| 5 | `finetune_vae_overfit_lr5e5_wsd_tail.yaml` | - | 5e-5 (tail 5e-6) | wsd | - | in flight, see below |
+| 5 | `finetune_vae_overfit_lr5e5_wsd_tail.yaml` | 21687 | 5e-5 (tail 5e-6) | wsd, stable_fraction 0.7 | 0.0588 (ep50, stable) | encoder tail unfrozen, only ~3% over #4 -- read as noise, see below |
+| 6 | `finetune_vae_overfit_lr5e5_wsd_tail_slowdecay.yaml` | 21690 | 5e-5 (tail 5e-6) | wsd, stable_fraction 0.35 | 0.0608 (ep50) | doubling decay share vs #5 did **not** improve on 0.0588 -- schedule was not the limiting factor, see below |
 
 **Attempt 1** (job 21667): blew up in epoch 2 (train_loss 0.288 -> 2.106),
 flat at val_vrmse ~1.0 for 23 epochs -- collapsed, not converging. Cause:
@@ -174,7 +175,7 @@ information does reach the decoder to a meaningful degree, but there's still
 a gap to `<=0.03`. Per the readout table this unblocks Open Question 3
 (encoder unfreezing), which was explicitly gated on this answer.
 
-### Attempt 5 -- encoder tail unfreeze, in flight
+### Attempt 5 -- encoder tail unfreeze, DONE
 
 Tests Open Question 3, scoped down from "unfreeze the whole 694M trunk at
 0.1x LR" to just `down_blocks[-1] + mid_block + norm_out + conv_out` (the
@@ -205,7 +206,99 @@ Open Question 4 (latent bandwidth / input resolution) is the next lever, not
 unfreezing further into the trunk. Kill criterion unchanged (epoch 2
 train_loss above epoch 1's).
 
+**RESULT: 0.0588** (job 21687, epoch 50, stable through epochs 46-50). Only
+~3.6% below attempt 4's 0.061 -- read as within noise, not a clean signal
+that the tail was the bottleneck. Attempt 6 below checks whether this was a
+schedule artifact before trusting that reading.
+
 Launch: `sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail.yaml`
+
+### Attempt 6 -- tail unfreeze + slower decay, DONE
+
+Attempt 5's own metrics.csv showed the stable phase (epoch 2-35, constant LR
+under `stable_fraction 0.7`) never plateaus -- val_vrmse wanders 0.13-0.21
+with no clear trend at `batch_size 1`, unlike the full-data baseline's much
+lower-noise stable phase. The decay phase (epoch 36-50, only 30% of the
+post-warmup budget) did essentially all the real convergence (0.127 -> 0.0588)
+and was still moving at the last step. That raised the possibility that
+0.0588 was decay-length-limited rather than a true floor.
+
+Single variable vs attempt 5: `optimization.stable_fraction: 0.7 -> 0.35`
+(same total budget -- 2000 opt steps, 50 epochs, warmup 50 -- decay's share of
+the post-warmup schedule roughly doubles).
+
+**RESULT: 0.0608** (job 21690, epoch 50) -- *not* materially below attempt
+5's 0.0588 (config: `finetune_vae_overfit_lr5e5_wsd_tail_slowdecay.yaml`).
+Doubling the decay share did not improve on attempt 5, so per that config's
+own read-out criterion: **the schedule was not the limiting factor**. 0.0588
+stands as the real floor for this latent/tail combination, the "partial"
+verdict on Open Question 2 holds without a schedule-length caveat, and Open
+Question 4 (latent bandwidth) is the next lever -- not further schedule
+tuning.
+
+Launch: `sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_tail_slowdecay.yaml`
+
+### Encoder head-vs-tail unfreeze sweep (Open Question 3, generalized)
+
+Attempt 5 above only let the encoder unfreeze grow from the tail. Rather than
+guess whether the head (the actual spatial-downsampling `down_blocks`, which
+carry the fragile pretrained patchify basis) or the tail matters more, both
+directions are now config-selectable and swept.
+
+Code: `windinet/config.py` `adapter.unfreeze_down_blocks` (list of
+`down_blocks[0..2]` indices -- the spatially-downsampling stages -- any
+subset/order) alongside the existing `adapter.unfreeze_encoder_tail`
+(`down_blocks[3]` + `mid_block` + `norm_out` + `conv_out`, unchanged
+semantics/name for backward compatibility with attempt 5's config).
+`optimization.encoder_tail_lr_multiplier` now applies to the combined set of
+whatever is unfrozen by either field (single shared param group, still 0.1x
+decoder LR). `windinet/training/vae_trainer.py`: `_get_encoder_downblock_modules`
++ `_get_encoder_extra_modules` (down_blocks selection unioned with the tail
+bundle when both are set), wired into `_load_vae`, `_collect_trainable_params`,
+`_set_trainable_modules_mode`, the optimizer param group, and
+`_save_checkpoint` (writes `encoder_down_block_{i}.*` keys per selected index,
+same known gap as `encoder_tail.*` -- `load_inflated_vae_checkpoint` does not
+restore either yet).
+
+Each combo below has a diagnostic config (`finetune_vae_overfit_lr5e5_wsd_<tag>.yaml`,
+8-sim capacity screen, same protocol as attempt 5) and a full-data config
+(`finetune_vae_baseline_<tag>.yaml`, 15-epoch real run, only launch after the
+diagnostic reads out per protocol point 1 below):
+
+| tag | `unfreeze_down_blocks` | `unfreeze_encoder_tail` | modules unfrozen beyond conv_in | status |
+|---|---|---|---|---|
+| (baseline) | `[]` | `false` | none | done, val_vrmse 0.095396 |
+| `tail` | `[]` | `true` | db3+mid+norm+conv_out | done -- diagnostic 0.0588 (attempt 5), confirmed not schedule-limited (attempt 6, 0.0608); full-data 0.09369 (`finetune_vae_baseline_tail.yaml`, job 21692) -- see "Full-data follow-ups" below |
+| `tail2` | `[2]` | `true` | db2+db3+mid+norm+conv_out | not yet launched |
+| `tail3` | `[1,2]` | `true` | db1+db2+db3+mid+norm+conv_out | not yet launched |
+| `fullenc` | `[0,1,2]` | `true` | entire encoder trunk | not yet launched |
+| `head0` | `[0]` | `false` | db0 only | not yet launched |
+| `head01` | `[0,1]` | `false` | db0+db1 | not yet launched |
+| `head012` | `[0,1,2]` | `false` | db0+db1+db2 | not yet launched |
+| `head01tail` | `[0,1]` | `true` | db0+db1+db3+mid+norm+conv_out (db2 skipped) | not yet launched |
+
+Read-out per combo: same as attempt 5 -- val_vrmse materially below 0.061
+(diagnostic) points at that module set being part of the bottleneck; ~0.061
+means it isn't. Once the diagnostics report back, compare `head*` vs `tail*`
+at matched unfrozen-block-count (`head0` vs `tail`, `head01` vs `tail2`,
+`head012` vs `tail3`) to answer "which end of the trunk matters more" before
+spending multi-GPU time on the full-data configs.
+
+### Full-data follow-ups: tail unfreeze and schedule shape, DONE
+
+Two single-variable full-data (3825-sim, 15-epoch) runs launched off the
+`finetune_vae_baseline.yaml` reproduction (job 21666, 0.095396):
+
+| run dir | job | change vs baseline | val_vrmse | verdict |
+|---|---|---|---|---|
+| `finetune_vae_baseline_tail` | 21692 | `adapter.unfreeze_encoder_tail: false -> true` | **0.09369** | ~1.8% better than baseline -- smaller than hoped, consistent with attempt 5/6's "within noise" diagnostic reading. Encoder tail unfreeze carries a small, real but not decisive gain. |
+| `finetune_vae_baseline_slowdecay` | 21689 | `optimization.stable_fraction: 0.7 -> 0.35` | 0.09664 | ~1.3% **worse** than baseline (within the "under ~2%, treat cautiously" noise band the config's own header sets, per Open Question 1 still being unmeasured). Reads as null: `stable_fraction 0.7` was already about right for the full-data regime -- the schedule-length sensitivity seen in the 8-sim diagnostics does not transfer to full data. Do not carry `stable_fraction 0.35` forward. |
+
+Net read: of the two variables tested at full scale so far, only the tail
+unfreeze shows a (small) real improvement; the schedule-shape change does
+not. `finetune_vae_baseline_tail`'s 0.09369 is the current best full-data
+checkpoint and the reference point for the rest of the head-vs-tail sweep
+above.
 
 ## Established
 
@@ -267,19 +360,84 @@ discontinuities. 5x spread, same model, same epoch.
    proper convergence (wsd), landing in the 0.05-0.08 band. Neither a clean
    `<=0.03` (pure objective problem) nor `>=0.09` (info never reaches the
    decoder); both the loss/training axis and latent budget remain live.
-3. **Does unfreezing (part of) the encoder help?** **In flight as attempt 5**
-   (see above), scoped to the tail (`down_blocks[-1] + mid_block + norm_out +
-   conv_out`, tail LR 5e-6 = 0.1x decoder) rather than the full 694M trunk --
-   cheaper (4x4 activations, not up to 32x32) and structurally safer (never
-   leaves a frozen layer consuming activations from an unfrozen upstream
-   layer -- `down_blocks[:-1]`, the actual spatial downsampling with the
-   fragile pretrained basis, stays frozen throughout). If the tail alone
-   doesn't move val_vrmse, the next step -- not yet implemented -- would be
-   extending the trainable boundary one block earlier at a time
-   (`down_blocks[-2]` next), never skipping straight to the full trunk.
+   Attempt 6 (slower decay on top of the tail unfreeze, 0.0608 vs attempt 5's
+   0.0588) confirmed this isn't a truncated-schedule artifact -- the "partial"
+   verdict holds without caveat.
+3. **Does unfreezing (part of) the encoder help, and does it matter which
+   part?** **Tail direction DONE**: diagnostic 0.0588 (attempt 5, ~3.6% over
+   attempt 4, read as within noise), full-data 0.09369 (`finetune_vae_baseline_tail`,
+   job 21692, ~1.8% over the 0.095396 baseline -- small, real, not decisive).
+   Generalized into the full "Encoder head-vs-tail unfreeze sweep" table
+   above, which also covers unfreezing from the head (`down_blocks[0..2]`, the
+   actual spatial downsampling, carrying the fragile pretrained basis) instead
+   of only extending from the tail -- those combos (`tail2`, `tail3`,
+   `fullenc`, `head0`, `head01`, `head012`, `head01tail`) are not yet
+   launched. Read-out compares `head*` vs `tail*` at matched block count once
+   the diagnostics report back.
 4. **Does more latent bandwidth help?** Feed 256x256 so the latent grid becomes
    8x8 (4x capacity). Independent of (3) -- unfreezing does not change the
-   compression ratio. Still open; next after attempt 5's read-out.
+   compression ratio. Still open; next after the head-vs-tail sweep reports
+   back (or sooner, since it's independent).
+5. **Was `stable_fraction 0.7`'s decay length actually right for full data?**
+   **ANSWERED: yes.** `finetune_vae_baseline_slowdecay` (job 21689,
+   `stable_fraction 0.35`) landed 0.09664, ~1.3% *worse* than the 0.095396
+   baseline -- within the noise band Open Question 1 leaves uncalibrated, but
+   directionally not an improvement. The schedule-length sensitivity seen on
+   the 8-sim diagnostics does not transfer to full data; don't carry
+   `stable_fraction 0.35` forward.
+
+## sng_pvc throughput diagnostic
+
+**THE PUZZLE:** sng_pvc job 520211 (`finetune_vae_baseline.yaml`, 8 Intel XPU
+tiles) averaged 38.7 min/epoch -- roughly the SAME as lundquist's 2-GPU
+(A6000) estimate of 32-36 min/epoch, despite 4x the raw compute. Something
+was eating the expected speedup.
+
+**METHOD:** `windinet/training/vae_trainer.py` now logs a per-epoch phase
+breakdown (`train=`/`eval=`/`viz=`/`ckpt=`/`total=`), so a 2-epoch throwaway
+run (epoch 1 = warmup/compile, epoch 2 = clean reading) isolates where the
+time goes without re-reading a full job. Three single-variable diagnostics,
+`jobs/sng_pvc/finetune_vae_diag.sbatch` (+ `finetune_vae_diag_4rank.sbatch`
+for the 4th):
+
+| exp | job | change | epoch-2 train | epoch-2 eval | epoch-2 total | verdict |
+|---|---|---|---|---|---|---|
+| 0 (base) | 520300 | none (`num_dataloader_workers: 0`, full ckpt+viz) | 1426.8s | 1002.1s | 2445.4s (40.8 min) | reference |
+| 1 (H1: I/O-bound step) | 520301 | `num_dataloader_workers: 0 -> 2` | 872.3s | 1045.5s | 1933.0s (32.2 min) | **train time -39%, total -21%** -- confirmed |
+| 2 (H3: ckpt/viz I/O to DSS) | 520302 | `save_last_state: false`, `visualization.enabled: false` | 1441.9s | 1002.1s | 2445.4s (40.8 min, unchanged) | ckpt+viz was only ~16s/epoch of the base run (`viz=11.7s ckpt=4.3s`) -- **ruled out**, not the bottleneck |
+| 3 (H2: comms topology) | 520303 | 4 ranks (COMPOSITE) x accum 8, vs 8 ranks (FLAT) x accum 4 | -- | -- | **crashed every rank** | `RuntimeError: Invalid mt19937 state` -- untested, see fix below |
+
+**Exp 3 crash and fix:** all 3 non-rank-0 processes died with `Invalid
+mt19937 state` inside `accelerate/utils/random.py`'s `synchronize_rng_state`.
+Root cause: Accelerate's default `rng_types=["generator"]` broadcasts the
+train-loader sampler's RNG state from rank 0 to every other rank on every
+`accelerator.prepare()` call; that broadcast corrupts in transit through
+oneCCL specifically under `ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE` (4-rank) --
+the identical 8-tile FLAT launches (exp 0-2) hit the same code path every
+epoch without issue. Fixed in `windinet/training/vae_trainer.py`
+(`_setup_accelerator`): `rng_types=[]`, safe because `train()` calls
+Accelerate's `set_seed(cfg.seed)` identically on every rank *before* the
+DataLoader/sampler is built, and the train/eval split uses its own
+`cfg.seed`-derived `torch.Generator`, not the global RNG -- so every rank's
+default sampler already gets an identical seed without any cross-rank
+broadcast; the sync was redundant (and buggy) in this codepath. **Exp 3 has
+not been re-run since the fix** -- H2 (communication topology) is still
+open.
+
+**ESTABLISHED:** `num_dataloader_workers: 0` on sng_pvc (`windinet/cluster_config.py`
+`CLUSTER_DEFAULTS["sng_pvc"]`) was a crash-avoidance choice, not a
+performance-tuned one -- the comment there notes 4 workers x 8 ranks crashed
+opening `train.h5` concurrently on the DSS network filesystem. `workers: 2`
+is confirmed safe at 8 ranks and cuts wall-clock per epoch by ~21%
+(train-step time by ~39%) with no code change beyond the config's
+`data.num_dataloader_workers` field. Not yet promoted to the cluster default
+-- do that once a higher worker count (3? 4? at 8 ranks, not 8 workers x 8
+ranks which is what crashed before) is confirmed to not reintroduce the
+concurrent-open crash.
+
+**OPEN:** H2 (does 4-rank COMPOSITE vs 8-rank FLAT communication topology
+matter?) -- rerun `jobs/sng_pvc/finetune_vae_diag_4rank.sbatch` now that
+`rng_types=[]` unblocks it.
 
 ## Where things live
 

@@ -1,0 +1,137 @@
+# VAE finetuning config for the ShockWave CFD adapter -- ENCODER UNFREEZE SWEEP.
+# Full data, single-variable follow-up to finetune_vae_baseline.yaml
+# (val_vrmse 0.095396, ledger #3) and finetune_vae_baseline_tail.yaml
+# (down_blocks[3]+mid_block+norm_out+conv_out unfrozen).
+#
+# Part of the encoder head-vs-tail unfreezing sweep (EXPERIMENTS.md Open
+# Question 3) -- see the sibling diagnostic
+# finetune_vae_overfit_lr5e5_wsd_head0.yaml for the cheap 8-sim screen this
+# full-data run follows up on.
+#
+# THIS RUN unfreezes down_blocks[0] only.
+# the opposite end of the trunk from the tail experiments: unfreezes only
+# down_blocks[0], the first (highest-resolution) downsampling stage.
+# mid_block/norm_out/conv_out and down_blocks[1:] stay frozen.
+#
+# CHANGE FROM finetune_vae_baseline.yaml: adapter.unfreeze_down_blocks
+# [] -> [0], adapter.unfreeze_encoder_tail false -> false,
+# plus optimization.encoder_tail_lr_multiplier (0.1x decoder LR, matching
+# every other run in this sweep). Schedule (stable_fraction 0.7), epochs
+# (15), LR (5e-5), h1 weight (50), seed (42) all UNCHANGED -- this isolates
+# the encoder-unfreeze effect alone.
+#
+# 2 GPUs, effective batch 32 via gradient_accumulation_steps 16 -- see
+# jobs/lundquist/finetune_vae_2gpu.sbatch for the exact coupling.
+#
+# CHECKPOINTS ARE REAL. save_best_only stays on. The latent space still
+# moves (freeze_conv_in is false): any precomputed latents / DiT trained on
+# the current baseline must be re-encoded before pairing with this
+# checkpoint -- inference_shockwave.py's fingerprint check will refuse a
+# mismatched pairing rather than emit wrong physics silently.
+#
+# KNOWN GAP: load_inflated_vae_checkpoint() does not yet restore
+# encoder_down_block_*.* / encoder_tail.* keys (see
+# windinet/training/vae_trainer.py _save_checkpoint). Not an issue for a
+# fresh run (resume_from: null); resuming from this checkpoint isn't wired
+# up yet if that's ever needed later.
+#
+# Add a ledger row to EXPERIMENTS.md (Open Question 3 sweep table) before
+# launching -- see that file's Protocol point 2. Only launch this full-data
+# run after the sibling diagnostic has a read-out (protocol: diagnose cheap
+# before spending multi-GPU cluster time).
+#
+# Usage:
+#   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch configs/finetune_vae/finetune_vae_baseline_head0.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # THE variable in this run -- see header for what it unfreezes.
+  unfreeze_down_blocks: [0]
+  unfreeze_encoder_tail: false
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  # Only takes effect because unfreeze_down_blocks/unfreeze_encoder_tail is
+  # set. 0.1x decoder LR = 5e-6, matching every other run in this sweep.
+  encoder_tail_lr_multiplier: 0.1
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  # 2 GPUs x accum 16 = effective batch 32 (see jobs/lundquist/finetune_vae_2gpu.sbatch).
+  # CHANGE THIS TOGETHER WITH --num_processes, never one alone.
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "encoder-unfreeze-sweep", "head0"]
+
+seed: 42
+# Distinct from every other output_dir in this sweep -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# once already (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_baseline_head0"
+clean_output_dir: true
