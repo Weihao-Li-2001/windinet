@@ -406,6 +406,9 @@ for the 4th):
 | 1 (H1: I/O-bound step) | 520301 | `num_dataloader_workers: 0 -> 2` | 872.3s | 1045.5s | 1933.0s (32.2 min) | **train time -39%, total -21%** -- confirmed |
 | 2 (H3: ckpt/viz I/O to DSS) | 520302 | `save_last_state: false`, `visualization.enabled: false` | 1441.9s | 1002.1s | 2445.4s (40.8 min, unchanged) | ckpt+viz was only ~16s/epoch of the base run (`viz=11.7s ckpt=4.3s`) -- **ruled out**, not the bottleneck |
 | 3 (H2: comms topology) | 520303 | 4 ranks (COMPOSITE) x accum 8, vs 8 ranks (FLAT) x accum 4 | -- | -- | **crashed every rank** | `RuntimeError: Invalid mt19937 state` -- untested, see fix below |
+| 4 (H1 cont.: workers=4) | 520456 | `num_dataloader_workers: 2 -> 4` | 869.3s | 921.1s | 1805.9s (30.1 min) | **-6.6% total vs workers=2, no crash** -- best confirmed so far |
+| 5 (H1 cont.: workers=8) | 520457 | `num_dataloader_workers: 2 -> 8` | 866.8s | 923.3s | 1809.6s (30.2 min) | statistically same as workers=4 -- no further gain past 4 |
+| 6 (H2 retry, post-fix) | 520459 | 4 ranks (COMPOSITE), `rng_types=[]` fix applied | -- | -- | **hit time limit mid-epoch-1** | no mt19937 crash this time, but no timing data either -- H2 still open, needs a longer time limit |
 
 **Exp 3 crash and fix:** all 3 non-rank-0 processes died with `Invalid
 mt19937 state` inside `accelerate/utils/random.py`'s `synchronize_rng_state`.
@@ -430,13 +433,22 @@ performance-tuned one -- the comment there notes 4 workers x 8 ranks crashed
 opening `train.h5` concurrently on the DSS network filesystem. `workers: 2`
 is confirmed safe at 8 ranks and cuts wall-clock per epoch by ~21%
 (train-step time by ~39%) with no code change beyond the config's
-`data.num_dataloader_workers` field. Not yet promoted to the cluster default
--- do that once a higher worker count (3? 4? at 8 ranks, not 8 workers x 8
-ranks which is what crashed before) is confirmed to not reintroduce the
-concurrent-open crash.
+`data.num_dataloader_workers` field. **Promoted to the cluster default**
+(`CLUSTER_DEFAULTS["sng_pvc"]["num_dataloader_workers"] = 2`) -- every future
+sng_pvc launch (including the head-vs-tail unfreeze sweep in Open Question 3)
+gets this for free with no per-config change.
+
+**Not yet promoted further:** exp 4-5 above show `workers: 4` shaves another
+~6.6% off `workers: 2` (30.1 vs 32.2 min/epoch) with no crash, and `workers: 8`
+gains nothing more past 4. Both diagnostics were only 2 epochs, though, so the
+transient-open-failure risk the old N=4 comment warned about isn't fully
+ruled out over a full 15-epoch run. Bumping the default past 2 needs one
+full-length confirmation run first.
 
 **OPEN:** H2 (does 4-rank COMPOSITE vs 8-rank FLAT communication topology
-matter?) -- rerun `jobs/sng_pvc/finetune_vae_diag_4rank.sbatch` now that
+matter?) -- job 520459 hit the diagnostic's time limit before finishing even
+epoch 1 (the `rng_types=[]` fix itself worked, no crash), so re-run
+`jobs/sng_pvc/finetune_vae_diag_4rank.sbatch` now that
 `rng_types=[]` unblocks it.
 
 ## Where things live

@@ -26,9 +26,14 @@ CLUSTER_DEFAULTS = {
     "sng_pvc": {
         "data_root": "{scratch}/windinet/euler_mq_dataset/128x128_ds/train.h5",
         "output_root": "{scratch}/windinet/finetune_vae_outputs_sng_pvc",
-        # 8 ranks x N workers all opening train.h5 concurrently on the DSS
-        # network filesystem was triggering transient open failures at N=4.
-        "num_dataloader_workers": 0,
+        # workers=0 -> 2 cuts wall-clock/epoch ~21% (confirmed safe at 8 ranks,
+        # jobs 520301 vs 520300, see EXPERIMENTS.md "sng_pvc throughput
+        # diagnostic"). Earlier N=4 was avoided over a worry about concurrent
+        # train.h5 opens on the DSS network filesystem; jobs 520456/520457
+        # since ran workers=4 and workers=8 at 8 ranks without that crash, but
+        # those were 2-epoch diagnostics, not a full run, so N>2 isn't
+        # promoted here yet -- see open question in EXPERIMENTS.md.
+        "num_dataloader_workers": 2,
         "effective_batch": 32,
     },
 }
