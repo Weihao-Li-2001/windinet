@@ -1,0 +1,133 @@
+# VAE finetuning config -- NEW REFERENCE BASELINE, whole encoder trunk unfrozen.
+#
+# Promoted from finetune_vae_baseline_fullenc.yaml (Open Question 3, the
+# encoder head-vs-tail unfreeze sweep, EXPERIMENTS.md) after that sweep's
+# full-data read-out: unfreezing the entire encoder trunk (all down_blocks +
+# mid_block/norm_out/conv_out) gave val_vrmse 0.08673 (job 521389,
+# sng_pvc), ~9% better than the old frozen-trunk baseline
+# finetune_vae_baseline.yaml (val_vrmse 0.095396 / 0.09513) and
+# statistically tied with the next-best sweep arms (head012 0.08686, tail3
+# 0.08684) -- see EXPERIMENTS.md "Full-data follow-ups: full head-vs-tail
+# sweep" for the complete comparison.
+#
+# This file is a plain copy of finetune_vae_baseline_fullenc.yaml's settings
+# under a name that will stay stable as the reference point for follow-up
+# sweeps (starting with a learning-rate sweep -- see EXPERIMENTS.md), per
+# protocol point 4 (config naming: vae_<baseline-tag>_<change>.yaml). Do not
+# repoint this file's output_dir/tags for a swept variant -- copy it to a
+# new vae_whole_structure_baseline_<change>.yaml instead, same as every
+# other sweep in this ledger.
+#
+# CHECKPOINTS ARE REAL. save_best_only stays on. The latent space moves
+# (freeze_conv_in is false): any precomputed latents / DiT trained on a
+# frozen-trunk checkpoint must be re-encoded before pairing with this one --
+# inference_shockwave.py's fingerprint check will refuse a mismatched
+# pairing rather than emit wrong physics silently.
+#
+# KNOWN GAP: load_inflated_vae_checkpoint() does not yet restore
+# encoder_down_block_*.* / encoder_tail.* keys (see
+# windinet/training/vae_trainer.py _save_checkpoint). Not an issue for a
+# fresh run (resume_from: null); resuming from this checkpoint isn't wired
+# up yet if that's ever needed later.
+#
+# Usage (cluster-specific gradient_accumulation_steps / num_dataloader_workers
+# are patched in automatically by the sbatch launcher, see
+# windinet/cluster_config.py):
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml
+#   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # Whole-structure unfreeze: entire encoder trunk trainable, on top of the
+  # always-trainable decoder + conv_in adapter.
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  # Reference LR for this baseline -- the upcoming sweep (EXPERIMENTS.md)
+  # varies this single value against everything else held fixed.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  # 0.1x decoder LR, matching every arm of the head-vs-tail sweep this
+  # baseline was promoted from.
+  encoder_tail_lr_multiplier: 0.1
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  # 2 GPUs x accum 16 = effective batch 32 (see jobs/lundquist/finetune_vae_2gpu.sbatch).
+  # CHANGE THIS TOGETHER WITH --num_processes, never one alone.
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline"]
+
+seed: 42
+# Distinct from every other output_dir in this project -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# once already (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_whole_structure_baseline"
+clean_output_dir: true

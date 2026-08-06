@@ -1,0 +1,118 @@
+# VAE finetuning config -- ENCODER LEARNING-RATE SWEEP, arm 1/3 (low).
+#
+# Single-variable follow-up to finetune_vae_whole_structure_baseline.yaml
+# (val_vrmse 0.08673 as `fullenc`, job 521389 -- see EXPERIMENTS.md "New
+# reference baseline" + Open Question 6). That baseline unfreezes the whole
+# encoder trunk but still uses `encoder_tail_lr_multiplier: 0.1` inherited,
+# unchanged, from the original tail-only diagnostic -- never re-tuned for a
+# ~694M-parameter unfrozen trunk instead of a small tail submodule.
+#
+# CHANGE FROM finetune_vae_whole_structure_baseline.yaml:
+# optimization.encoder_tail_lr_multiplier 0.1 -> 0.03 (absolute encoder LR
+# 5e-6 -> 1.5e-6). Decoder learning_rate (5e-5), schedule, epochs, seed, loss
+# weights all UNCHANGED -- this isolates the encoder LR alone. The decoder LR
+# itself is not part of this sweep (see EXPERIMENTS.md Open Question 6 for
+# why: it was inherited from the frozen-trunk baseline and is a separate,
+# not-yet-open question).
+#
+# This is the low end of a log-spaced 4-point grid: 0.03x / 0.1x (existing,
+# reuse finetune_vae_whole_structure_baseline's own result, no rerun needed)
+# / 0.3x / 1x. Rationale for the range: encoder_tail_lr_multiplier's default
+# (0.1x) was deliberately kept "below the decoder LR ... because these
+# weights carry a pretrained basis instead of being freshly grown" (see
+# windinet/config.py docstring). This arm asks whether even *more* caution
+# helps (a near-frozen 0.03x encoder), i.e. whether the whole-structure gain
+# over the frozen-trunk baseline survives at a much smaller encoder step size,
+# or whether 0.1x was already close to too little to matter and this arm just
+# regresses toward the frozen-trunk baseline (0.09513/0.095396).
+#
+# Read-out / kill criteria: see EXPERIMENTS.md Open Question 6.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_enclr0p03x.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  # THE variable in this run: 0.1 -> 0.03 (absolute encoder LR 5e-6 -> 1.5e-6).
+  encoder_tail_lr_multiplier: 0.03
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline", "encoder-lr-sweep", "enclr0.03x"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_enclr0p03x"
+clean_output_dir: true

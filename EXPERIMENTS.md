@@ -15,6 +15,20 @@ verdict **after** it finishes.
   `log_finetuning_vae/lundquist/vae_2gpu_21632.log` (21664's own log is gone
   too, and it never got an INDEX.tsv row). Job **21666** is re-running the same
   config at the same seed to restore it.
+- **New reference baseline (as of 2026-08-06)**: the encoder head-vs-tail
+  sweep (Open Question 3, full results below) shows unfreezing the **entire
+  encoder trunk** beats the frozen-trunk baseline by ~9% (`fullenc`,
+  val_vrmse **0.08673**, job 521389, sng_pvc, vs 0.095396/0.09513 for the
+  frozen-trunk baseline) and is statistically tied with the next-best arms
+  (`head012` 0.08686, `tail3` 0.08684 -- see "Full-data follow-ups: full
+  head-vs-tail sweep" below). This setup is promoted to a first-class,
+  stably-named config, `configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml`
+  (identical hyperparameters to `finetune_vae_baseline_fullenc.yaml`, new
+  `output_dir`/tags only), so that follow-up sweeps -- starting with the
+  learning-rate sweep planned below -- name themselves against a baseline
+  tag that won't get confused with one arm of the now-finished unfreeze
+  sweep. **Not yet run under its new name** -- next launch should confirm it
+  reproduces ~0.0867 before the LR sweep branches off it.
 
 ## Fixed setup (identical in every 15-epoch run)
 
@@ -269,20 +283,50 @@ diagnostic reads out per protocol point 1 below):
 |---|---|---|---|---|
 | (baseline) | `[]` | `false` | none | done, val_vrmse 0.095396 |
 | `tail` | `[]` | `true` | db3+mid+norm+conv_out | done -- diagnostic 0.0588 (attempt 5), confirmed not schedule-limited (attempt 6, 0.0608); full-data 0.09369 (`finetune_vae_baseline_tail.yaml`, job 21692) -- see "Full-data follow-ups" below |
-| `tail2` | `[2]` | `true` | db2+db3+mid+norm+conv_out | not yet launched |
-| `tail3` | `[1,2]` | `true` | db1+db2+db3+mid+norm+conv_out | not yet launched |
-| `fullenc` | `[0,1,2]` | `true` | entire encoder trunk | not yet launched |
-| `head0` | `[0]` | `false` | db0 only | not yet launched |
-| `head01` | `[0,1]` | `false` | db0+db1 | not yet launched |
-| `head012` | `[0,1,2]` | `false` | db0+db1+db2 | not yet launched |
-| `head01tail` | `[0,1]` | `true` | db0+db1+db3+mid+norm+conv_out (db2 skipped) | not yet launched |
+| `tail2` | `[2]` | `true` | db2+db3+mid+norm+conv_out | done -- full-data val_vrmse **0.08742** (job 521394, sng_pvc, 15ep, 8h40m) |
+| `tail3` | `[1,2]` | `true` | db1+db2+db3+mid+norm+conv_out | done -- full-data val_vrmse **0.08684** (job 521395, sng_pvc, 15ep, 8h54m) |
+| `fullenc` | `[0,1,2]` | `true` | entire encoder trunk | done -- full-data val_vrmse **0.08673** (job 521389, sng_pvc, 15ep, 8h54m) -- **best of the sweep, promoted to `finetune_vae_whole_structure_baseline.yaml`** |
+| `head0` | `[0]` | `false` | db0 only | done -- full-data val_vrmse 0.09507 (job 521390, sng_pvc, 15ep, 7h25m) -- essentially no gain over frozen-trunk baseline |
+| `head01` | `[0,1]` | `false` | db0+db1 | done -- full-data val_vrmse 0.09086 (job 521391, sng_pvc, 15ep, 7h28m) |
+| `head012` | `[0,1,2]` | `false` | db0+db1+db2 | done -- full-data val_vrmse **0.08686** (job 521392, sng_pvc, 15ep, 7h47m) -- ties `fullenc`/`tail3` at ~1h less wall-clock (no tail unfreeze) |
+| `head01tail` | `[0,1]` | `true` | db0+db1+db3+mid+norm+conv_out (db2 skipped) | done -- full-data val_vrmse 0.09049 (job 521393, sng_pvc, 15ep, 8h40m) |
 
-Read-out per combo: same as attempt 5 -- val_vrmse materially below 0.061
-(diagnostic) points at that module set being part of the bottleneck; ~0.061
-means it isn't. Once the diagnostics report back, compare `head*` vs `tail*`
-at matched unfrozen-block-count (`head0` vs `tail`, `head01` vs `tail2`,
-`head012` vs `tail3`) to answer "which end of the trunk matters more" before
-spending multi-GPU time on the full-data configs.
+All seven full-data runs launched together 2026-08-05 01:06 CEST on sng_pvc
+(1 node, 8 XPU tiles, `num_dataloader_workers: 2`, `finetune_vae.sbatch`),
+committed in `f627761`. Read-out per combo: same as attempt 5 -- val_vrmse
+materially below 0.061 (diagnostic) points at that module set being part of
+the bottleneck; ~0.061 means it isn't.
+
+**`head*` vs `tail*` at matched unfrozen-block-count** (the comparison this
+sweep was designed for): `head0` (0.09507) vs `tail` (0.09369) -- tail
+slightly ahead; `head01` (0.09086) vs `tail2` (0.08742) -- tail ahead;
+`head012` (0.08686) vs `tail3` (0.08684) -- **statistical tie**. Reading
+across the whole table: gains come almost entirely from unfreezing
+`down_blocks[1]` and `[2]` (the deeper spatial-downsampling stages) --
+`head0` alone barely moves the needle (0.09507 vs 0.095396 baseline, <0.2%),
+while `head01` and `head012` do almost all the work. `unfreeze_encoder_tail`
+on top of a given `down_blocks` set adds only a small, roughly-constant
+increment (comparable to the `tail` vs baseline gap, ~1.8%) regardless of
+how much of the head is already unfrozen -- consistent with the tail's
+contribution being close to independent of the head's. Net: **whole-trunk
+unfreeze (`fullenc`) is the best single arm, but `head012` (no tail) gets
+statistically the same result for ~1h less wall-clock per run** (7h47m vs
+8h54m) -- worth keeping in mind as a cheaper alternative if the upcoming LR
+sweep needs to multiply run count.
+
+**Caveat on the diagnostic (8-sim) arm of this sweep:** the diagnostic
+configs (`finetune_vae_overfit_lr5e5_wsd_<tag>.yaml`) used
+`overfit_repeat: 1` (8 opt-relevant samples/epoch) instead of attempts 4-6's
+`overfit_repeat: 5` (40 samples/epoch) -- with `warmup_steps: 50` and ~2
+optimizer steps/epoch at `overfit_repeat: 1`, roughly the first **25 of 50
+epochs are still inside warmup**, well below peak LR. All seven diagnostic
+runs land at val_vrmse 0.105-0.126 (vs attempts 4-6's clean 0.059-0.061
+floor), which reads as a warmup/steps-per-epoch mismatch, not a real
+capacity signal -- **do not use the diagnostic numbers from this sweep for
+anything**; the full-data numbers above are the trustworthy read-out. Not
+yet fixed; if the diagnostic tier is needed again (e.g. to cheaply screen
+LR values before spending full-data time), restore `overfit_repeat: 5` or
+cut `warmup_steps` first.
 
 ### Full-data follow-ups: tail unfreeze and schedule shape, DONE
 
@@ -363,21 +407,22 @@ discontinuities. 5x spread, same model, same epoch.
    Attempt 6 (slower decay on top of the tail unfreeze, 0.0608 vs attempt 5's
    0.0588) confirmed this isn't a truncated-schedule artifact -- the "partial"
    verdict holds without caveat.
-3. **Does unfreezing (part of) the encoder help, and does it matter which
-   part?** **Tail direction DONE**: diagnostic 0.0588 (attempt 5, ~3.6% over
-   attempt 4, read as within noise), full-data 0.09369 (`finetune_vae_baseline_tail`,
-   job 21692, ~1.8% over the 0.095396 baseline -- small, real, not decisive).
-   Generalized into the full "Encoder head-vs-tail unfreeze sweep" table
-   above, which also covers unfreezing from the head (`down_blocks[0..2]`, the
-   actual spatial downsampling, carrying the fragile pretrained basis) instead
-   of only extending from the tail -- those combos (`tail2`, `tail3`,
-   `fullenc`, `head0`, `head01`, `head012`, `head01tail`) are not yet
-   launched. Read-out compares `head*` vs `tail*` at matched block count once
-   the diagnostics report back.
+3. ~~Does unfreezing (part of) the encoder help, and does it matter which
+   part?~~ **ANSWERED: yes, and the whole trunk wins.** Full "Encoder
+   head-vs-tail unfreeze sweep" table above, all 7 remaining combos done
+   2026-08-05 (sng_pvc, job 521389-521395). `fullenc` (entire trunk
+   unfrozen) is best at val_vrmse 0.08673, ~9% better than the frozen-trunk
+   baseline, tied with `head012` (0.08686) and `tail3` (0.08684). Gains come
+   almost entirely from `down_blocks[1]`/`[2]`; `down_blocks[0]` alone is
+   near-inert (0.09507, <0.2% over baseline); `unfreeze_encoder_tail` adds a
+   small roughly-constant increment independent of how much of the head is
+   already unfrozen. **Promoted `fullenc`'s settings to a new stable
+   baseline**, `finetune_vae_whole_structure_baseline.yaml` -- see "New
+   reference baseline" note at the top of this file and the LR-sweep plan
+   below (Open Question 6).
 4. **Does more latent bandwidth help?** Feed 256x256 so the latent grid becomes
    8x8 (4x capacity). Independent of (3) -- unfreezing does not change the
-   compression ratio. Still open; next after the head-vs-tail sweep reports
-   back (or sooner, since it's independent).
+   compression ratio. Still open.
 5. **Was `stable_fraction 0.7`'s decay length actually right for full data?**
    **ANSWERED: yes.** `finetune_vae_baseline_slowdecay` (job 21689,
    `stable_fraction 0.35`) landed 0.09664, ~1.3% *worse* than the 0.095396
@@ -385,6 +430,55 @@ discontinuities. 5x spread, same model, same epoch.
    directionally not an improvement. The schedule-length sensitivity seen on
    the 8-sim diagnostics does not transfer to full data; don't carry
    `stable_fraction 0.35` forward.
+6. **PLANNED, not yet run: encoder learning-rate sweep on the whole-structure
+   baseline.** Scoped down from "sweep the whole run's LR" to specifically
+   the **encoder's** LR: with the entire encoder trunk now unfrozen (Open
+   Question 3, answered), `optimization.encoder_tail_lr_multiplier: 0.1`
+   (absolute encoder LR 5e-6, decoder LR 5e-5 unchanged) was inherited
+   as-is from the original *tail-only* diagnostic (attempt 5, EXPERIMENTS.md
+   above) and never re-tuned now that it governs a ~694M-parameter unfrozen
+   trunk instead of a small tail submodule. The decoder LR itself
+   (`learning_rate: 5e-5`) is **not** part of this sweep -- that is a
+   separate, not-yet-opened question; only `encoder_tail_lr_multiplier`
+   varies here, one variable per run per protocol point 1.
+
+   **Grid** (log-spaced, ~3.3x steps, centered on the current default):
+
+   | multiplier | absolute encoder LR | config | status |
+   |---|---|---|---|
+   | 0.03x | 1.5e-6 | `finetune_vae_whole_structure_baseline_enclr0p03x.yaml` | written, not launched |
+   | 0.1x | 5e-6 | `finetune_vae_whole_structure_baseline.yaml` (reuse -- this **is** the `fullenc` arm of Open Question 3, val_vrmse 0.08673, job 521389; no rerun needed unless reproduction under the new filename is required first) | done (as `fullenc`) |
+   | 0.3x | 1.5e-5 | `finetune_vae_whole_structure_baseline_enclr0p3x.yaml` | written, not launched |
+   | 1.0x | 5e-5 (= decoder LR, no safety margin) | `finetune_vae_whole_structure_baseline_enclr1x.yaml` | written, not launched |
+
+   Range rationale: `encoder_tail_lr_multiplier`'s default was deliberately
+   kept below 1.0 because the unfrozen encoder weights "carry a pretrained
+   basis instead of being freshly grown like `encoder.conv_in`"
+   (`windinet/config.py` docstring) -- the grid brackets that design intent
+   from "much more cautious" (0.03x) to "no caution at all" (1.0x, encoder
+   treated the same as the decoder).
+
+   **Read-out criterion:** compare val_vrmse across all 4 arms (0.03x /
+   0.1x / 0.3x / 1.0x). Adopt whichever arm is lowest as the new
+   `encoder_tail_lr_multiplier` default for the whole-structure baseline
+   going forward. A gap under ~2% between arms should be treated as
+   inside the still-uncalibrated seed-noise band (Open Question 1) rather
+   than a real difference.
+
+   **Kill criterion:** for the 1.0x arm specifically, watch epoch 1-2
+   `train_loss` the way attempt 1 (`finetune_vae_overfit.yaml` diverging at
+   `learning_rate: 2e-4`, EXPERIMENTS.md "Capacity diagnostic" above) and
+   `inflate_init: random` (+72% val_vrmse, "Established" section) were
+   caught -- if `train_loss` at epoch 2 is *higher* than epoch 1's, or
+   `val_vrmse` is heading toward the 0.15-0.2+ range instead of down from
+   the ~0.10-0.11 baseline-adapter-only starting point, that confirms the
+   encoder's pretrained basis cannot tolerate decoder-level LR; let it
+   finish for the record but don't chase multipliers above 1.0x.
+
+   **Not yet launched.** Per protocol point 6, `finetune_vae_whole_structure_baseline.yaml`
+   itself should be (re)confirmed under its own name before or alongside
+   this sweep, since it hasn't been run under that exact filename yet
+   (only as `finetune_vae_baseline_fullenc.yaml`).
 
 ## sng_pvc throughput diagnostic
 
