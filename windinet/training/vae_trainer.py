@@ -12,6 +12,7 @@ import math
 import os
 import shutil
 import time
+from collections import defaultdict
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Optional
@@ -52,6 +53,7 @@ from windinet.vae_adapter import (
 from windinet.losses import (
     reconstruction_losses,
     SSIMLoss,
+    vrms_loss,
 )
 
 from windinet.loss_weighting import (
@@ -76,11 +78,14 @@ IS_MAIN_PROCESS = os.environ.get("LOCAL_RANK", "0") == "0"
 
 @torch.no_grad()
 def vrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> float:
-    """Variance-normalized RMSE, averaged over the batch."""
-    diff = (pred - target).float()
-    mse = diff.square().mean(dim=(1, 2, 3, 4))
-    variance = target.float().var(dim=(1, 2, 3, 4), unbiased=False)
-    return float(torch.sqrt(mse / (variance + eps)).mean().item())
+    """Variance-normalized RMSE, averaged over the batch.
+
+    Thin float-returning wrapper around windinet.losses.vrms_loss (the
+    differentiable version used as an optional training loss) -- kept
+    separate because this one is @torch.no_grad() and always reports a
+    plain float, for the "val_vrmse" eval metric specifically.
+    """
+    return float(vrms_loss(pred.float(), target.float(), eps=eps).item())
 
 
 class VaeTrainer:
@@ -399,14 +404,26 @@ class VaeTrainer:
     # VAE encode / decode
     # ------------------------------------------------------------------
 
-    def _encode(self, video: torch.Tensor) -> torch.Tensor:
-        """Encode video to normalised latents. video: [B, C, F, H, W]."""
+    def _encode(self, video: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Encode video to normalised latents. video: [B, C, F, H, W].
+
+        Returns (latents, posterior_mean, posterior_logvar): `latents` is
+        the rescaled tensor used for reconstruction (unchanged behavior
+        from before this returned a single tensor); `posterior_mean`/
+        `posterior_logvar` are the RAW encoder distribution (pre-rescale),
+        for the optional KL-divergence loss (windinet.losses.kl_divergence)
+        -- see reconstruction_losses' latent_mean/latent_logvar args. Free
+        to expose: diffusers' encode() computes logvar internally
+        regardless of whether anything downstream reads it.
+        """
         out = self._vae.encode(video)
-        latents = out.latent_dist.mean
-        mean = self._vae.latents_mean.view(1, -1, 1, 1, 1).to(latents.device, latents.dtype)
-        std = self._vae.latents_std.view(1, -1, 1, 1, 1).to(latents.device, latents.dtype)
+        posterior_mean = out.latent_dist.mean
+        posterior_logvar = out.latent_dist.logvar
+        norm_mean = self._vae.latents_mean.view(1, -1, 1, 1, 1).to(posterior_mean.device, posterior_mean.dtype)
+        norm_std = self._vae.latents_std.view(1, -1, 1, 1, 1).to(posterior_mean.device, posterior_mean.dtype)
         sf = float(getattr(self._vae.config, "scaling_factor", 1.0))
-        return (latents - mean) * sf / std
+        latents = (posterior_mean - norm_mean) * sf / norm_std
+        return latents, posterior_mean, posterior_logvar
 
     def _decode(self, latents: torch.Tensor) -> torch.Tensor:
         """Decode normalised latents to video."""
@@ -422,12 +439,18 @@ class VaeTrainer:
         )
         return self._vae.decode(z, temb=temb, return_dict=True).sample
 
-    def _forward_pass(self, x: torch.Tensor) -> tuple[torch.Tensor, int]:
-        """Encode → decode through the VAE. Returns (reconstruction, original_frames)."""
+    def _forward_pass(self, x: torch.Tensor) -> tuple[torch.Tensor, int, torch.Tensor, torch.Tensor]:
+        """Encode → decode through the VAE.
+
+        Returns (reconstruction, original_frames, posterior_mean,
+        posterior_logvar) -- the latter two are _encode's raw distribution,
+        passed through for the optional KL loss; callers that don't need it
+        (e.g. _save_visualization) just discard them.
+        """
         orig_F = x.shape[2]
-        latents = self._encode(x)
+        latents, posterior_mean, posterior_logvar = self._encode(x)
         recon = self._decode(latents)
-        return recon[:, :, :orig_F], orig_F
+        return recon[:, :, :orig_F], orig_F, posterior_mean, posterior_logvar
 
     def _sync_grads(self) -> None:
         """Average trainable-parameter gradients across processes.
@@ -675,19 +698,15 @@ class VaeTrainer:
                 running_loss = 0.0
                 count = 0
 
-                loss_sum = {
-                    "rmse":0.0,
-                    "h1":0.0,
-                    "ssim":0.0,
-                    "mlw":0.0,
-                }
+                # defaultdict, not a fixed 4-key dict: reconstruction_losses
+                # now always includes h2/pcc/vrms too (and "kl" whenever
+                # this call site passes latent_mean/latent_logvar), and any
+                # loss name absent from a given config's weights just
+                # contributes 0 (see the .get(name, 0.0) below) rather than
+                # needing every dict here to be kept in sync by hand.
+                loss_sum = defaultdict(float)
 
-                grad_norm_sum = {
-                    "rmse":0.0,
-                    "h1":0.0,
-                    "ssim":0.0,
-                    "mlw":0.0,
-                }
+                grad_norm_sum = defaultdict(float)
 
                 task = train_progress.add_task(
                     f"Epoch {epoch}", total=len(train_loader),
@@ -706,7 +725,7 @@ class VaeTrainer:
                         normalization_clip=cfg.data.normalization_clip,
                     )
                     with self._accelerator.autocast():
-                        recon, _ = self._forward_pass(x)
+                        recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
                     # Match Accelerate's convert_outputs_to_fp32: losses (e.g. the
                     # SSIM conv) run in fp32, so cast the autocast output back.
                     recon = recon.float()
@@ -722,6 +741,8 @@ class VaeTrainer:
                         temporal_level=cfg.loss.temporal_level,
                         mlw_beta=cfg.loss.mlw_beta,
                         mlw_eps=cfg.loss.mlw_eps,
+                        latent_mean=posterior_mean.float(),
+                        latent_logvar=posterior_logvar.float(),
                     )
 
                     grad_norms = None
@@ -748,9 +769,14 @@ class VaeTrainer:
 
                     weights = self.loss_weighter.get_weights()
 
-
+                    # .get(name, 0.0): a loss name present in `losses` (every
+                    # component reconstruction_losses computes) but absent
+                    # from this config's weights contributes 0 rather than
+                    # KeyError -- lets the opt-in losses (h2/pcc/vrms/kl)
+                    # exist without every existing config having to list
+                    # them.
                     total_loss = sum(
-                        weights[name] * value
+                        weights.get(name, 0.0) * value
                         for name, value in losses.items()
                     )
 
@@ -861,9 +887,15 @@ class VaeTrainer:
                         "val_total_loss": val_metrics["total_loss"],
                         "val_vrmse": val_metrics["vrmse"],
                         **{f"train_{name}": value for name, value in epoch_losses.items()},
+                        # Every val_metrics key except the two already
+                        # special-cased above -- dynamically covers h2/pcc/
+                        # vrms (always present) and kl (present iff this
+                        # run passed latent_mean/latent_logvar), not just
+                        # the original four.
                         **{
-                            f"val_{name}": val_metrics[name]
-                            for name in ("rmse", "h1", "ssim", "mlw")
+                            f"val_{name}": value
+                            for name, value in val_metrics.items()
+                            if name not in ("total_loss", "vrmse")
                         },
                     }
                     metrics_history.append(metrics_row)
@@ -945,7 +977,10 @@ class VaeTrainer:
         DDP-wrapped).
         """
         self._set_trainable_modules_mode(False)
-        sums = {"total_loss": 0.0, "vrmse": 0.0, "rmse": 0.0, "h1": 0.0, "ssim": 0.0, "mlw": 0.0}
+        # defaultdict: reconstruction_losses' opt-in components (h2/pcc/vrms/
+        # kl) don't need a hardcoded slot here, same reasoning as loss_sum
+        # in train().
+        sums = defaultdict(float)
         count = 0
         weights = self.loss_weighter.get_weights()
         for batch in eval_loader:
@@ -958,7 +993,7 @@ class VaeTrainer:
                 normalization_clip=self._config.data.normalization_clip,
             )
             with self._accelerator.autocast():
-                recon, _ = self._forward_pass(x)
+                recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
             recon = recon.float()
             target = x[:, :, :orig_F]
             recon = recon[:, :, :orig_F]
@@ -971,8 +1006,13 @@ class VaeTrainer:
                 temporal_level=self._config.loss.temporal_level,
                 mlw_beta=self._config.loss.mlw_beta,
                 mlw_eps=self._config.loss.mlw_eps,
+                latent_mean=posterior_mean.float(),
+                latent_logvar=posterior_logvar.float(),
             )
-            sums["total_loss"] += float(sum(weights[name] * value for name, value in losses.items()).item())
+            # .get(name, 0.0): see the matching comment in train()'s backward
+            # total_loss -- an opt-in loss absent from this config's weights
+            # contributes 0 rather than KeyError.
+            sums["total_loss"] += float(sum(weights.get(name, 0.0) * value for name, value in losses.items()).item())
             sums["vrmse"] += vrmse(recon, target)
             for name, value in losses.items():
                 sums[name] += float(value.item())
@@ -1013,7 +1053,7 @@ class VaeTrainer:
                 normalization_clip=cfg.data.normalization_clip,
             )
             with self._accelerator.autocast():
-                recon, _ = self._forward_pass(x)
+                recon, _, _, _ = self._forward_pass(x)
             recon = recon.float()
             target = denormalize_fields(
                 x[:, :, :orig_F],

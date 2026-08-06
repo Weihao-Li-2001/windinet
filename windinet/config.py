@@ -416,6 +416,18 @@ class VaeAdapterConfig(ConfigBaseModel):
         return sorted(values)
 
 
+# The four losses every VAE finetuning config has always had to weight.
+REQUIRED_LOSS_NAMES = {"rmse", "h1", "ssim", "mlw"}
+# Added 2026-08-06: computed by windinet.losses.reconstruction_losses like the
+# required four, but default to an unset weight (0.0, via .get() at every
+# summation site in vae_trainer.py) so no existing config needs updating to
+# stay valid. Add one of these to loss_weighting.weights (fixed strategy) or
+# loss_names (gradnorm/softadapt) to opt in. "kl" additionally needs
+# VaeTrainer._encode's posterior mean/logvar to be non-None to actually do
+# anything -- see reconstruction_losses' docstring.
+OPTIONAL_LOSS_NAMES = {"h2", "pcc", "vrms", "kl"}
+
+
 class LossWeightingConfig(ConfigBaseModel):
     """Composition strategy for the shockwave reconstruction losses."""
 
@@ -430,10 +442,16 @@ class LossWeightingConfig(ConfigBaseModel):
 
     @model_validator(mode="after")
     def validate_loss_names(self):
-        expected = {"rmse", "h1", "ssim", "mlw"}
         configured = set(self.weights if self.strategy == "fixed" else self.loss_names)
-        if configured != expected:
-            raise ValueError(f"loss weighting must configure exactly {sorted(expected)}")
+        missing = REQUIRED_LOSS_NAMES - configured
+        if missing:
+            raise ValueError(f"loss weighting must configure at least {sorted(REQUIRED_LOSS_NAMES)}; missing {sorted(missing)}")
+        unknown = configured - REQUIRED_LOSS_NAMES - OPTIONAL_LOSS_NAMES
+        if unknown:
+            raise ValueError(
+                f"loss weighting has unknown loss names {sorted(unknown)}; "
+                f"known optional extras are {sorted(OPTIONAL_LOSS_NAMES)}"
+            )
         return self
 
 

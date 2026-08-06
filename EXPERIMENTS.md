@@ -753,6 +753,64 @@ and this is confirmation, not a regression to chase. If it finishes clean,
 compare its `eval=` to `evalfix_confirm`'s -- locking could add overhead
 even without crashing.
 
+## New loss components (H2/PCC/VRMS/KL), opt-in, NOT ENABLED anywhere yet (2026-08-06)
+
+Four new loss components added to `windinet/losses/` alongside the existing
+RMSE/H1/SSIM/MLW, for future experiments to opt into -- no config has been
+changed to actually use any of them yet, this is capability only.
+
+| name | file | needs | what it penalizes |
+|---|---|---|---|
+| `h2` | `h2_semi_norm.py` | pred, target | second-order spatial derivatives (curvature) -- one order past H1's first derivatives, e.g. over-smoothed shock peaks that H1 alone can miss |
+| `pcc` | `pcc.py` | pred, target | 1 - Pearson correlation, per sample -- structural/pattern match, magnitude-invariant (complements RMSE, which is magnitude-sensitive) |
+| `vrms` | `vrms.py` | pred, target | variance-normalized RMSE -- the same metric already tracked as `val_vrmse`, now also usable as a training objective, not just monitored. `VaeTrainer.vrmse()` (the eval metric) now wraps this instead of duplicating the formula |
+| `kl` | `kl_divergence.py` | encoder posterior mean+logvar (NOT pred/target) | standard VAE ELBO regularizer, KL(q(z\|x) \|\| N(0,I)). Only computed when the caller supplies `latent_mean`/`latent_logvar`; the other three are always computed regardless of weight, same as MLW already was |
+
+**How to enable one:** add it to a config's `loss_weighting.weights` with a
+nonzero weight, e.g. `vrms: 1.0`, alongside the existing four -- no other
+change needed. `windinet/config.py`'s `LossWeightingConfig` validator now
+requires the original four (`rmse`/`h1`/`ssim`/`mlw`) but only *permits*
+these as extras, so every existing checked-in config is valid unchanged
+(they don't list the new names, which is fine -- an unlisted name just
+contributes 0, same mechanism MLW's `weights: {mlw: 0.0}` already relied on
+before this).
+
+**KL needed extra plumbing the other three didn't.** RMSE/H1/H2/SSIM/MLW/
+PCC/VRMS only need `(pred, target)`, so they slot straight into
+`reconstruction_losses()`. KL needs the encoder's raw posterior
+distribution instead, which `VaeTrainer._encode` used to discard (it only
+returned `out.latent_dist.mean`, rescaled, for the reconstruction path).
+`_encode`/`_forward_pass` now also return `(posterior_mean, posterior_logvar)`
+-- the RAW (pre-rescale) distribution -- threaded through to
+`reconstruction_losses(..., latent_mean=..., latent_logvar=...)` at both
+call sites that matter (`train`'s loop, `_evaluate`). Deliberately does
+**not** use diffusers' `DiagonalGaussianDistribution.kl()`: that method
+hardcodes `dim=[1, 2, 3]` (assumes 4D image latents), but this project's
+video-VAE latents are 5D `[B, C, T, H, W]` -- the diffusers method would
+silently leave one spatial axis unreduced. `kl_divergence_loss` reduces
+over every non-batch dim instead, robust to the actual shape.
+
+**Not tested with a real run.** Verified so far: each loss function alone
+against hand-built tensors (sane values, correct edge cases -- e.g. `pcc_loss`
+is ~0 for a signal against itself, `kl_divergence_loss` is exactly 0 for
+mean=0/logvar=0); `reconstruction_losses()` returns the right key set with
+and without `latent_mean`/`latent_logvar`; every one of the 28 real
+`configs/finetune_vae/*.yaml` files still loads through `VaeTrainerConfig`
+unchanged. **Not yet run through an actual training step** (needs the full
+pretrained VAE, not available in this environment) -- if a config
+opts into one of these, watch the first job's epoch 1 like any new
+component: does `train_loss` look sane, does the new `train_<name>`/
+`val_<name>` column in metrics.csv look sane, does it crash.
+
+**Everything else needed to change so an unlisted loss name doesn't
+crash a run:** `windinet/training/vae_trainer.py`'s `loss_sum`/
+`grad_norm_sum` (`train`) and `sums` (`_evaluate`) switched from
+hardcoded 4-key dicts to `defaultdict(float)`, and every
+`weights[name]` lookup that assembles the backward-pass total loss
+switched to `weights.get(name, 0.0)` -- both were previously exact-key
+assumptions that would `KeyError` the moment `reconstruction_losses()`
+started returning more than four entries.
+
 ## Where things live
 
 | | |
