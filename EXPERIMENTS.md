@@ -479,6 +479,44 @@ discontinuities. 5x spread, same model, same epoch.
    itself should be (re)confirmed under its own name before or alongside
    this sweep, since it hasn't been run under that exact filename yet
    (only as `finetune_vae_baseline_fullenc.yaml`).
+7. **PLANNED, not yet run: was 15 epochs actually enough for the
+   whole-structure baseline?** All three of `fullenc`/`head012`/`tail3`'s
+   per-epoch val_vrmse flatten sharply as the wsd schedule decays to
+   `min_learning_rate` (e.g. `fullenc`: -6.5% at epoch 13, -2.2% at epoch
+   14, only **-0.4%** at epoch 15, where lr has decayed to 1.00e-6 -- same
+   shape for head012 and tail3, see the sweep table above for the full
+   curves). Ambiguous which of two things this is: the model genuinely
+   converged, or the schedule (sized for 15 epochs) decayed LR to
+   near-zero before the model was done improving. Also relevant: `fullenc`'s
+   0.08673 is already *below* the 64x64-cutoff bandwidth floor (0.089,
+   "The bandwidth ceiling" section) that was computed with the encoder
+   frozen -- now that the encoder itself is unfrozen and adapting, that
+   ceiling's assumptions may no longer hold, which is mild extra reason to
+   suspect there's still real room on the training axis, not just via
+   Open Question 4's latent-bandwidth route.
+
+   Config: `finetune_vae_whole_structure_baseline_ep18.yaml`, single
+   variable vs `finetune_vae_whole_structure_baseline.yaml`:
+   `optimization.epochs: 15 -> 18`. `warmup_steps` (200) stays absolute;
+   `stable_fraction` (0.7) is a fraction of the post-warmup budget, so both
+   the stable phase and the decay phase stretch proportionally to the
+   larger total -- this is exactly "give the schedule more room, let LR
+   keep decaying, see if it still improves," no code change needed.
+
+   **Read-out:** compare this run's epoch-18 val_vrmse to
+   `finetune_vae_whole_structure_baseline`'s epoch-15 (0.08673 as
+   `fullenc`). Also free from the same run without a second job: compare
+   *this* run's own epoch-15 row (schedule not yet near the floor at that
+   point, since decay is now stretched over 18 epochs) to the original
+   15-epoch run's epoch-15 (already at the floor) -- if this run's epoch 15
+   reads *worse* than the original's, that's direct evidence the longer
+   schedule needs the extra epochs to catch back up rather than leading
+   throughout, which would support "genuinely still improving" over
+   "already converged."
+
+   **Kill criterion:** none beyond the usual (train_loss diverging) --
+   only 3 extra epochs (~20% more wall-clock than the baseline), cheap
+   enough not to need one.
 
 ## sng_pvc throughput diagnostic
 
