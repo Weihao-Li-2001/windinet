@@ -58,6 +58,16 @@ PY
 )
 echo "MASTER_ADDR: $MASTER_ADDR  MASTER_PORT: $MASTER_PORT"
 
+# Preventive fix carried over from jobs/sng_pvc/finetune_vae_diag_2node.sbatch
+# (see its header and EXPERIMENTS.md's H4 section for the full diagnosis):
+# job 521396, the first --nodes=2 attempt anywhere in this project, hung in
+# rendezvous with a TCPStore that accepted connections but never responded
+# -- including on its own node's loopback connection, which points at
+# PyTorch's libuv TCPStore backend rather than an inter-node network/
+# firewall problem. Harmless no-op at --nodes=1 (today's default above),
+# same as the MASTER_ADDR/PORT block itself.
+export USE_LIBUV=0
+
 export NUM_XPUS=8
 export CCL_ATL_TRANSPORT=ofi
 export ZE_FLAT_DEVICE_HIERARCHY=FLAT

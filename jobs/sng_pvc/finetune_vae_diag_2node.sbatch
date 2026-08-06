@@ -38,6 +38,36 @@
 # rather than fail fast; give it a few minutes past job start before
 # assuming it's stuck and checking `scontrol show job $SLURM_JOB_ID`.
 #
+# UPDATE 2026-08-06, job 521396 FAILED (see EXPERIMENTS.md H4 for the full
+# diagnosis) -- root cause NOT confirmed, but the evidence points at a
+# specific known class of bug, and the fix below is applied but UNTESTED:
+#
+#   torch.distributed.DistStoreError: wait timeout after 900000ms, keys:
+#   /none/torchelastic/role_info/0, /none/torchelastic/role_info/1
+#
+# The .err log's c10d socket trace is the key clue: BOTH the cross-node
+# connection (i20r02c04s06 -> i20r02c04s04:45361) AND node 0's own LOOPBACK
+# connection to its own rendezvous store (i20r02c04s04 -> i20r02c04s04:45361)
+# completed their TCP handshake fine, then both timed out identically
+# waiting for a response. Loopback hanging the same way as the cross-node
+# connection rules out an inter-node firewall/routing problem (loopback
+# never leaves the host) and points at the TCPStore SERVER on the master
+# never actually responding to ANY client, local or remote -- a known
+# failure signature of PyTorch's libuv-backed TCPStore (the default since
+# `USE_LIBUV` defaults to "1" in this torch version), which has had
+# reported hangs on some HPC/interconnect setups where the older
+# non-libuv TCPStore backend works fine. Fix: force it off.
+#
+# Also present but judged NOT the cause: `slurmstepd: error: Unable to
+# create TMPDIR [/hppfs/scratch/0D/go76fuz2/tmp]` (falls back to per-node
+# local /tmp). This happens before this script's own commands run (SLURM
+# itself emits it), so it can't be fixed from in here -- a one-time
+# `mkdir -p /hppfs/scratch/0D/go76fuz2/tmp` on the login node would clear
+# it, but it's unrelated to the TCPStore hang above (that's a pure-socket
+# protocol issue; local-vs-shared TMPDIR wouldn't explain a loopback
+# connection also hanging) and hasn't stopped any other job from running,
+# so it's noted rather than chased here.
+#
 # Weights are throwaway (output_suffix "_diag_2node"), not mirrored to git.
 
 set -eo pipefail
@@ -63,6 +93,21 @@ s.close()
 PY
 )
 echo "MASTER_ADDR: $MASTER_ADDR  MASTER_PORT: $MASTER_PORT"
+
+# Primary fix for job 521396's rendezvous hang -- see the UPDATE note above.
+# Forces PyTorch's TCPStore onto its older, pre-libuv implementation.
+# Cheap/safe either way: does nothing if libuv wasn't actually the problem,
+# and every earlier 1-node run's rendezvous was a no-op regardless of this
+# setting (num_machines=1 never exercises the real multi-node TCPStore
+# path), so this can't regress anything already working.
+export USE_LIBUV=0
+
+# If USE_LIBUV=0 alone doesn't fix it, these make the NEXT failure far more
+# diagnosable than 521396's was: DETAIL logs every collective/store op
+# instead of just the final timeout, and unbuffered output means those logs
+# actually show up in the .out/.err before a hang, not just after a crash.
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
+export PYTHONUNBUFFERED=1
 
 export NUM_XPUS=8   # per node, same as the 1-node baseline
 export CCL_ATL_TRANSPORT=ofi

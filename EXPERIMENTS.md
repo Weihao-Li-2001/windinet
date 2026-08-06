@@ -624,27 +624,84 @@ epoch 1 (the `rng_types=[]` fix itself worked, no crash), so re-run
 `jobs/sng_pvc/finetune_vae_diag_4rank.sbatch` now that
 `rng_types=[]` unblocks it. **Deprioritized** -- not being chased right now.
 
-**PLANNED, not yet run: H4 (node-count scaling).** Does requesting 2 nodes
-(16 XPU tiles) train faster than 1 node (8 tiles), or does crossing the
-inter-node fabric eat the extra compute? Hypothesis: if communication was
-already close to the bottleneck intra-node, going inter-node only makes it
-worse. Script: `jobs/sng_pvc/finetune_vae_diag_2node.sbatch` (2-epoch
-diagnostic, same `DIAG_TAG`/`DIAG_WORKERS`/`DIAG_EPOCHS` knobs as
-`finetune_vae_diag.sbatch`; `patch_config_for_cluster` halves
-`gradient_accumulation_steps` automatically to hold effective_batch=32 at 16
-ranks). **Read-out:** compare its epoch-2 `train=` time to job 520456's
-869.3s (1 node, workers=4, the fastest confirmed 1-node reference). **Kill
-criterion:** `train= >= 90%` of 869.3s means 2-node scaling isn't worth
-chasing further (don't try 4 nodes next). This is the first multi-node
-launch attempted on sng_pvc for this project -- the rendezvous logic was
-already scaffolded in `finetune_vae.sbatch` but never exercised past
-`--nodes=1`, so also watch for it hanging at communication-backend init
-instead of failing fast if the two nodes can't reach each other.
+**H4 (node-count scaling): BLOCKED on rendezvous, diagnosed, fix applied but
+UNTESTED (2026-08-06).** Does requesting 2 nodes (16 XPU tiles) train faster
+than 1 node (8 tiles), or does crossing the inter-node fabric eat the extra
+compute? Hypothesis: if communication was already close to the bottleneck
+intra-node, going inter-node only makes it worse. Script:
+`jobs/sng_pvc/finetune_vae_diag_2node.sbatch` (2-epoch diagnostic, same
+`DIAG_TAG`/`DIAG_WORKERS`/`DIAG_EPOCHS` knobs as `finetune_vae_diag.sbatch`;
+`patch_config_for_cluster` halves `gradient_accumulation_steps`
+automatically to hold effective_batch=32 at 16 ranks). **Read-out:**
+compare its epoch-2 `train=` time to job 520456's 869.3s (1 node, workers=4,
+the fastest confirmed 1-node reference). **Kill criterion:** `train= >= 90%`
+of 869.3s means 2-node scaling isn't worth chasing further (don't try 4
+nodes next).
 
+**First attempt, job 521396, failed before reaching epoch 1** -- this was
+the first multi-node launch attempted on sng_pvc for this project, and the
+rendezvous logic `finetune_vae.sbatch`/`finetune_vae_diag_2node.sbatch`
+already carried for it (MASTER_ADDR = first node in `$SLURM_NODELIST`,
+`--num_machines`/`--machine_rank` via srun's per-node `SLURM_PROCID`) had
+never actually been exercised past `--nodes=1` before this:
+
+```
+torch.distributed.DistStoreError: wait timeout after 900000ms, keys:
+/none/torchelastic/role_info/0, /none/torchelastic/role_info/1
+```
+
+**Diagnosis.** The `.err` log's c10d socket trace is the key evidence:
+
+```
+[W805 01:44:10...] waitForInput: poll for socket addr=[i20r02c04s06...]:39582, remote=[i20r02c04s04...]:45361 returned 0, likely a timeout
+[W805 01:44:10...] ...timed out after 900000ms
+[W805 01:44:11...] waitForInput: poll for socket addr=[i20r02c04s04...]:47330, remote=[i20r02c04s04...]:45361 returned 0, likely a timeout
+[W805 01:44:11...] ...timed out after 900000ms
+```
+
+The first pair is the cross-node connection (node 1 -> node 0's rendezvous
+store). The second pair is node 0 connecting to **its own** store --
+loopback, never leaving the host. Both completed their TCP handshake
+(there's a live `fd`/local+remote address on each) and then both hung
+identically waiting for a response. Loopback hanging the same way as the
+cross-node connection rules out an inter-node firewall/routing problem --
+loopback traffic can't be blocked by a firewall between nodes -- and points
+at the TCPStore **server** on the master never responding to any client,
+local or remote. That matches a known failure signature of PyTorch's
+libuv-backed TCPStore (the default since this torch version's `USE_LIBUV`
+defaults to `"1"`; confirmed by reading `torch/distributed/rendezvous.py`
+and `torch/distributed/elastic/utils/distributed.py` in the installed
+package), which has reported hangs on some HPC/interconnect setups where
+the older, pre-libuv TCPStore implementation works fine.
+
+Also present in the same `.err`, but judged **not** the cause: `slurmstepd:
+error: Unable to create TMPDIR [/hppfs/scratch/0D/go76fuz2/tmp]` (falls
+back to per-node local `/tmp`). This is emitted by `slurmstepd` itself
+before the sbatch script's own commands run, so it can't be fixed from
+inside the script -- a one-time `mkdir -p /hppfs/scratch/0D/go76fuz2/tmp`
+on the login node would clear it -- but it's a local-vs-shared-tmp issue,
+which wouldn't explain a *loopback* connection also hanging, and every
+earlier 1-node job hit the same TMPDIR fallback without failing.
+
+**Fix applied to both `finetune_vae_diag_2node.sbatch` and
+`finetune_vae.sbatch`:** `export USE_LIBUV=0`, forcing the older TCPStore
+backend. Cheap/safe regardless of whether this is really the cause: it's a
+no-op for every already-working 1-node job (`num_machines=1` never
+exercises the real multi-node TCPStore path this flag affects). The diag
+script additionally sets `TORCH_DISTRIBUTED_DEBUG=DETAIL` and
+`PYTHONUNBUFFERED=1` so that if `USE_LIBUV=0` alone doesn't fix it, the
+*next* failure comes with far more to go on than a bare timeout.
+
+**NOT YET RE-RUN.** This fix has not been tested against real hardware.
 Launch with:
 ```
 sbatch jobs/sng_pvc/finetune_vae_diag_2node.sbatch
 ```
+If it still hangs at the same `_assign_worker_ranks`/`role_info` point even
+with `USE_LIBUV=0`, the `TORCH_DISTRIBUTED_DEBUG=DETAIL` log should show
+what the store is actually doing (or not doing) during the hang -- read
+that before trying anything else. If it fails differently or earlier,
+that's also useful signal (rules libuv out, points elsewhere).
 
 ## Eval parallelization fix, NOT YET TESTED (2026-08-06)
 
