@@ -280,14 +280,21 @@ def build_shockwave_video(
     channel_mean: list[float] | None = None,
     channel_std: list[float] | None = None,
     normalization_clip: float = 5.0,
+    channel_order: list[str] | None = None,
 ) -> Tensor:
     """Build a 4-channel shockwave video [B, 4, F, H, W].
 
-    Channel layout:
+    Default channel layout:
         0 - density
         1 - momentum_x
         2 - momentum_y
         3 - pressure
+
+    `channel_order` overrides which physical field lands in which stacked
+    channel index -- must be a permutation of CHANNEL_NAMES, positionally
+    aligned with `channel_mean`/`channel_std` (config.VaeDataConfig.channel_order
+    validates both). Defaults to CHANNEL_NAMES, the layout every run before
+    the 2026-08 channel-order sweep used.
 
     Unlike WinDiNet, ShockWaveNet does not prepend an artificial
     conditioning frame. The first simulation frame is treated as
@@ -297,38 +304,17 @@ def build_shockwave_video(
     LTX-Video VAE.
     """
 
-    density = sample["density"]
-    momentum_x = sample["momentum_x"]
-    momentum_y = sample["momentum_y"]
-    pressure = sample["pressure"]
+    order = channel_order or CHANNEL_NAMES
+
+    fields = {name: sample[name] for name in CHANNEL_NAMES}
 
     # Ensure batch dimension
-    if density.ndim == 3:
-        density = density.unsqueeze(0)
+    for name, tensor in fields.items():
+        if tensor.ndim == 3:
+            fields[name] = tensor.unsqueeze(0)
 
-    if momentum_x.ndim == 3:
-        momentum_x = momentum_x.unsqueeze(0)
-
-    if momentum_y.ndim == 3:
-        momentum_y = momentum_y.unsqueeze(0)
-
-    if pressure.ndim == 3:
-        pressure = pressure.unsqueeze(0)
-
-    # density:    [B, T, H, W]
-    # momentum_x: [B, T, H, W]
-    # momentum_y: [B, T, H, W]
-    # pressure:   [B, T, H, W]
-
-    x = torch.stack(
-        [
-            density,
-            momentum_x,
-            momentum_y,
-            pressure,
-        ],
-        dim=1,
-    )  # [B, 4, F, H, W]
+    # each field: [B, T, H, W]
+    x = torch.stack([fields[name] for name in order], dim=1)  # [B, 4, F, H, W]
 
     if channel_mean is not None and channel_std is not None:
         mean = x.new_tensor(channel_mean).view(1, 4, 1, 1, 1)
@@ -341,7 +327,8 @@ def build_shockwave_video(
         device=device,
         dtype=torch.float32,
     ).contiguous()
-    
+
+
 CHANNEL_NAMES = ["density", "momentum_x", "momentum_y", "pressure"]
 
 

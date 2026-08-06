@@ -270,6 +270,27 @@ class VaeDataConfig(ConfigBaseModel):
         gt=0.0,
         description="Map mean +/- this many standard deviations to [-1, 1]",
     )
+    channel_order: list[str] = Field(
+        default=["density", "momentum_x", "momentum_y", "pressure"],
+        description=(
+            "Which physical field is stacked into which of the 4 tensor channels, "
+            "positionally aligned with channel_mean/channel_std (index i of both "
+            "must refer to the same field) -- must stay identical to "
+            "adapter.channels, which only carries the same order as metadata for "
+            "logging/visualization. adapter.mode='inflate' always grows the VAE's "
+            "conv_in/conv_out at index 3, so whichever field is last here is the "
+            "one that gets a freshly-initialized (not pretrained-copied) slot -- "
+            "see the channel-order sweep in EXPERIMENTS.md."
+        ),
+    )
+
+    @field_validator("channel_order")
+    @classmethod
+    def validate_channel_order(cls, values: list[str]) -> list[str]:
+        expected = {"density", "momentum_x", "momentum_y", "pressure"}
+        if len(values) != 4 or set(values) != expected:
+            raise ValueError(f"channel_order must be a permutation of {sorted(expected)}, got {values}")
+        return values
 
     @model_validator(mode="after")
     def validate_normalization_stats(self):
@@ -515,6 +536,18 @@ class VaeTrainerConfig(ConfigBaseModel):
     @classmethod
     def expand_vae_output_path(cls, v: str) -> str:
         return str(Path(os.path.expandvars(v)).expanduser().resolve())
+
+    @model_validator(mode="after")
+    def validate_channel_order_consistency(self):
+        if self.data.channel_order != self.adapter.channels:
+            raise ValueError(
+                "data.channel_order and adapter.channels must be identical lists -- "
+                f"got data.channel_order={self.data.channel_order} vs "
+                f"adapter.channels={self.adapter.channels}. data.channel_order controls "
+                "the actual tensor stack order; adapter.channels is metadata (labels, "
+                "checkpoint info, visualization titles) that must describe it correctly."
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------

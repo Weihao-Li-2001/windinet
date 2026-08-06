@@ -723,6 +723,7 @@ class VaeTrainer:
                         channel_mean=cfg.data.channel_mean,
                         channel_std=cfg.data.channel_std,
                         normalization_clip=cfg.data.normalization_clip,
+                        channel_order=cfg.data.channel_order,
                     )
                     with self._accelerator.autocast():
                         recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
@@ -991,6 +992,7 @@ class VaeTrainer:
                 channel_mean=self._config.data.channel_mean,
                 channel_std=self._config.data.channel_std,
                 normalization_clip=self._config.data.normalization_clip,
+                channel_order=self._config.data.channel_order,
             )
             with self._accelerator.autocast():
                 recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
@@ -1051,6 +1053,7 @@ class VaeTrainer:
                 channel_mean=cfg.data.channel_mean,
                 channel_std=cfg.data.channel_std,
                 normalization_clip=cfg.data.normalization_clip,
+                channel_order=cfg.data.channel_order,
             )
             with self._accelerator.autocast():
                 recon, _, _, _ = self._forward_pass(x)

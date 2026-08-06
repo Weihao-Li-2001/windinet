@@ -398,7 +398,8 @@ discontinuities. 5x spread, same model, same epoch.
 
 1. **What is the seed noise floor?** Re-run the baseline at seeds 1 and 2.
    Until this number exists, no result under ~2% is interpretable. Cost: 2 runs.
-   *This gates everything below.*
+   *This gates everything below.* **PLANNED, not yet run (2026-08-06):
+   configs written** -- see "Seed noise floor sweep" below.
 2. ~~Is the bottleneck the latent or the objective?~~ **ANSWERED: partial.**
    See "Capacity diagnostic (Open Question 2)" above -- val_vrmse 0.061 with
    proper convergence (wsd), landing in the 0.05-0.08 band. Neither a clean
@@ -548,6 +549,185 @@ discontinuities. 5x spread, same model, same epoch.
    **Kill criterion:** none beyond the usual (train_loss diverging) --
    only 3 extra epochs (~20% more wall-clock than the baseline), cheap
    enough not to need one.
+8. **PLANNED, not yet run: does the order of the 4 physical channels
+   matter?** With `inflate_vae_io_channels` always growing index 3 fresh
+   (mean-init) while indices 0-2 keep the pretrained RGB conv weights,
+   which field lands in which slot is a free variable nobody has tested --
+   every run so far used density, momentum_x, momentum_y, pressure with no
+   justification beyond "that's the order the dataset happened to expose
+   them in." See "Channel-order sweep" below for the full 6-arm grid (built
+   on `finetune_vae_baseline.yaml`, density fixed at index 0, the other
+   three fields permuted), required code change, and read-out/kill
+   criteria.
+
+### Channel-order sweep (Open Question 8, new 2026-08-06)
+
+**THE QUESTION:** does the *order* in which the 4 physical fields (density,
+momentum_x, momentum_y, pressure) are stacked into the VAE's channel
+dimension affect val_vrmse? Motivation is mechanical, not superstitious:
+`inflate_vae_io_channels` (`windinet/vae_adapter.py:219-319`) always grows
+`encoder.conv_in`/`decoder.conv_out` at **index 3** -- indices 0-2 keep the
+pretrained LTX-Video RGB conv weights byte-for-byte (before training),
+index 3 is seeded with `inflate_init: mean` (the mean of the other three).
+Whichever physical field is placed last therefore starts from a different,
+averaged initialization than the three fields placed at 0-2, which start
+from a real (if domain-mismatched) pretrained basis. "Established" above
+already shows init matters enormously (`inflate_init: random` costs +72%
+val_vrmse) -- this asks whether a *milder* version of the same effect shows
+up just from reassigning which field sits in which of the 4 slots, given
+that every slot is fully trainable (`encoder.conv_in` is never frozen in
+these runs) but 1800 optimizer steps may not be enough to fully escape a
+mediocre starting point.
+
+**Scope:** density is kept at index 0 in every arm (matching every prior
+run). Only momentum_x / momentum_y / pressure are permuted across indices
+1-3, giving 3! = 6 total arrangements. One of the six is the existing
+baseline itself (`finetune_vae_baseline.yaml`, val_vrmse 0.095396, tag
+`mx_my_pr` below) -- only the other 5 need a new run.
+
+**Baseline choice:** built on `finetune_vae_baseline.yaml` (frozen encoder
+trunk), not `finetune_vae_whole_structure_baseline.yaml`. The whole-structure
+baseline is itself still mid-sweep (encoder-LR sweep, Open Question 6, not
+yet concluded) -- stacking a second unconfirmed variable on top of it would
+confound both reads. `finetune_vae_baseline.yaml` is the most-reproduced
+config in this ledger (bit-exact across jobs 21632/21666), so it's the
+cleanest single-variable base.
+
+**Code change required** (this was not a pure-YAML experiment): channel
+order was previously hardcoded in `build_shockwave_video`'s `torch.stack(...)`
+call (`windinet/training/shockwave_data.py`). Added `data.channel_order:
+list[str]` to `VaeDataConfig` (`windinet/config.py`), validated as a
+permutation of the four field names; `build_shockwave_video` now stacks
+according to it (default unchanged: density, momentum_x, momentum_y,
+pressure). `adapter.channels` was already a same-shaped list but was **only
+metadata** (labels for logging/visualization, silently disconnected from the
+real stack order) -- `VaeTrainerConfig` now has a `model_validator` requiring
+`data.channel_order == adapter.channels` exactly, so the two can no longer
+silently drift apart the way the pre-existing `adapter.channels` field could
+have. All 27 pre-existing configs still load unchanged (both fields default
+to the same canonical order).
+
+**Grid** (tag = order of momentum_x/momentum_y/pressure after density;
+mx/my/pr abbreviate the three):
+
+| tag | channel_order (index 0-3) | config | status |
+|---|---|---|---|
+| `mx_my_pr` | density, momentum_x, momentum_y, pressure | `finetune_vae_baseline.yaml` (reuse, no rerun needed) | done, val_vrmse **0.095396** |
+| `mx_pr_my` | density, momentum_x, pressure, momentum_y | `finetune_vae_baseline_chorder_mx_pr_my.yaml` | written, not launched |
+| `my_mx_pr` | density, momentum_y, momentum_x, pressure | `finetune_vae_baseline_chorder_my_mx_pr.yaml` | written, not launched |
+| `my_pr_mx` | density, momentum_y, pressure, momentum_x | `finetune_vae_baseline_chorder_my_pr_mx.yaml` | written, not launched |
+| `pr_mx_my` | density, pressure, momentum_x, momentum_y | `finetune_vae_baseline_chorder_pr_mx_my.yaml` | written, not launched |
+| `pr_my_mx` | density, pressure, momentum_y, momentum_x | `finetune_vae_baseline_chorder_pr_my_mx.yaml` | written, not launched |
+
+Single variable per arm vs `finetune_vae_baseline.yaml`: `data.channel_order`
++ `adapter.channels` (must move together) + `data.channel_mean`/`channel_std`
+(re-paired positionally to the new order -- same four per-field numbers as
+the baseline, just reindexed, not re-measured). Everything else (seed 42,
+15 epochs, wsd, h1 50, lr 5e-5, adapter_lr_multiplier 1.0) unchanged.
+
+**Read-out criterion:** compare val_vrmse across all 6 arms. A gap under
+~2% between arms should be treated as inside the still-uncalibrated
+seed-noise band (Open Question 1) rather than a real difference, same
+caveat as every other sweep in this ledger. If one or more arms clear that
+band, the pattern to check is whether the effect tracks *which field lands
+in index 3* (the fresh-mean-init slot) rather than the two pretrained-slot
+positions (1 vs 2) -- that would confirm the inflate-init mechanism above
+rather than something else. If all 6 land within the noise band, channel
+order is established as not mattering and `mx_my_pr` (already the
+convention everywhere else) stays the default with no further changes
+needed.
+
+**Kill criterion:** none beyond the usual (epoch 2 `train_loss` higher than
+epoch 1's) -- this doesn't touch LR, capacity, or schedule, so the risk
+profile matches the already-reproduced baseline.
+
+**Known gap, deliberately NOT fixed yet (2026-08-06):** `channel_order` is
+only threaded through the VAE training/eval loop (`vae_trainer.py`'s three
+`build_shockwave_video` call sites). `scripts/preprocess_dataset.py` and
+`scripts/inference_shockwave.py` both still hardcode the default order
+(`CHANNEL_NAMES`) independent of any checkpoint's actual `channel_order` --
+so if a non-default-order arm from this sweep is ever taken into stage-2
+(DiT) latent preprocessing or inference, physical fields will land in the
+wrong channel slots **silently**. The fingerprint check in
+`windinet/vae_adapter.py` (`_compute_fingerprint`-style guard around lines
+372-418) does not catch this either -- it only hashes `encoder.conv_in`
+weights plus the raw `channel_mean`/`channel_std`/`normalization_clip`
+numbers, never field identity/order, so a channel-order mismatch between
+training and inference passes it undetected. **Do not reuse a
+non-`mx_my_pr` checkpoint for preprocessing/inference until both scripts
+are updated to read and thread through `channel_order`.** Training and
+eval within this sweep are unaffected (verified: stacking and
+normalization both re-paired correctly, see the code-review conversation
+that added this feature).
+
+Launch (once ready):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_mx_pr_my.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_my_mx_pr.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_my_pr_mx.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_mx_my.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_my_mx.yaml
+```
+
+### Seed noise floor sweep (Open Question 1, configs written 2026-08-06)
+
+**THE QUESTION:** every result in this ledger uses `seed: 42`, chosen once,
+arbitrarily, never varied as an experimental knob. Every "~1-2%, treat as
+noise" caveat scattered through this document (tail unfreeze +1.8%,
+slowdecay -1.3%, the encoder-LR-sweep arms' epoch-5 gaps, etc.) is a guess
+that such gaps are inside seed noise -- nobody has actually measured what
+that noise band is. This sweep measures it directly: re-run
+`finetune_vae_baseline.yaml` at `seed: 1` and `seed: 2`, holding every other
+config field fixed, and compare both against the existing `seed: 42` result
+(0.095396, jobs 21632/21666).
+
+**Important: `cfg.seed` controls two things at once, not one.**
+`vae_trainer.py:478` (`set_seed(cfg.seed)`, training-run randomness -- data-
+loader shuffle order, etc.) and `vae_trainer.py:498`
+(`torch.Generator().manual_seed(cfg.seed)`, the train/eval split itself) both
+key off the same field. Changing `seed` therefore also changes *which 675
+simulations are held out for eval* -- a seed-1 run is not evaluated on the
+same validation set as the seed-42 baseline. This is deliberate, not a
+confound to engineer away: since every other run in this ledger also only
+ever had one arbitrary seed's worth of split, "how much does val_vrmse move
+under a different arbitrary seed choice, split included" is the actual
+question that needs answering to interpret this ledger's existing small
+gaps -- a narrower measurement that held the eval split fixed and varied
+only training-run randomness would answer a different, less relevant
+question. (If that narrower question is ever wanted later, it would need a
+new `data.split_seed` field decoupled from `cfg.seed` -- not implemented,
+not needed for this sweep.)
+
+**Grid:**
+
+| seed | config | status |
+|---|---|---|
+| 42 | `finetune_vae_baseline.yaml` (reuse, no rerun needed) | done, val_vrmse **0.095396** |
+| 1 | `finetune_vae_baseline_seed1.yaml` | written, not launched |
+| 2 | `finetune_vae_baseline_seed2.yaml` | written, not launched |
+
+Single variable vs `finetune_vae_baseline.yaml`: `seed` only (42 -> 1, 42 ->
+2). `output_dir`/`wandb.tags` also change (required for every run to get
+its own directory per this ledger's own protocol point 6) but are not
+experimental variables.
+
+**Read-out criterion:** the spread across all three val_vrmse numbers (42,
+1, 2) is the seed noise floor. Any future sweep-arm gap smaller than that
+spread should be read as noise, not signal -- this directly recalibrates
+every "~1-2%, treat cautiously" caveat elsewhere in this document once a
+real number exists. A large spread (e.g. comparable to the ~9% fullenc-vs-
+baseline gap from the head-vs-tail sweep) would be a significant finding on
+its own: it would mean many of this ledger's existing "real" gains are not
+distinguishable from picking a different arbitrary seed.
+
+**Kill criterion:** none beyond the usual (epoch 2 `train_loss` higher than
+epoch 1's) -- identical risk profile to the already-reproduced baseline.
+
+Launch (once ready):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_seed1.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_seed2.yaml
+```
 
 ## sng_pvc throughput diagnostic
 
@@ -914,6 +1094,7 @@ started returning more than four entries.
 | Per-run metrics, panels, resolved config | `finetune_vae_outputs_lundquist/<run>/{metrics,visualizations,training_config.yaml}` -- **tracked in git** since `f88eb09` |
 | Checkpoints | `finetune_vae_outputs_lundquist/<run>/checkpoints/vae_shockwave_best.safetensors` -- **gitignored**, this machine is the only copy |
 | Retired runs | git history, see Artifact retention under the Ledger |
+| Closed configs/outputs (2026-08-06 cleanup) | `configs/finetune_vae/archive/done/` + `finetune_vae_outputs_{lundquist,sng_pvc}/archive/done/<run>/` for finished, citable results (capacity-diagnostic attempts 1/3/4/5/6, full head-vs-tail sweep); `.../archive/known-bad/` for runs whose numbers are flagged uninterpretable (the 8-sim diagnostic tier of the head-vs-tail sweep, capacity attempt 2) -- see each folder's `README.md` before reusing anything inside |
 
 ## Protocol going forward
 

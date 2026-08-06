@@ -1,0 +1,104 @@
+# VAE finetuning config -- CHANNEL-ORDER SWEEP, arm my_mx_pr.
+#
+# Single-variable follow-up to finetune_vae_baseline.yaml (val_vrmse
+# 0.095396, jobs 21632/21666). See
+# finetune_vae_baseline_chorder_mx_pr_my.yaml for the full rationale and
+# EXPERIMENTS.md "Channel-order sweep (Open Question 8)" for the grid and
+# read-out/kill criteria -- not repeated here.
+#
+# CHANGE FROM finetune_vae_baseline.yaml:
+#   data.channel_order:      [density, momentum_x, momentum_y, pressure]
+#                          -> ["density", "momentum_y", "momentum_x", "pressure"]
+#   adapter.channels: same (must move together -- VaeTrainerConfig now
+#     validates these two are identical, see windinet/config.py).
+#   data.channel_mean / channel_std: re-paired positionally to the new
+#     order (same four per-field numbers as the baseline, reindexed, not
+#     re-measured).
+# Everything else (seed 42, 15 epochs, wsd, h1 50, lr 5e-5,
+# adapter_lr_multiplier 1.0) UNCHANGED.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_my_mx_pr.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_y", "momentum_x", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_order: ["density", "momentum_y", "momentum_x", "pressure"]
+  channel_mean: [0.905097647712509, -0.0019089379643528095, 0.0040453659499771295, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5262512462358824, 0.5328754120427532, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "channel-order-sweep", "chorder-my_mx_pr"]
+
+seed: 42
+output_dir: "finetune_vae_baseline_chorder_my_mx_pr"
+clean_output_dir: true

@@ -227,9 +227,10 @@ __marimo__/
 # WinDiNet outputs
 # finetune_vae_outputs_lundquist/ is tracked (metrics, resolved configs);
 # its weights stay out via the checkpoints/ rule below, its per-epoch
-# visualization frames via the rule below that.
-finetune_vae_outputs_lundquist/*/visualizations/
-finetune_vae_outputs_lundquist/*/metrics/loss_curves.png
-finetune_vae_outputs_sng_pvc/*/visualizations/
-finetune_vae_outputs_sng_pvc/*/metrics/loss_curves.png
+# visualization frames via the rule below that. `**` so this also matches
+# closed runs nested under archive/{done,known-bad}/.
+finetune_vae_outputs_lundquist/**/visualizations/
+finetune_vae_outputs_lundquist/**/metrics/loss_curves.png
+finetune_vae_outputs_sng_pvc/**/visualizations/
+finetune_vae_outputs_sng_pvc/**/metrics/loss_curves.png
 checkpoints/

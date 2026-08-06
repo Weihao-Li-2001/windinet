@@ -1,0 +1,140 @@
+# Baseline VAE finetuning config for the ShockWave CFD adapter.
+#
+# Task: finetune the LTX-Video VAE decoder (+ encoder.conv_in) on 4-channel
+# CFD fields (density, momentum_x, momentum_y, pressure), inflate mode with
+# mean-init channel seeding.
+#
+# Key settings:
+#   - adapter.mode "inflate" + inflate_init "mean": grow conv_in/conv_out to
+#     4 native channels, seeding the new channel with the mean of the
+#     pretrained RGB slots (see windinet/vae_adapter.py).
+#   - optimization.adapter_lr_multiplier 1.0: encoder.conv_in trains at the
+#     same LR as the decoder (5e-5), no special-cased fast group.
+#   - optimization.scheduler_type "wsd" with stable_fraction 0.7: warmup ->
+#     70% of post-warmup steps held at peak LR -> cosine decay to the floor.
+#   - loss_weighting.weights.h1 50.0: elevated H1 (gradient) loss weight,
+#     targeting sharper shock/vortex boundary reconstruction.
+#   - 15 epochs, gradient_accumulation_steps 8 (paired with --num_processes 4
+#     for an effective batch of 32 -- the sbatch scripts patch this together
+#     for other GPU/tile counts, keeping the effective batch fixed).
+#
+# Result: val_vrmse 0.095396 (see EXPERIMENTS.md for the full ledger).
+#
+# The latent space still moves: freeze_conv_in is false, so encoder.conv_in
+# trains. Latents from preprocess_dataset.py must be re-encoded before any
+# DiT training on a checkpoint from this config -- inference_shockwave.py's
+# fingerprint check refuses a mismatched pairing rather than emitting wrong
+# physics silently.
+#
+# SEED-NOISE-FLOOR SWEEP (Open Question 1), arm seed=2.
+#
+# Single-variable follow-up to finetune_vae_baseline.yaml (val_vrmse
+# 0.095396, seed 42, jobs 21632/21666). See EXPERIMENTS.md "Open Question 1"
+# / "Seed noise floor sweep" for the full rationale and read-out criterion.
+#
+# CHANGE FROM finetune_vae_baseline.yaml: seed 42 -> 2. Note this changes
+# TWO things at once, not just training-run randomness: vae_trainer.py's
+# train/eval split (`torch.Generator().manual_seed(cfg.seed)`,
+# vae_trainer.py:498) is also reseeded, so this run's 675 held-out sims are a
+# DIFFERENT subset than every other run in this ledger's. That is
+# deliberate, not a confound to control away -- every sweep arm to date only
+# ever used one arbitrary seed (42) for its own split, so "how much would
+# the number move under a different arbitrary seed choice" is exactly the
+# question this ledger needs answered to interpret its existing ~1-2% gaps.
+# Everything else (15 epochs, wsd, h1 50, lr 5e-5, adapter_lr_multiplier
+# 1.0, mean-init) UNCHANGED.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_seed2.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # Carried over from 21623: mean beat zeros/random on every prior ablation.
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 675 eval sims as every prior run (same seed + randperm), so val_vrmse
+  # is measured on exactly the same simulations.
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  # 1.0: encoder.conv_in trains at the same LR as the decoder (see header).
+  adapter_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  # 4 GPUs: overridden to 8 by the sbatch wrapper anyway, kept here so a bare
+  # `accelerate launch --num_processes 4` matches. CHANGE THIS TOGETHER WITH
+  # --num_processes, never one alone -- it sets both the effective batch and
+  # steps_per_epoch, and therefore the LR horizon.
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "seed-noise-floor", "seed2"]
+
+seed: 2
+# clean_output_dir wipes this directory at the start of each run -- don't
+# point it at a directory whose contents you want to keep.
+output_dir: "finetune_vae_baseline_seed2"
+clean_output_dir: true
