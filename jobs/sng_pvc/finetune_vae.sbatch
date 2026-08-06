@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=wh_finetune_vae
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1                    # increase this for multi-node
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
@@ -13,7 +13,7 @@
 #
 # Defaults to the shared baseline config (see EXPERIMENTS.md) and patches in
 # the sng-specific bits (storage under $SCRATCH, effective-batch-preserving
-# gradient_accumulation_steps for 8 tiles, num_dataloader_workers=0) onto a
+# gradient_accumulation_steps for 8 tiles, num_dataloader_workers=4) onto a
 # temp copy rather than forking another checked-in YAML -- same pattern as
 # jobs/lundquist/finetune_vae_4gpu.sbatch. Pass any other config as $1:
 #   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/<your-config>.yaml

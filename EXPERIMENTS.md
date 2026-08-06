@@ -532,12 +532,35 @@ is confirmed safe at 8 ranks and cuts wall-clock per epoch by ~21%
 sng_pvc launch (including the head-vs-tail unfreeze sweep in Open Question 3)
 gets this for free with no per-config change.
 
-**Not yet promoted further:** exp 4-5 above show `workers: 4` shaves another
-~6.6% off `workers: 2` (30.1 vs 32.2 min/epoch) with no crash, and `workers: 8`
-gains nothing more past 4. Both diagnostics were only 2 epochs, though, so the
-transient-open-failure risk the old N=4 comment warned about isn't fully
-ruled out over a full 15-epoch run. Bumping the default past 2 needs one
-full-length confirmation run first.
+**Promoted further (2026-08-06):** exp 4-5 above show `workers: 4` shaves
+another ~6.6% off `workers: 2` (30.1 vs 32.2 min/epoch, mostly from eval time
+-- 921.1s vs 1045.5s -- not train, which was flat 869.3s vs 872.3s) with no
+crash, and `workers: 8` gains nothing more past 4. Both diagnostics were only
+2 epochs, so the transient-open-failure risk the old N=4 comment warned about
+was never confirmed ruled out over a full 15-epoch run before this promotion
+-- `CLUSTER_DEFAULTS["sng_pvc"]["num_dataloader_workers"]` is now **4**
+(`windinet/cluster_config.py`), a deliberate decision to accept that
+unconfirmed risk rather than spend a dedicated full-length run just to
+de-risk it first. **Watch the first few post-change full runs' `.err` logs**
+for the `train.h5`-concurrent-open failure mode the old N=4 comment
+described; if it recurs, drop back to 2 and note it here.
+
+Same date: `jobs/sng_pvc/finetune_vae.sbatch`'s `--time` was cut from
+`24:00:00` to `12:00:00` (first set to `10:00:00`, then raised to `12:00:00`
+before any job was submitted under the new default -- extra margin against
+the eval-time-drift risk below). Every full-data 15-epoch run observed so
+far finishes in 7h25m-8h54m at `workers: 2` (see the head-vs-tail sweep
+table above); `workers: 4` should only shrink that further, so 12h leaves
+comfortable margin even at the slowest observed runs (`fullenc`/`tail3`,
+8h54m at `workers: 2`). Note `finetune_vae_baseline_tail3`'s own per-epoch
+log showed eval time drifting up over the run (793s at epoch 6 -> 1048s at
+epoch 15, train flat throughout) for reasons not yet understood (filesystem
+contention from other jobs is the leading guess, not confirmed) -- worth
+keeping an eye on if a run ever gets close to the limit despite this
+margin. Shorter `--time` should also mean shorter queue wait, which is part
+of the reason for the change; if a future config (e.g. a slower encoder-LR
+sweep arm) still times out at 12h, raise it back up for that config
+specifically rather than reverting the shared default.
 
 **OPEN:** H2 (does 4-rank COMPOSITE vs 8-rank FLAT communication topology
 matter?) -- job 520459 hit the diagnostic's time limit before finishing even
