@@ -545,6 +545,24 @@ de-risk it first. **Watch the first few post-change full runs' `.err` logs**
 for the `train.h5`-concurrent-open failure mode the old N=4 comment
 described; if it recurs, drop back to 2 and note it here.
 
+**Correction (2026-08-06, later same day):** the "-6.6%, mostly from eval
+time" reading above is likely **not actually caused by `num_dataloader_workers`**.
+Before the "Eval parallelization fix" below, `eval_loader` was constructed
+as `DataLoader(eval_set, batch_size=1, shuffle=False)` with no `num_workers`
+argument at all -- it silently ignored `cfg.data.num_dataloader_workers` and
+always ran with 0 workers, in both the `workers: 2` and `workers: 4`
+diagnostics. The 921.1s vs 1045.5s eval-time gap between those two jobs was
+therefore almost certainly ordinary run-to-run filesystem-contention noise
+(consistent with the up-to-32% eval-time drift *within a single run*
+documented in the `--time` paragraph below), not a real effect of the
+`workers` config. `train` time being flat (869.3s vs 872.3s) across the same
+two jobs is consistent with this: `train_loader` *does* read
+`num_dataloader_workers`, and going 2->4 barely moved it. Net: the
+`workers: 2 -> 4` promotion above still stands (it's free and not shown to
+hurt), but don't expect the ~6.6% total-time win it was promoted on --
+expect closer to 0, since eval (the larger of the two time sinks, ~41% of
+total) was never actually reading this setting. The real eval fix is below.
+
 Same date: `jobs/sng_pvc/finetune_vae.sbatch`'s `--time` was cut from
 `24:00:00` to `12:00:00` (first set to `10:00:00`, then raised to `12:00:00`
 before any job was submitted under the new default -- extra margin against
@@ -589,6 +607,88 @@ Launch with:
 ```
 sbatch jobs/sng_pvc/finetune_vae_diag_2node.sbatch
 ```
+
+## Eval parallelization fix, NOT YET TESTED (2026-08-06)
+
+**Motivating question:** why does eval (675 sims) take almost as long per
+epoch as train (3825 sims, ~5.7x more data), e.g. `finetune_vae_baseline_tail3`
+(job 521395): train averaged 1220s/epoch, eval 853s/epoch -- eval is 41% of
+total wall-clock despite the much smaller dataset.
+
+**Root cause, found by reading `windinet/training/vae_trainer.py`:** eval was
+never actually parallelized like train is.
+
+1. The whole eval+log+viz+checkpoint block ran inside `if IS_MAIN_PROCESS:`
+   -- only rank 0 ever called `_evaluate()`. On an 8-tile sng_pvc run, the
+   other 7 ranks sat idle in `wait_for_everyone()` for the entire eval
+   phase while rank 0 processed all 675 samples alone. Train, by contrast,
+   is sharded 8-way (`train_loader = self._accelerator.prepare(train_loader)`,
+   `train.py` around the optimizer setup) -- ~478 samples/rank, in parallel.
+   Comparing the *per-active-rank* sample count is the right comparison:
+   675 (eval, 1 rank) vs. 478 (train, per rank, x8 in parallel) -- eval was
+   never the "smaller" job from a single rank's point of view.
+2. `eval_loader = DataLoader(eval_set, batch_size=1, shuffle=False)` had no
+   `num_workers` argument -- always 0 (synchronous, no prefetch), silently
+   ignoring `cfg.data.num_dataloader_workers` regardless of its value. (This
+   is also why the `workers: 2 -> 4` cluster-default promotion above almost
+   certainly didn't do what its own read-out claimed -- see the correction
+   in "sng_pvc throughput diagnostic".)
+
+(A third suspected cause, `_evaluate` missing `@torch.no_grad()`, was
+**checked and is wrong** -- the decorator was already there; a first read
+that started exactly on the `def` line missed it on the line above. Not a
+real factor, noted here only so it isn't re-suspected later.)
+
+**Fix**, `windinet/training/vae_trainer.py`:
+
+- `eval_loader` is now built from a hand-strided per-rank shard
+  (`Subset(eval_set, list(range(rank, len(eval_set), world_size)))`)
+  instead of `accelerator.prepare()` -- deliberately not using `prepare()`,
+  because its default `even_batches` padding repeats a few samples across
+  ranks to equalize batch counts, which would double-count them in the
+  metric average. The strided split has zero padding: every sample lands on
+  exactly one rank, shard sizes differ by at most 1 (checked for 675/8:
+  sizes 85,85,85,84,84,84,84,84, sums to 675 exactly). It also now gets
+  `num_workers=cfg.data.num_dataloader_workers`, same as `train_loader`.
+- The `_evaluate()` call moved outside the `IS_MAIN_PROCESS` gate -- every
+  rank now calls it (over its own shard); the surrounding log/metrics/viz/
+  checkpoint code stays `IS_MAIN_PROCESS`-only, using `val_metrics` computed
+  above.
+- `_evaluate()` all-reduces its per-rank sums (`total_loss`, `vrmse`,
+  `rmse`, `h1`, `ssim`, `mlw`, `count`) with `dist.all_reduce(..., op=SUM)`
+  before averaging, in float32 -- same manual-all-reduce-instead-of-DDP
+  pattern `_sync_grads` already uses for gradients, and for the same reason
+  (the VAE isn't DDP-wrapped, so nothing does this automatically). Guarded
+  by `self._accelerator.num_processes > 1`, matching `_sync_grads`'s guard,
+  so single-process runs (the overfit diagnostics, single-tile debugging)
+  are unaffected.
+- `_save_visualization` still reads from `eval_loader`, called on rank 0
+  only -- it now sees rank 0's *shard* (every `world_size`-th sample
+  starting at index 0) instead of the full eval set's first
+  `vis_cfg.num_samples` samples. Index 0 is still included (rank 0's stride
+  starts at 0), so the reconstruction panels won't be empty or wildly
+  different, but the exact sample IDs visualized each epoch will shift
+  slightly from pre-fix runs -- not a correctness issue, just don't expect
+  panel sample IDs to match older runs' when comparing side by side.
+
+**Expected effect:** eval should drop from ~one-rank-serial-675-samples to
+~one-rank-parallel-84/85-samples-with-prefetch -- directionally a large cut
+to the eval share of wall-clock (currently ~41% of total), though the exact
+number needs a real run to confirm (rough pre-fix numbers, not a promise:
+if eval scaled purely with shard size it'd be ~8x fewer samples per rank
+plus whatever the worker prefetch buys, but network-filesystem contention
+under concurrent multi-rank reads is untested and could eat into that).
+
+**NOT YET TESTED.** No job has been submitted against this change yet.
+Whoever runs the first job after this: watch for (a) correctness --
+`val_vrmse` on a repeat of an existing config/seed should land close to the
+pre-fix number (e.g. `finetune_vae_baseline_head0` 0.09507) since the
+all-reduce is exact, not approximate; a large deviation means the sharding
+or all-reduce has a bug, not a real result; (b) the new eval wall-clock
+time in the per-epoch `timing:` log line; (c) whether concurrent
+multi-rank `train.h5` reads during eval trip the same DSS file-locking
+issue `HDF5_USE_FILE_LOCKING=FALSE` was already set for on the train side.
+Fill in the actual before/after numbers here once a run completes.
 
 ## Where things live
 

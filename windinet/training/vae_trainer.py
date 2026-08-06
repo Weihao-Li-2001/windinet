@@ -503,7 +503,26 @@ class VaeTrainer:
             num_workers=cfg.data.num_dataloader_workers,
             drop_last=True,
         )
-        eval_loader = DataLoader(eval_set, batch_size=1, shuffle=False)
+        # Sharded by hand, not accelerator.prepare() (used for train_loader
+        # below): prepare()'s default even_batches padding repeats a few
+        # samples so every process gets the same batch count, which would
+        # double-count them in _evaluate's sums. A strided split has no
+        # padding -- every eval sample lands on exactly one rank, shard
+        # sizes differ by at most 1. Previously eval ran entirely on
+        # IS_MAIN_PROCESS with num_workers=0 (serial, unsharded, no
+        # prefetch) while train_loader was 8-way sharded with prefetch
+        # workers -- that mismatch is why eval wall-clock was close to
+        # train's despite eval_sims being ~5.7x smaller (see EXPERIMENTS.md
+        # "sng_pvc throughput diagnostic").
+        world_size = self._accelerator.num_processes
+        rank = self._accelerator.process_index
+        eval_shard = Subset(eval_set, list(range(rank, len(eval_set), world_size)))
+        eval_loader = DataLoader(
+            eval_shard,
+            batch_size=1,
+            shuffle=False,
+            num_workers=cfg.data.num_dataloader_workers,
+        )
 
         logger.info(f"Dataset: {n_train} train, {n_eval} eval samples")
 
@@ -818,11 +837,16 @@ class VaeTrainer:
                 train_progress.remove_task(task)
                 train_elapsed = time.time() - epoch_t0
 
+                # Every process evaluates its own shard of eval_loader and
+                # all-reduces inside _evaluate -- must run unconditionally
+                # (not gated on IS_MAIN_PROCESS below), since the all-reduce
+                # needs every rank to actually call it or the others hang.
+                eval_t0 = time.time()
+                val_metrics = self._evaluate(eval_loader, device)
+                eval_elapsed = time.time() - eval_t0
+
                 if IS_MAIN_PROCESS:
                     avg_loss = running_loss / max(count, 1)
-                    eval_t0 = time.time()
-                    val_metrics = self._evaluate(eval_loader, device)
-                    eval_elapsed = time.time() - eval_t0
                     lr = optimizer.param_groups[0]["lr"]
                     logger.info(
                         f"Epoch {epoch}: train_loss={avg_loss:.6f}  "
@@ -911,7 +935,15 @@ class VaeTrainer:
 
     @torch.no_grad()
     def _evaluate(self, eval_loader: DataLoader, device: torch.device) -> dict[str, float]:
-        """Evaluate the same reconstruction objective used for training plus VRMSE."""
+        """Evaluate the same reconstruction objective used for training plus VRMSE.
+
+        Called on every process, each over its own shard of ``eval_loader``
+        (see the strided split in ``train``). Sums are all-reduced by hand
+        before averaging so every process returns the identical, exact,
+        whole-eval-set average -- same manual-all-reduce-instead-of-DDP
+        pattern as ``_sync_grads``, for the same reason (the VAE isn't
+        DDP-wrapped).
+        """
         self._set_trainable_modules_mode(False)
         sums = {"total_loss": 0.0, "vrmse": 0.0, "rmse": 0.0, "h1": 0.0, "ssim": 0.0, "mlw": 0.0}
         count = 0
@@ -946,6 +978,20 @@ class VaeTrainer:
                 sums[name] += float(value.item())
             count += 1
         self._set_trainable_modules_mode(True)
+
+        if self._accelerator.num_processes > 1:
+            keys = list(sums.keys())
+            # float32, matching every other tensor dtype in this trainer (see
+            # load_vae(..., dtype=torch.float32) etc.) -- fp64 collectives
+            # aren't reliably supported on the XPU/oneCCL backend this runs
+            # on, and float32 has ample precision for summing ~100 loss
+            # values per rank.
+            totals = torch.tensor([sums[k] for k in keys] + [float(count)], device=device, dtype=torch.float32)
+            dist.all_reduce(totals, op=dist.ReduceOp.SUM)
+            *summed, total_count = totals.tolist()
+            sums = dict(zip(keys, summed))
+            count = total_count
+
         return {name: value / max(1, count) for name, value in sums.items()}
 
     @torch.no_grad()
