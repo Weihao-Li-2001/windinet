@@ -475,10 +475,41 @@ discontinuities. 5x spread, same model, same epoch.
    encoder's pretrained basis cannot tolerate decoder-level LR; let it
    finish for the record but don't chase multipliers above 1.0x.
 
-   **Not yet launched.** Per protocol point 6, `finetune_vae_whole_structure_baseline.yaml`
-   itself should be (re)confirmed under its own name before or alongside
-   this sweep, since it hasn't been run under that exact filename yet
-   (only as `finetune_vae_baseline_fullenc.yaml`).
+   **IN PROGRESS (launched 2026-08-06 10:34 CEST, jobs 521885-521888,
+   through epoch 5/15 as of the last committed log snapshot).** Also
+   reconfirms `finetune_vae_whole_structure_baseline.yaml` under its own
+   name (job 521885) alongside the sweep, per protocol point 6.
+
+   **Timing caveat:** all four were submitted at 10:34 CEST, which is
+   *before* the eval-parallelization fix (commit `f9c8541`, pulled ~11:02
+   CEST) and the `workers: 2 -> 4` default (commit `efa77d1`, ~11:00 CEST)
+   landed on the cluster -- their eval= times (909-1043s/epoch) confirm
+   this, matching pre-fix numbers, not the ~38s the same fix gives on jobs
+   submitted after the pull (see "Eval parallelization fix" below). Not a
+   correctness problem, just means these four are taking the old ~36-37
+   min/epoch instead of what would now be available -- no reason to kill
+   and resubmit at epoch 5/15, but the *next* LR-sweep-style batch should
+   land closer to 20 min/epoch.
+
+   **Early signal only, schedule still in the stable phase (lr flat at
+   5e-5 through epoch 5, decay doesn't start until ~epoch 12 -- see Open
+   Question 7 below for why the decay phase is where the real signal
+   is):** epoch-5 val_vrmse, not to be read as a ranking yet --
+
+   | arm | epoch-5 val_vrmse | epoch-5 train_loss |
+   |---|---|---|
+   | 0.1x (baseline, job 521885) | 0.1112 | 0.0500 |
+   | 0.3x (job 521887) | 0.1135 | 0.0490 |
+   | 0.03x (job 521886) | 0.1135 | 0.0492 |
+   | 1.0x (job 521888) | 0.1231 | 0.0511 |
+
+   The 1.0x arm is visibly behind the other three here (also slower to
+   descend epoch 1->2: train_loss 0.111->0.089, vs ~0.11->0.07 for the
+   others) but is **not diverging** -- train_loss keeps decreasing every
+   epoch, nowhere near the kill criterion (epoch 2 higher than epoch 1).
+   Reads as "tolerable but inefficient at this LR," consistent with the
+   config header's expectation, not as a clean failure. Final ranking
+   needs the decay-phase epochs; update this table once all four finish.
 7. **PLANNED, not yet run: was 15 epochs actually enough for the
    whole-structure baseline?** All three of `fullenc`/`head012`/`tail3`'s
    per-epoch val_vrmse flatten sharply as the wsd schedule decays to
@@ -703,7 +734,7 @@ what the store is actually doing (or not doing) during the hang -- read
 that before trying anything else. If it fails differently or earlier,
 that's also useful signal (rules libuv out, points elsewhere).
 
-## Eval parallelization fix, NOT YET TESTED (2026-08-06)
+## Eval parallelization fix, CONFIRMED WORKING (2026-08-06)
 
 **Motivating question:** why does eval (675 sims) take almost as long per
 epoch as train (3825 sims, ~5.7x more data), e.g. `finetune_vae_baseline_tail3`
@@ -774,41 +805,44 @@ if eval scaled purely with shard size it'd be ~8x fewer samples per rank
 plus whatever the worker prefetch buys, but network-filesystem contention
 under concurrent multi-rank reads is untested and could eat into that).
 
-**NOT YET TESTED.** No job has been submitted against this change yet.
-Whoever runs the first job after this: watch for (a) correctness --
-`val_vrmse` on a repeat of an existing config/seed should land close to the
-pre-fix number (e.g. `finetune_vae_baseline_head0` 0.09507) since the
-all-reduce is exact, not approximate; a large deviation means the sharding
-or all-reduce has a bug, not a real result; (b) the new eval wall-clock
-time in the per-epoch `timing:` log line; (c) whether concurrent
-multi-rank `train.h5` reads during eval trip the same DSS file-locking
-issue `HDF5_USE_FILE_LOCKING=FALSE` was already set for on the train side.
-Fill in the actual before/after numbers here once a run completes.
+**CONFIRMED, job 522099 (`DIAG_TAG=evalfix_confirm`, 2 epochs,
+`finetune_vae_baseline.yaml`):**
 
-**How to test:** all hardware/runtime diagnostics in this section (this fix
-plus the file-locking question below) use `finetune_vae_baseline.yaml`
--- `jobs/sng_pvc/finetune_vae_diag.sbatch`'s default `BASE_CONFIG` -- kept
-separate from the model-architecture sweeps (head-vs-tail, encoder-LR) so
-infra effects aren't confounded with which encoder modules are unfrozen.
-Two single-variable 2-epoch diagnostics (protocol: one variable per run),
-full detail in the sbatch script's own header:
+| epoch | train= | eval= (pre-fix was ~800-1050s) |
+|---|---|---|
+| 1 | 895.9s | **38.1s** |
+| 2 | 868.1s | **38.0s** |
+
+**~22-27x faster** than the pre-fix per-epoch eval times seen throughout
+this ledger (e.g. `finetune_vae_baseline_tail3`'s 793-1048s/epoch) -- far
+beyond the "directionally large, exact number TBD" estimate above. Eval
+went from ~41% of total wall-clock to a rounding error. Correctness check:
+val_vrmse landed at 0.297 (epoch 1, lr still mid-warmup) -> 0.136 (epoch 2,
+schedule already compressed to the floor for a 2-epoch diagnostic run) --
+sane, in-range numbers, no NaN/blowup, consistent with the all-reduce
+producing a real average rather than a corrupted one. No crash, no
+DSS-locking symptom despite 8 ranks now reading `train.h5` concurrently
+during eval too.
+
+**File-locking question (Exp 4) ALSO ANSWERED, job 522100
+(`DIAG_TAG=filelock_true DIAG_FILE_LOCKING=TRUE`):** finished clean, no
+"Unable to synchronously open object" crash. Timing statistically
+identical to 522099 (train 897.1s/869.8s, eval 37.9s/37.9s -- within noise
+of the `FALSE` run). **Conclusion: `HDF5_USE_FILE_LOCKING=FALSE` is not
+(or no longer) load-bearing for eval's newly-concurrent reads** -- but
+since `FALSE` costs nothing and already works, there's no reason to flip
+the default; this just confirms the eval fix didn't quietly reintroduce
+the crash risk `FALSE` was set to avoid on the train side.
+
+Both jobs used `finetune_vae_baseline.yaml` (`jobs/sng_pvc/finetune_vae_diag.sbatch`'s
+default `BASE_CONFIG`), kept separate from the model-architecture sweeps
+(head-vs-tail, encoder-LR) so infra effects aren't confounded with which
+encoder modules are unfrozen -- launched together:
 
 ```
 DIAG_TAG=evalfix_confirm sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
 DIAG_TAG=filelock_true DIAG_FILE_LOCKING=TRUE sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
 ```
-
-First confirms the fix itself (compare its `eval=` to the ~800-1050s/epoch
-this repo's committed full-data runs show pre-fix). Second asks whether
-concurrent 8-rank *eval* reads (new, from this fix) trip the same DSS
-file-locking failure `HDF5_USE_FILE_LOCKING=FALSE` was set to avoid on the
-*train* side -- only eval's reads are newly concurrent here, train already
-was before this fix, so a crash under `TRUE` points at eval specifically.
-Read-out: does it crash: if `filelock_true` fails with "Unable to
-synchronously open object", `HDF5_USE_FILE_LOCKING=FALSE` stays required
-and this is confirmation, not a regression to chase. If it finishes clean,
-compare its `eval=` to `evalfix_confirm`'s -- locking could add overhead
-even without crashing.
 
 ## New loss components (H2/PCC/VRMS/KL), opt-in, NOT ENABLED anywhere yet (2026-08-06)
 
