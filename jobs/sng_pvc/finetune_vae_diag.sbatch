@@ -63,6 +63,39 @@
 # jobs/sng_pvc/finetune_vae_diag_4rank.sbatch, it needs Exp 0/2 ruled out
 # first since heavy per-epoch I/O would confound a communication-only test.
 #
+# --- Added 2026-08-06, after the eval parallelization fix (EXPERIMENTS.md
+# "Eval parallelization fix, NOT YET TESTED") -- two more single-variable
+# diagnostics, same "run Exp 0's baseline command with one knob changed"
+# pattern as above. The cluster default is now workers=4 (not 0, note Exp
+# 0/1's text above predates that), so "Exp 0 as-is" below already means
+# workers=4, HDF5_USE_FILE_LOCKING=FALSE, and the new eval code path (it's
+# unconditional now, not a flag) -- there is no config knob to run the OLD
+# unparallelized eval for comparison; the "before" numbers are the ones
+# already in EXPERIMENTS.md's head-vs-tail sweep table and
+# finetune_vae_baseline_tail3's per-epoch log (eval ~853s/epoch avg).
+#
+#   DIAG_TAG=evalfix_confirm sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
+#       Exp 3 -- confirm the eval parallelization fix. Nothing to override;
+#       this is "Exp 0 as-is" under a distinct tag so its output_dir/log
+#       don't collide with the historical Exp 0 (job 520300). Read epoch 2's
+#       "eval=" and compare to the ~800-1050s/epoch this repo's committed
+#       full-data runs show pre-fix. Also sanity-check val_vrmse against a
+#       comparable pre-fix number if this ever runs past 2 epochs (it won't
+#       by default -- DIAG_EPOCHS=2) -- the all-reduce is exact, so a
+#       multi-epoch value should track pre-fix numbers, not deviate.
+#
+#   DIAG_TAG=filelock_true DIAG_FILE_LOCKING=TRUE sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
+#       Exp 4 -- does concurrent 8-rank *eval* (new, from the fix above) trip
+#       the "Unable to synchronously open object (can't open file)" failure
+#       that HDF5_USE_FILE_LOCKING=FALSE was set to avoid on the *train*
+#       side (see the flag's own comment further down in this script)? Only
+#       eval reads concurrently across all 8 ranks now that it's
+#       parallelized -- train already did before this fix, so if TRUE
+#       crashes here, the crash is coming from eval's newly-concurrent
+#       reads, not a train regression. Read: does the job crash or finish
+#       clean? If it finishes clean, also compare "eval=" to Exp 3's -- file
+#       locking could plausibly add overhead even without crashing.
+#
 # Weights from these runs are throwaway -- output_dir is suffixed
 # "_diag_<tag>" so nothing collides with or wipes the real baseline in
 # finetune_vae_outputs_sng_pvc/finetune_vae_baseline/.
@@ -100,14 +133,17 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline
 export TOKENIZERS_PARALLELISM=false
-export HDF5_USE_FILE_LOCKING=FALSE
+# DIAG_FILE_LOCKING=TRUE overrides the FALSE default -- see Exp 3 in the
+# header (does concurrent 8-rank *eval* now trip the same DSS locking issue
+# train was already exempted from?).
+export HDF5_USE_FILE_LOCKING=${DIAG_FILE_LOCKING:-FALSE}
 
 # Diagnostic knobs -- see header for what each combination tests.
 DIAG_TAG=${DIAG_TAG:-base}
-DIAG_WORKERS=${DIAG_WORKERS:-}          # empty = leave cluster default (0)
+DIAG_WORKERS=${DIAG_WORKERS:-}          # empty = leave cluster default (4)
 DIAG_SKIP_HEAVY_IO=${DIAG_SKIP_HEAVY_IO:-0}
 DIAG_EPOCHS=${DIAG_EPOCHS:-2}            # epoch1=warmup, epoch2=clean reading
-echo "DIAG_TAG=${DIAG_TAG} DIAG_WORKERS=${DIAG_WORKERS:-<default>} DIAG_SKIP_HEAVY_IO=${DIAG_SKIP_HEAVY_IO} DIAG_EPOCHS=${DIAG_EPOCHS}"
+echo "DIAG_TAG=${DIAG_TAG} DIAG_WORKERS=${DIAG_WORKERS:-<default>} DIAG_SKIP_HEAVY_IO=${DIAG_SKIP_HEAVY_IO} DIAG_EPOCHS=${DIAG_EPOCHS} HDF5_USE_FILE_LOCKING=${HDF5_USE_FILE_LOCKING}"
 
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_diag_XXXX.yaml)

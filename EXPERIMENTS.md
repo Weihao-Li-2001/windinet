@@ -690,6 +690,31 @@ multi-rank `train.h5` reads during eval trip the same DSS file-locking
 issue `HDF5_USE_FILE_LOCKING=FALSE` was already set for on the train side.
 Fill in the actual before/after numbers here once a run completes.
 
+**How to test:** all hardware/runtime diagnostics in this section (this fix
+plus the file-locking question below) use `finetune_vae_baseline.yaml`
+-- `jobs/sng_pvc/finetune_vae_diag.sbatch`'s default `BASE_CONFIG` -- kept
+separate from the model-architecture sweeps (head-vs-tail, encoder-LR) so
+infra effects aren't confounded with which encoder modules are unfrozen.
+Two single-variable 2-epoch diagnostics (protocol: one variable per run),
+full detail in the sbatch script's own header:
+
+```
+DIAG_TAG=evalfix_confirm sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
+DIAG_TAG=filelock_true DIAG_FILE_LOCKING=TRUE sbatch jobs/sng_pvc/finetune_vae_diag.sbatch
+```
+
+First confirms the fix itself (compare its `eval=` to the ~800-1050s/epoch
+this repo's committed full-data runs show pre-fix). Second asks whether
+concurrent 8-rank *eval* reads (new, from this fix) trip the same DSS
+file-locking failure `HDF5_USE_FILE_LOCKING=FALSE` was set to avoid on the
+*train* side -- only eval's reads are newly concurrent here, train already
+was before this fix, so a crash under `TRUE` points at eval specifically.
+Read-out: does it crash: if `filelock_true` fails with "Unable to
+synchronously open object", `HDF5_USE_FILE_LOCKING=FALSE` stays required
+and this is confirmation, not a regression to chase. If it finishes clean,
+compare its `eval=` to `evalfix_confirm`'s -- locking could add overhead
+even without crashing.
+
 ## Where things live
 
 | | |
