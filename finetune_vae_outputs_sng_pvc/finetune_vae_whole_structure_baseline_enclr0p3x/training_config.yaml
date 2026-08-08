@@ -1,0 +1,119 @@
+acceleration:
+  compilation_mode: reduce-overhead
+  compile_with_inductor: false
+  mixed_precision_mode: bf16
+adapter:
+  activation: gelu
+  channels:
+  - density
+  - momentum_x
+  - momentum_y
+  - pressure
+  checkpoint: null
+  default_temb: 0.0
+  enabled: true
+  freeze_conv_in: false
+  hidden_channels: 32
+  identity_init: false
+  inflate_init: mean
+  mode: inflate
+  unfreeze_down_blocks:
+  - 0
+  - 1
+  - 2
+  unfreeze_encoder_tail: true
+checkpoints:
+  best_metric: val_vrmse
+  interval: 1
+  keep_last_n: 1
+  save_best_only: true
+  save_last_state: true
+clean_output_dir: true
+data:
+  channel_mean:
+  - 0.905097647712509
+  - 0.0040453659499771295
+  - -0.0019089379643528095
+  - 0.9031908053899714
+  channel_std:
+  - 0.6607349375392083
+  - 0.5328754120427532
+  - 0.5262512462358824
+  - 0.8050358917795326
+  data_root: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5
+  eval_sims: 675
+  normalization_clip: 5.0
+  num_dataloader_workers: 2
+  num_sim_frames: null
+  overfit_repeat: 1
+  overfit_sims: null
+loss:
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-06
+  spatial_level: 2
+  temporal_level: 2
+  wavelet: db2
+loss_weighting:
+  alpha: 1.5
+  loss_names:
+  - rmse
+  - h1
+  - ssim
+  - mlw
+  strategy: fixed
+  temperature: 0.1
+  weight_lr: 0.025
+  weights:
+    h1: 50.0
+    mlw: 0.0
+    rmse: 1.0
+    ssim: 0.15
+model:
+  load_checkpoint: null
+  model_source: !!python/object/apply:windinet.inference.model_loader.LtxvModelVersion
+  - LTXV_2B_0.9.6_DEV
+optimization:
+  adapter_lr_multiplier: 1.0
+  batch_size: 1
+  enable_gradient_checkpointing: true
+  encoder_tail_lr_multiplier: 0.3
+  epochs: 15
+  gradient_accumulation_steps: 4
+  learning_rate: 5.0e-05
+  max_grad_norm: 5.0
+  min_learning_rate: 1.0e-06
+  scheduler_type: wsd
+  stable_fraction: 0.7
+  warmup_start_factor: 0.01
+  warmup_steps: 200
+  weight_decay: 0.0
+output_dir: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_enclr0p3x
+resume_from: null
+resume_weights_only: false
+seed: 42
+visualization:
+  dpi: 150
+  enabled: true
+  frame_numbers:
+  - 25
+  - 50
+  - 75
+  - 100
+  interval_epochs: 1
+  num_samples: 2
+wandb:
+  enabled: false
+  entity: null
+  project: windinet
+  tags:
+  - vae
+  - inflate
+  - mean-init
+  - wsd
+  - 15ep
+  - h1x2
+  - lr1x
+  - shockwave-cfd
+  - whole-structure-baseline
+  - encoder-lr-sweep
+  - enclr0.3x
