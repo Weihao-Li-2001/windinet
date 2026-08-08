@@ -611,6 +611,89 @@ discontinuities. 5x spread, same model, same epoch.
    the full 6-arm grid (built on `finetune_vae_baseline.yaml`, density
    fixed at index 0, the other three fields permuted) and required code
    change.
+9. **PLANNED, not yet run: decoder LR and conv_in adapter LR
+   multiplier -- untested on the whole-structure baseline.** Encoder
+   unfreeze extent (Q3) and `encoder_tail_lr_multiplier` (Q6) are both
+   answered; the two remaining LR knobs on this baseline's trainable
+   weights -- decoder's own `optimization.learning_rate` (5e-5, unchanged
+   since the very first ledger entry) and `adapter_lr_multiplier`
+   (conv_in's multiplier of decoder LR, 1.0x, never independently
+   questioned even though conv_in is a mix of pretrained-basis and
+   freshly-grown channels, same ambiguity that motivated Q6) -- have never
+   been swept. See "Decoder LR / adapter LR multiplier sweep" below for the
+   two 3-arm grids and why a naive `learning_rate`-only sweep would
+   confound decoder LR with the already-tuned encoder/conv_in LRs.
+
+### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)
+
+**THE QUESTION:** two of the whole-structure baseline's LR-bearing
+components have never been independently tuned -- the decoder's own
+`optimization.learning_rate` (anchors every other LR in the config, since
+`adapter_lr_multiplier` and `encoder_tail_lr_multiplier` are *multipliers*
+of it, not absolute values) and `adapter_lr_multiplier` (conv_in's
+multiplier, always 1.0x so far, meaning the freshly-inflated 4th input
+channel trains at exactly the decoder's LR with no justification beyond
+"nobody changed it").
+
+**Why not just sweep `learning_rate` directly:** because
+`adapter_lr_multiplier`/`encoder_tail_lr_multiplier` are relative to it,
+scaling `learning_rate` alone silently rescales the absolute encoder and
+conv_in LRs too (both already tuned -- encoder to 0.3x via Q6) -- three
+variables move at once instead of one. Each arm below instead moves
+`learning_rate` together with compensating changes to the *other two*
+fields so their **absolute** LRs stay pinned at the baseline's values
+(encoder 1.5e-5, conv_in 5e-5) -- same "multiple YAML fields, one
+conceptual variable" pattern the channel-order sweep used for
+`channel_order`+`adapter.channels`+`channel_mean`/`channel_std`.
+
+**Grid A -- decoder LR** (baseline anchor 5e-5, encoder/conv_in absolute
+LR pinned):
+
+| tag | `learning_rate` | `adapter_lr_multiplier` | `encoder_tail_lr_multiplier` | config | status |
+|---|---|---|---|---|---|
+| 0.5x | 2.5e-5 | 2.0 (pins conv_in at 5e-5) | 0.6 (pins encoder at 1.5e-5) | `finetune_vae_whole_structure_baseline_declr0p5x.yaml` | written, not launched |
+| 1.0x | 5e-5 | 1.0 | 0.3 | `finetune_vae_whole_structure_baseline.yaml` (reuse job 521887, no rerun needed) | done, val_vrmse **0.08516** |
+| 2.0x | 1e-4 | 0.5 (pins conv_in at 5e-5) | 0.15 (pins encoder at 1.5e-5) | `finetune_vae_whole_structure_baseline_declr2x.yaml` | written, not launched |
+
+**Grid B -- conv_in adapter LR multiplier** (decoder LR and
+`encoder_tail_lr_multiplier` both pinned at baseline, no compensation
+needed since this multiplier doesn't rescale anything else):
+
+| tag | `adapter_lr_multiplier` | config | status |
+|---|---|---|---|
+| 0.3x | 0.3 (conv_in abs LR 1.5e-5) | `finetune_vae_whole_structure_baseline_adapterlr0p3x.yaml` | written, not launched |
+| 1.0x | 1.0 (conv_in abs LR 5e-5) | `finetune_vae_whole_structure_baseline.yaml` (reuse job 521887, no rerun needed) | done, val_vrmse **0.08516** |
+| 3.0x | 3.0 (conv_in abs LR 1.5e-4) | `finetune_vae_whole_structure_baseline_adapterlr3x.yaml` | written, not launched |
+
+Unlike Q6 (where the encoder trunk's pretrained basis made "less LR than
+decoder" the a priori expectation), Grid B has no directional prior: 3 of
+conv_in's 4 channels carry the pretrained basis (same argument as the
+encoder), but the 4th is mean-init and freshly grown, arguably wanting
+*more* relative LR, not less -- hence testing both directions.
+
+**Read-out criterion:** compare epoch-15 val_vrmse within each grid
+separately against the ~1.1% seed-noise floor (Open Question 1) -- a gap
+smaller than that is noise, same standard as every sweep since the floor
+was measured. The two grids are independent questions (decoder LR vs
+conv_in's relative LR); don't combine them into a single ranking.
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's) for every
+arm. Elevated watch on Grid A's 2.0x arm specifically (decoder LR 1e-4 is
+double every decoder LR used elsewhere in this ledger, and the decoder is
+552M mostly-pretrained params) -- same failure signature Q6's 1.0x
+encoder arm was screened for (train_loss regressing epoch-over-epoch, or
+val_vrmse heading toward 0.15-0.2+ instead of down from the
+~0.10-0.11 baseline-adapter-only starting point). Grid B's arms carry
+lower risk regardless of direction since conv_in is only 221,312 params.
+
+Launch (once ready, 4 new jobs total -- both grids reuse job 521887 as
+their shared 1.0x point):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_declr0p5x.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_declr2x.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_adapterlr0p3x.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_adapterlr3x.yaml
+```
 
 ### Channel-order sweep (Open Question 8, new 2026-08-06)
 

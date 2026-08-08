@@ -1,0 +1,115 @@
+# VAE finetuning config -- DECODER LR SWEEP, arm 2.0x (Open Question 9).
+#
+# See finetune_vae_whole_structure_baseline_declr0p5x.yaml for the full
+# rationale (decoder LR has never been re-tuned; naive learning_rate scaling
+# would confound it with encoder/conv_in LR since those are multipliers of
+# it). This arm doubles the decoder's absolute LR instead of halving it,
+# same compensation trick, three fields move together as one conceptual
+# variable:
+#   learning_rate:              5e-5  -> 1e-4    (THE variable)
+#   adapter_lr_multiplier:      1.0   -> 0.5      (0.5 * 1e-4 = 5e-5, pins conv_in's absolute LR at the baseline's 5e-5)
+#   encoder_tail_lr_multiplier: 0.3   -> 0.15     (0.15 * 1e-4 = 1.5e-5, pins encoder's absolute LR at the baseline's 1.5e-5)
+#
+# Grid (this sweep, 3 arms): 0.5x (finetune_vae_whole_structure_baseline_declr0p5x.yaml)
+# / 1.0x (baseline, reuse job 521887, no rerun needed) / 2.0x (this file).
+#
+# Kill criterion: usual (epoch 2 train_loss above epoch 1's) -- WATCH THIS
+# ARM CLOSELY. 1e-4 is 2x the decoder LR used everywhere else in this
+# ledger and un-tested territory for a 552M-param, mostly-natural-video-
+# pretrained decoder; if epoch 2's train_loss is worse than epoch 1's, or
+# val_vrmse heads toward the 0.15-0.2+ range instead of down from the
+# ~0.10-0.11 baseline-adapter-only starting point, that's the same failure
+# signature the encoder-LR sweep's 1.0x arm was screened for (EXPERIMENTS.md
+# Open Question 6) -- let it finish for the record but don't chase decoder
+# LR higher than this.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_declr2x.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  # THE variable: decoder LR 5e-5 -> 1e-4 (2.0x baseline).
+  learning_rate: 1e-4
+  # Compensated so conv_in's absolute LR stays pinned at 5e-5: 0.5 * 1e-4 = 5e-5.
+  adapter_lr_multiplier: 0.5
+  # Compensated so encoder's absolute LR stays pinned at 1.5e-5: 0.15 * 1e-4 = 1.5e-5.
+  encoder_tail_lr_multiplier: 0.15
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "shockwave-cfd", "whole-structure-baseline", "decoder-lr-sweep"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_declr2x"
+clean_output_dir: true

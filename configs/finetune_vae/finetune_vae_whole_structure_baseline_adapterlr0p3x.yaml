@@ -1,0 +1,119 @@
+# VAE finetuning config -- ADAPTER (conv_in) LR MULTIPLIER SWEEP, arm 0.3x
+# (Open Question 9).
+#
+# THE QUESTION: does the freshly-grown 4th input channel (encoder.conv_in,
+# inflated from 3->4 channels via inflate_init: mean) want a different LR
+# relative to the decoder? `adapter_lr_multiplier` has been 1.0x (i.e.
+# conv_in trains at the *same* absolute LR as the decoder, 5e-5) in every
+# run in this ledger, never independently questioned -- unlike
+# encoder_tail_lr_multiplier, which got its own sweep (Open Question 6)
+# precisely because that trunk carries a pretrained basis that might not
+# tolerate decoder-level LR. conv_in is a more ambiguous case: 3 of its 4
+# channels ARE the pretrained RGB basis (same argument as the encoder
+# trunk), but the 4th is mean-init, freshly grown, arguably wanting MORE
+# relative LR, not less -- so this sweep, unlike Q6's, is not assumed to be
+# one-directional.
+#
+# SINGLE VARIABLE: adapter_lr_multiplier, 1.0 -> 0.3 (decoder LR 5e-5 and
+# encoder_tail_lr_multiplier 0.3 both pinned at the current baseline's
+# values -- no compensation needed here since this multiplier doesn't
+# rescale anything else, unlike the decoder-LR sweep's arms).
+#
+# Grid (this sweep, 3 arms): 0.3x (this file) / 1.0x (baseline, reuse job
+# 521887, no rerun needed) / 3.0x (finetune_vae_whole_structure_baseline_adapterlr3x.yaml).
+#
+# Read-out: compare epoch-15 val_vrmse across all 3 arms against the ~1.1%
+# seed-noise floor (Open Question 1).
+#
+# Kill criterion: usual (epoch 2 train_loss above epoch 1's). Low risk --
+# conv_in is a small module (221,312 params), even a bad multiplier here
+# can't destabilize the whole run the way a bad decoder-wide LR could.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_adapterlr0p3x.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_mean: [0.905097647712509, 0.0040453659499771295, -0.0019089379643528095, 0.9031908053899714]
+  channel_std: [0.6607349375392083, 0.5328754120427532, 0.5262512462358824, 0.8050358917795326]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  # THE variable: 1.0 -> 0.3 (conv_in absolute LR: 5e-5 -> 1.5e-5).
+  adapter_lr_multiplier: 0.3
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "shockwave-cfd", "whole-structure-baseline", "adapter-lr-sweep"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_adapterlr0p3x"
+clean_output_dir: true
