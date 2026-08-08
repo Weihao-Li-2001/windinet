@@ -647,6 +647,25 @@ discontinuities. 5x spread, same model, same epoch.
     experiment" below for the new `build_shockwave_video`/
     `denormalize_fields` code path this needed and the read-out/kill
     criteria.
+12. **PLANNED, not yet run: what is the 8-sim memorization ceiling under
+    the whole-structure unfreeze?** The capacity diagnostic (Open Question
+    2) that established the 0.059-0.061 "partial" floor only ever had
+    `encoder.conv_in` (attempt 4) or the tail alone (attempts 5/6)
+    trainable. The one attempt at the full trunk,
+    `archive/known-bad/finetune_vae_overfit_lr5e5_wsd_fullenc.yaml`, is
+    flagged known-bad and also predates the encoder-LR sweep (Open
+    Question 6) that picked 0.3x over the 0.1x it used. See "Capacity
+    diagnostic re-run under whole-structure unfreeze" below for the
+    corrected config, a root-cause finding for *why* the known-bad attempt
+    failed (which is not what `archive/known-bad/README.md` currently
+    says), and the read-out/kill criteria.
+13. **PLANNED, not yet run: does training on RMSE alone (h1 = ssim = 0)
+    change val_vrmse relative to the current weighted objective?** "The
+    loss-weight axis is exhausted" (see "Established" above) was only ever
+    tested by perturbing h1/mlw's *magnitude* -- h1 (weight 50, by far the
+    largest coefficient) and ssim (0.15) have never both been zeroed. See
+    "RMSE-only loss ablation" below for the single-variable config and the
+    read-out/kill criteria.
 
 ### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
 
@@ -825,6 +844,122 @@ before this pull).
 Launch (once ready):
 ```
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_logdensity.yaml
+```
+
+### Capacity diagnostic re-run under whole-structure unfreeze (Open Question 12, new 2026-08-08)
+
+**THE QUESTION:** does unfreezing the entire encoder trunk (not just the
+tail) raise the 8-sim memorization ceiling above attempts 4-6's
+~0.059-0.061 floor (see "Capacity diagnostic (Open Question 2)" above)? If
+yes, the whole-structure baseline's full-data gain (0.095 -> 0.085, Open
+Questions 3/6) is at least partly a real capacity increase, and Open
+Question 4 (more latent bandwidth) may buy less until this larger capacity
+is itself saturated. If the floor doesn't move, the extra trainable
+parameters are buying something other than raw memorization capacity, and
+Open Question 4 stays the primary lever toward the <=0.03 band.
+
+**Root-cause finding on the existing known-bad attempt (not previously
+documented):** `archive/known-bad/finetune_vae_overfit_lr5e5_wsd_fullenc.yaml`
+is the only prior attempt at this exact question, and it's flagged
+known-bad -- but `archive/known-bad/README.md`'s stated cause
+(`overfit_repeat: 1`, a warmup/steps-per-epoch mismatch) does not match
+what's actually checked in. `git log --follow -p` on that file and its 6
+siblings (head0/head01/head012/head01tail/tail2/tail3) shows
+`overfit_repeat: 5` from their first commit, never 1. What *does* differ:
+the resolved `training_config.yaml` under
+`finetune_vae_outputs_sng_pvc/archive/known-bad/.../training_config.yaml`
+shows `gradient_accumulation_steps: 4` against 8 processes, even though
+the source config says `1` -- those 7 runs went through
+`jobs/sng_pvc/finetune_vae.sbatch`, whose `patch_config_for_cluster()`
+call retargets `gradient_accumulation_steps` to hit sng_pvc's
+`effective_batch=32` default (`windinet/cluster_config.py`), silently
+turning the diagnostic's "1 optimizer step per sim" design into effective
+batch 32 against 40 samples/epoch -- roughly 1 optimizer step/epoch
+instead of 40, so `warmup_steps: 50` never comes close to completing in 50
+epochs. Same end symptom the README describes, different mechanism.
+Whichever write-up is right, the actionable fix is identical: **do not
+submit an overfit-diagnostic config through a sng_pvc launcher.** There is
+no sng_pvc equivalent of `jobs/lundquist/finetune_vae_debug.sbatch` (which
+explicitly patches `effective_batch=1`) today.
+
+**Single variable vs attempt 4** (`finetune_vae_overfit_lr5e5_wsd.yaml`):
+```
+adapter.unfreeze_down_blocks:        []  -> [0, 1, 2]
+adapter.unfreeze_encoder_tail:    false  -> true
+optimization.encoder_tail_lr_multiplier (new)  -> 0.3
+```
+0.3x matches the *current* whole-structure baseline (post Open Question
+6), not the retired 0.1x the known-bad fullenc attempt used. Everything
+else (peak LR 5e-5, wsd, `stable_fraction 0.7`, 8 sims x repeat 5, 50
+epochs, seed 42) unchanged from attempt 4.
+
+Config: `finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml`. Verified: loads
+through `VaeTrainerConfig` unchanged.
+
+**Read-out** (val_vrmse == train reconstruction here, by design):
+| result | reading |
+|---|---|
+| <= 0.03 | capacity ceiling moved a lot -- re-examine Open Question 4's urgency |
+| ~0.05-0.06 | no material change from attempts 4-6 -- Open Question 4 (latent bandwidth) stays the primary lever |
+| >= 0.08 | worse than the frozen/tail-only attempts -- suspect optimization instability at 1-GPU/accum-1 gradient noise, not a capacity answer; debug before drawing a conclusion |
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's).
+
+Launch (once ready) -- **must** go through the lundquist debug launcher,
+see root-cause note above:
+```
+sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
+```
+
+### RMSE-only loss ablation (Open Question 13, new 2026-08-08)
+
+**THE QUESTION:** every run in this ledger trains against the fixed
+weighted sum `rmse*1.0 + h1*50.0 + ssim*0.15 + mlw*0.0`. "The loss-weight
+axis is exhausted" (see "Established" above) only ever perturbed the
+*magnitude* of these weights (h1 25->50, mlw 0->1e-4) and landed in a 2%
+band each time -- it never tried the boundary case of h1 = ssim = 0, i.e.
+training on RMSE alone. h1's weight (50.0) is by far the largest
+coefficient in the sum and has never actually been ablated to zero. Does
+removing it (and ssim) help, hurt, or leave `val_vrmse` unchanged --
+`val_vrmse` is itself an RMSE-family metric (`windinet/losses/vrms.py`),
+so a plain-RMSE objective could plausibly score *better* by not spending
+gradient on smoothness/structural-similarity terms instead of amplitude
+accuracy, or *worse* if those terms are acting as real regularizers
+against overfitting the training set's high-frequency noise. No expected
+direction going in.
+
+**Single variable vs `finetune_vae_whole_structure_baseline.yaml`** (0.3x
+encoder LR, the current baseline):
+```
+loss_weighting.weights.h1:    50.0 -> 0.0
+loss_weighting.weights.ssim:   0.15 -> 0.0
+```
+(`mlw` was already 0.0.) Treated as one conceptual variable ("which loss
+terms are active"), not two separate sweeps -- zeroing only one of h1/ssim
+would still leave a compound objective and not answer "is rmse alone
+enough." Everything else (`encoder_tail_lr_multiplier` 0.3x, seed 42, 15
+epochs, wsd, whole encoder trunk unfrozen, `normalization_stats_file`)
+unchanged.
+
+Config: `finetune_vae_whole_structure_baseline_rmseonly.yaml`. Verified:
+loads through `VaeTrainerConfig` unchanged.
+
+**Read-out:** compare epoch-15 `val_vrmse` to the baseline's 0.08516 (job
+521887), against the ~1.1% seed-noise floor (Open Question 1). Also check
+`val_rmse`/`train_rmse` directly (`metrics.csv` logs every component
+unconditionally regardless of its weight) and the reconstruction panels
+specifically for oversmoothing or spurious high-frequency artifacts at
+shock discontinuities -- h1 is what was suppressing exactly that failure
+mode (see "The bandwidth ceiling" above), so a `val_vrmse` win here needs
+a qualitative check before being read as a strict improvement.
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's). No
+elevated divergence risk expected -- `max_grad_norm` clipping is unchanged
+regardless of which loss terms contribute to the pre-clip gradient.
+
+Launch (once ready):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_rmseonly.yaml
 ```
 
 ### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)

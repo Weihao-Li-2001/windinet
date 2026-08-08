@@ -1,0 +1,207 @@
+# CAPACITY DIAGNOSTIC -- overfit 8 simulations. Not a training run.
+#
+# Re-runs the Open Question 2 capacity diagnostic (val_vrmse floor for
+# memorizing 8 sims) under the CURRENT whole-structure-unfreeze baseline
+# (finetune_vae_whole_structure_baseline.yaml: down_blocks[0,1,2] +
+# encoder tail unfrozen, encoder_tail_lr_multiplier 0.3x), which has never
+# been cleanly measured -- see EXPERIMENTS.md Open Question 12.
+#
+# WHY THIS IS NEEDED: attempts 4/5/6 (finetune_vae_overfit_lr5e5_wsd.yaml,
+# _tail.yaml, _tail_slowdecay.yaml) measured 0.061/0.0588/0.0608 with only
+# encoder.conv_in (+ optionally the tail alone) trainable. The one attempt
+# that tried the FULL trunk unfrozen,
+# configs/finetune_vae/archive/known-bad/finetune_vae_overfit_lr5e5_wsd_fullenc.yaml,
+# is flagged known-bad (val_vrmse 0.105-0.126, no better than the frozen-
+# trunk full-data baseline) AND used the old encoder_tail_lr_multiplier
+# default (0.1x) from before the encoder-LR sweep (Open Question 6) picked
+# 0.3x. Its result cannot be trusted or reused for either reason -- see the
+# root-cause note below, which differs from what
+# configs/finetune_vae/archive/known-bad/README.md currently says.
+#
+# ROOT CAUSE OF THE KNOWN-BAD RESULT (found while designing this config):
+# archive/known-bad/README.md blames `overfit_repeat: 1` (a warmup/steps-
+# per-epoch mismatch). That is NOT what the checked-in known-bad configs
+# contain -- `git log --follow -p` on
+# archive/known-bad/finetune_vae_overfit_lr5e5_wsd_fullenc.yaml (and all 6
+# siblings: head0/head01/head012/head01tail/tail2/tail3) shows
+# `overfit_repeat: 5` from the first commit, unchanged. The actual
+# resolved `training_config.yaml` under
+# finetune_vae_outputs_sng_pvc/archive/known-bad/.../training_config.yaml
+# shows `gradient_accumulation_steps: 4` (source config says 1) with 8
+# processes -- i.e. those 7 diagnostic runs went through
+# jobs/sng_pvc/finetune_vae.sbatch, whose patch_config_for_cluster() call
+# silently retargets gradient_accumulation_steps to hit sng_pvc's
+# effective_batch=32 default (windinet/cluster_config.py). That turns "1
+# optimizer step per sim" into effective batch 32 against only 40
+# samples/epoch (8 sims x repeat 5) -- ~1 optimizer step/epoch instead of
+# 40, so `warmup_steps: 50` never comes close to completing in 50 epochs.
+# Same symptom the README describes (warmup never released), different
+# mechanism. Whichever it was, the fix is the same: DO NOT submit this
+# config through jobs/sng_pvc/finetune_vae.sbatch or finetune_vae_diag.sbatch.
+# There is no sng_pvc launcher today that pins effective_batch=1 the way
+# jobs/lundquist/finetune_vae_debug.sbatch does -- use that one (see Usage
+# below). If EXPERIMENTS.md's known-bad README should be corrected to
+# describe this mechanism instead, that is a separate edit -- not made by
+# this file.
+#
+# THE QUESTION: does unfreezing the entire encoder trunk (not just the tail)
+# raise the 8-sim memorization ceiling above attempts 4-6's ~0.059-0.061
+# floor? If yes, the whole-structure baseline's full-data gain (0.095 ->
+# 0.085, see EXPERIMENTS.md Open Question 3/6) is at least partly a real
+# capacity increase, not purely better-conditioned optimization -- and
+# Open Question 4 (more latent bandwidth) may buy less than assumed until
+# this new, larger capacity is itself saturated. If the floor doesn't move,
+# the extra trainable parameters are being used for something other than
+# raw memorization capacity (regularization, optimization dynamics,
+# smoothing dataset-specific noise) and Open Question 4 stays the primary
+# lever for the <=0.03 band.
+#
+# SINGLE VARIABLE vs attempt 4 (finetune_vae_overfit_lr5e5_wsd.yaml):
+# adapter.unfreeze_down_blocks [] -> [0, 1, 2], adapter.unfreeze_encoder_tail
+# false -> true, optimization.encoder_tail_lr_multiplier (new, only takes
+# effect with the above) 0.3 -- matching the CURRENT whole-structure
+# baseline exactly, not the retired 0.1x default the known-bad fullenc
+# attempt used. Everything else (peak LR 5e-5, wsd, stable_fraction 0.7,
+# 8 sims x repeat 5, 50 epochs, seed 42) unchanged from attempt 4.
+#
+# HOW TO READ THE RESULT (val_vrmse == train reconstruction here, by design):
+#   <= 0.03      capacity ceiling moved a lot -- whole-structure unfreeze is
+#                buying real memorization headroom, worth re-examining
+#                Open Question 4's urgency.
+#   ~0.05-0.06   no material change from attempts 4-6 -- the extra trainable
+#                parameters aren't raising the memorization ceiling; Open
+#                Question 4 (latent bandwidth) remains the primary lever.
+#   >= 0.08      worse than the frozen/tail-only attempts -- suspect the
+#                unfrozen down_blocks are unstable at 1-GPU/accum-1 gradient
+#                noise even though the full-data run (32 effective batch) is
+#                stable at the same nominal LR; do not treat as a capacity
+#                answer, debug the optimization first.
+#
+# KILL CRITERION (same as every attempt): if epoch 2's train_loss exceeds
+# epoch 1's, it is diverging -- kill the job.
+#
+# STEP MATH (1 GPU, accum 1): 8 sims x 5 repeats = 40 optimizer steps/epoch,
+# 50 epochs = 2000 steps, ~64 min (matching attempts 4-6's timing).
+#
+# Usage -- MUST run at effective_batch 1 (1 GPU, accum 1), see root-cause
+# note above:
+#   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
+#
+# Portable entry point (matches what the debug launcher patches to):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # mean, matching the baseline: the diagnostic has to measure the model
+  # that is actually being trained, not a variant.
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # THE variable in this run, matching finetune_vae_whole_structure_baseline.yaml:
+  # entire encoder trunk trainable, not just the tail (attempt 5/6) or
+  # conv_in alone (attempt 4).
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same 8 sims as every attempt -- head of the seed-42 shuffle, spans gamma
+  # regimes 1.13 / 1.30 / 1.365 / 1.40 / 1.453 x3 / 1.597.
+  overfit_sims: 8
+  # 5 x 8 = 40 optimizer steps/epoch -- do not drop this to 1, see root-cause
+  # note above.
+  overfit_repeat: 5
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from attempts 4-6.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  # Matches the CURRENT whole-structure baseline (post encoder-LR sweep,
+  # Open Question 6) -- NOT the 0.1x the known-bad fullenc attempt used.
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 50
+  batch_size: 1
+  # 1, not the cluster default -- one optimizer step per sim. See the Usage
+  # note: this MUST be launched through jobs/lundquist/finetune_vae_debug.sbatch,
+  # which pins effective_batch=1 and so leaves this value alone. Submitting
+  # through a sng_pvc launcher instead will silently override this (that is
+  # what invalidated the known-bad fullenc attempt).
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  # Baseline weights, matching attempts 4-6 and the full-data whole-structure
+  # baseline -- unrelated to the separate rmse-only ablation (Open Question
+  # 13, finetune_vae_whole_structure_baseline_rmseonly.yaml). Keeping these
+  # fixed here isolates the capacity question from the objective-choice one.
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # null = never save -- this run answers a question, its weights are
+  # worthless (and load_inflated_vae_checkpoint doesn't restore
+  # down_block/tail weights yet regardless, see
+  # windinet/training/vae_trainer.py _save_checkpoint).
+  interval: null
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit", "wsd", "whole-structure"]
+
+seed: 42
+# Fresh directory, distinct from every prior attempt (including the
+# known-bad fullenc one) -- clean_output_dir wipes the target at startup,
+# reusing a name is how baseline #3 was lost (see EXPERIMENTS.md protocol
+# point 6).
+output_dir: "finetune_vae_overfit_lr5e5_wsd_wholestruct"
+clean_output_dir: true
