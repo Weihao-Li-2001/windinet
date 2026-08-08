@@ -87,8 +87,16 @@ def main(
         None, "--output", "-o", help="Write results as JSON here, shaped like euler_mq_128_only_train.yaml's data_normalization_stats"
     ),
     limit: int | None = typer.Option(
-        None, "--limit", help="Only process the first N simulations (quick dry run, e.g. on a not-yet-fully-downloaded 256x256_ds)"
+        None,
+        "--limit",
+        help=(
+            "Only process a random sample of N simulations (quick look, e.g. on a "
+            "not-yet-fully-downloaded 256x256_ds) -- NOT the first N by sorted id, "
+            "since sample ids may be grouped by gamma/generation batch and an "
+            "unshuffled prefix can silently be a biased, non-representative slice"
+        ),
     ),
+    limit_seed: int = typer.Option(42, "--limit-seed", help="Seed for the --limit random sample, for reproducibility"),
     compare_to: Path | None = typer.Option(
         None,
         "--compare-to",
@@ -102,7 +110,12 @@ def main(
     with h5py.File(h5_path, "r") as f:
         ids = sorted(f.keys())
         if limit is not None:
-            ids = ids[:limit]
+            # Random sample, not ids[:limit] -- sample ids may be grouped by
+            # gamma/generation batch, so an unshuffled prefix can silently be
+            # a biased, non-representative slice (seen in practice: a --limit
+            # 50 run landed ~15-35% high on std across every raw channel).
+            rng = np.random.default_rng(limit_seed)
+            ids = list(rng.choice(ids, size=min(limit, len(ids)), replace=False))
         console.print(f"[cyan]{len(ids)} simulations in {h5_path}[/cyan]")
 
         stats = {name: RunningStats() for name in ALL_STATS_NAMES}
