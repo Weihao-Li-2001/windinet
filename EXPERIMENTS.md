@@ -29,6 +29,22 @@ verdict **after** it finishes.
   tag that won't get confused with one arm of the now-finished unfreeze
   sweep. **Not yet run under its new name** -- next launch should confirm it
   reproduces ~0.0867 before the LR sweep branches off it.
+- **New reference baseline (as of 2026-08-08)**: the encoder-LR sweep (Open
+  Question 6, full results below) finished all 4 arms and shows
+  `encoder_tail_lr_multiplier: 0.3x` beats the inherited `0.1x` default by
+  ~1.7% (val_vrmse **0.08516**, job 521887, vs 0.08661 for 0.1x, job
+  521885). `configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml`
+  updated in place (`0.1x -> 0.3x`) so this is now what "the baseline" means
+  going forward -- **every follow-up change should be diffed against 0.3x,
+  not 0.1x**. The same pull also answered Open Question 1 (seed noise floor
+  measured at **~1.1%**, see below): the 0.3x-vs-1.0x gap (0.08516 vs
+  0.08584, ~0.8%) is inside that band, so 0.3x and 1.0x are not reliably
+  distinguishable from each other -- 0.3x is adopted only because the
+  sweep's read-out criterion picks the lowest number, not because it's
+  proven better than 1.0x specifically. The file's own `output_dir` has not
+  been re-run under the new value; until it is, job 521887's own directory
+  (`finetune_vae_whole_structure_baseline_enclr0p3x`) is the authoritative
+  reproduction of what "baseline" now means.
 
 ## Fixed setup (identical in every 15-epoch run)
 
@@ -396,10 +412,13 @@ discontinuities. 5x spread, same model, same epoch.
 
 ## Open questions, in priority order
 
-1. **What is the seed noise floor?** Re-run the baseline at seeds 1 and 2.
-   Until this number exists, no result under ~2% is interpretable. Cost: 2 runs.
-   *This gates everything below.* **PLANNED, not yet run (2026-08-06):
-   configs written** -- see "Seed noise floor sweep" below.
+1. ~~What is the seed noise floor?~~ **ANSWERED (2026-08-08): ~1.1%.**
+   `finetune_vae_baseline.yaml` at seed 42/1/2 landed val_vrmse 0.09513 /
+   0.09519 / 0.09411 -- spread 0.00108, ~1.1% relative. Every "~1-2%, treat
+   as noise" caveat elsewhere in this document should now use **~1.1%** as
+   the actual threshold. See "Seed noise floor sweep" below for the full
+   readout and its implications for other sweeps in this pull (channel-order,
+   encoder-LR).
 2. ~~Is the bottleneck the latent or the objective?~~ **ANSWERED: partial.**
    See "Capacity diagnostic (Open Question 2)" above -- val_vrmse 0.061 with
    proper convergence (wsd), landing in the 0.05-0.08 band. Neither a clean
@@ -431,8 +450,14 @@ discontinuities. 5x spread, same model, same epoch.
    directionally not an improvement. The schedule-length sensitivity seen on
    the 8-sim diagnostics does not transfer to full data; don't carry
    `stable_fraction 0.35` forward.
-6. **PLANNED, not yet run: encoder learning-rate sweep on the whole-structure
-   baseline.** Scoped down from "sweep the whole run's LR" to specifically
+6. ~~Encoder learning-rate sweep on the whole-structure baseline.~~
+   **ANSWERED (2026-08-08): 0.3x wins.** Full 4-arm grid done (0.03x/0.1x/
+   0.3x/1.0x), val_vrmse 0.08847/0.08661/**0.08516**/0.08584. 0.3x adopted
+   as the new default (`finetune_vae_whole_structure_baseline.yaml` updated
+   in place) -- see "New reference baseline (as of 2026-08-08)" at the top
+   and the full readout below. Note 0.3x and 1.0x are within the ~1.1% seed
+   noise floor (Open Question 1) of each other. Original framing kept below
+   for context: scoped down from "sweep the whole run's LR" to specifically
    the **encoder's** LR: with the entire encoder trunk now unfrozen (Open
    Question 3, answered), `optimization.encoder_tail_lr_multiplier: 0.1`
    (absolute encoder LR 5e-6, decoder LR 5e-5 unchanged) was inherited
@@ -445,12 +470,12 @@ discontinuities. 5x spread, same model, same epoch.
 
    **Grid** (log-spaced, ~3.3x steps, centered on the current default):
 
-   | multiplier | absolute encoder LR | config | status |
+   | multiplier | absolute encoder LR | config | val_vrmse |
    |---|---|---|---|
-   | 0.03x | 1.5e-6 | `finetune_vae_whole_structure_baseline_enclr0p03x.yaml` | written, not launched |
-   | 0.1x | 5e-6 | `finetune_vae_whole_structure_baseline.yaml` (reuse -- this **is** the `fullenc` arm of Open Question 3, val_vrmse 0.08673, job 521389; no rerun needed unless reproduction under the new filename is required first) | done (as `fullenc`) |
-   | 0.3x | 1.5e-5 | `finetune_vae_whole_structure_baseline_enclr0p3x.yaml` | written, not launched |
-   | 1.0x | 5e-5 (= decoder LR, no safety margin) | `finetune_vae_whole_structure_baseline_enclr1x.yaml` | written, not launched |
+   | 0.03x | 1.5e-6 | `finetune_vae_whole_structure_baseline_enclr0p03x.yaml` (job 521886) | 0.08847 |
+   | 0.1x | 5e-6 | `finetune_vae_whole_structure_baseline.yaml`'s old setting (job 521885) -- re-confirms the `fullenc` arm of Open Question 3 (0.08673, job 521389) to within seed noise | 0.08661 |
+   | **0.3x** | 1.5e-5 | `finetune_vae_whole_structure_baseline_enclr0p3x.yaml` (job 521887) -- **adopted as the new default, see top of file** | **0.08516** |
+   | 1.0x | 5e-5 (= decoder LR, no safety margin) | `finetune_vae_whole_structure_baseline_enclr1x.yaml` (job 521888) | 0.08584 |
 
    Range rationale: `encoder_tail_lr_multiplier`'s default was deliberately
    kept below 1.0 because the unfrozen encoder weights "carry a pretrained
@@ -476,41 +501,57 @@ discontinuities. 5x spread, same model, same epoch.
    encoder's pretrained basis cannot tolerate decoder-level LR; let it
    finish for the record but don't chase multipliers above 1.0x.
 
-   **IN PROGRESS (launched 2026-08-06 10:34 CEST, jobs 521885-521888,
-   through epoch 5/15 as of the last committed log snapshot).** Also
-   reconfirms `finetune_vae_whole_structure_baseline.yaml` under its own
-   name (job 521885) alongside the sweep, per protocol point 6.
+   **DONE (launched 2026-08-06 10:34 CEST, jobs 521885-521888, all 15
+   epochs complete as of the 2026-08-08 pull).** Also reconfirms
+   `finetune_vae_whole_structure_baseline.yaml` under its own name (job
+   521885) alongside the sweep, per protocol point 6 -- though see the
+   "New reference baseline (as of 2026-08-08)" note above: that file's
+   `encoder_tail_lr_multiplier` has since been bumped to 0.3x, so job
+   521885's 0.1x result is no longer what the file reproduces.
 
-   **Timing caveat:** all four were submitted at 10:34 CEST, which is
-   *before* the eval-parallelization fix (commit `f9c8541`, pulled ~11:02
-   CEST) and the `workers: 2 -> 4` default (commit `efa77d1`, ~11:00 CEST)
-   landed on the cluster -- their eval= times (909-1043s/epoch) confirm
-   this, matching pre-fix numbers, not the ~38s the same fix gives on jobs
-   submitted after the pull (see "Eval parallelization fix" below). Not a
-   correctness problem, just means these four are taking the old ~36-37
-   min/epoch instead of what would now be available -- no reason to kill
-   and resubmit at epoch 5/15, but the *next* LR-sweep-style batch should
-   land closer to 20 min/epoch.
+   **Timing caveat (still applies):** all four were submitted at 10:34
+   CEST, *before* the eval-parallelization fix (commit `f9c8541`, pulled
+   ~11:02 CEST) and the `workers: 2 -> 4` default (commit `efa77d1`, ~11:00
+   CEST) landed on the cluster -- confirmed by their eval= times staying in
+   the 811-1043s/epoch range for all 15 epochs, matching pre-fix numbers,
+   not the ~38s the same fix gives on jobs submitted after the pull (see
+   "Eval parallelization fix" below). Each of the 4 jobs took ~9.4h
+   wall-clock; a same-settings run on the current checkout would be closer
+   to ~4h (see chorder/seed sweep below, same eval-fixed checkout, though
+   note those arms don't unfreeze the encoder so aren't a clean apples-to
+   -apples timing comparison either -- the encoder-LR arms also carry
+   ~2.3x more trainable parameters than the frozen-trunk chorder/seed
+   arms). Not a correctness problem, val_vrmse numbers below are trustworthy.
 
-   **Early signal only, schedule still in the stable phase (lr flat at
-   5e-5 through epoch 5, decay doesn't start until ~epoch 12 -- see Open
-   Question 7 below for why the decay phase is where the real signal
-   is):** epoch-5 val_vrmse, not to be read as a ranking yet --
+   **FINAL RESULT, epoch 15 (schedule fully decayed to `min_learning_rate
+   1e-6`):**
 
-   | arm | epoch-5 val_vrmse | epoch-5 train_loss |
-   |---|---|---|
-   | 0.1x (baseline, job 521885) | 0.1112 | 0.0500 |
-   | 0.3x (job 521887) | 0.1135 | 0.0490 |
-   | 0.03x (job 521886) | 0.1135 | 0.0492 |
-   | 1.0x (job 521888) | 0.1231 | 0.0511 |
+   | arm | val_vrmse | vs 0.1x baseline | train_loss |
+   |---|---|---|---|
+   | 0.03x (job 521886) | 0.08847 | +2.1% (worse) | 0.03442 |
+   | 0.1x (baseline, job 521885) | 0.08661 | -- | 0.03368 |
+   | **0.3x (job 521887)** | **0.08516** | **-1.7% (best)** | 0.03323 |
+   | 1.0x (job 521888) | 0.08584 | -0.9% | 0.03374 |
 
-   The 1.0x arm is visibly behind the other three here (also slower to
-   descend epoch 1->2: train_loss 0.111->0.089, vs ~0.11->0.07 for the
-   others) but is **not diverging** -- train_loss keeps decreasing every
-   epoch, nowhere near the kill criterion (epoch 2 higher than epoch 1).
-   Reads as "tolerable but inefficient at this LR," consistent with the
-   config header's expectation, not as a clean failure. Final ranking
-   needs the decay-phase epochs; update this table once all four finish.
+   **ANSWERED: 0.3x wins, adopted as the new default** (see "New reference
+   baseline (as of 2026-08-08)" at the top of this file). Caveats:
+   - 0.3x vs 1.0x (0.08516 vs 0.08584, ~0.8% apart) is **inside the ~1.1%
+     seed-noise floor** measured by the same pull (Open Question 1, below)
+     -- these two are not reliably distinguishable from each other. 0.3x is
+     picked only because the sweep's own read-out criterion (lowest
+     val_vrmse wins) says so, not because it's proven better than 1.0x.
+   - 0.03x vs baseline (+2.1%) and 0.3x vs baseline (-1.7%) both clear the
+     noise floor, so "more encoder LR than the inherited 0.1x default helps,
+     up to a point" is a real effect, not noise.
+   - 1.0x never diverged (matching the kill-criterion check throughout all
+     15 epochs, train_loss monotonically decreasing) -- "tolerable but
+     slightly behind 0.3x," not a clean failure, consistent with the
+     epoch-5 early read.
+   - Open Question 7 (was 15 epochs enough?) is still open and unresolved
+     for this whole-structure-trunk lineage -- val_vrmse was still falling
+     ~0.4-2% per epoch late in all 4 runs' schedules, so the ranking above
+     could still shift with more epochs. `finetune_vae_whole_structure_baseline_ep18.yaml`
+     exists for this but has not been launched.
 7. **PLANNED, not yet run: was 15 epochs actually enough for the
    whole-structure baseline?** All three of `fullenc`/`head012`/`tail3`'s
    per-epoch val_vrmse flatten sharply as the wsd schedule decays to
@@ -549,16 +590,27 @@ discontinuities. 5x spread, same model, same epoch.
    **Kill criterion:** none beyond the usual (train_loss diverging) --
    only 3 extra epochs (~20% more wall-clock than the baseline), cheap
    enough not to need one.
-8. **PLANNED, not yet run: does the order of the 4 physical channels
-   matter?** With `inflate_vae_io_channels` always growing index 3 fresh
-   (mean-init) while indices 0-2 keep the pretrained RGB conv weights,
-   which field lands in which slot is a free variable nobody has tested --
-   every run so far used density, momentum_x, momentum_y, pressure with no
-   justification beyond "that's the order the dataset happened to expose
-   them in." See "Channel-order sweep" below for the full 6-arm grid (built
-   on `finetune_vae_baseline.yaml`, density fixed at index 0, the other
-   three fields permuted), required code change, and read-out/kill
-   criteria.
+8. ~~Does the order of the 4 physical channels matter?~~ **ANSWERED
+   (2026-08-08): yes, and it tracks which field lands in index 3 (the fresh
+   mean-init slot).** All 6 arms done, val_vrmse ranges 0.0954-0.1014 (~6%
+   spread, well clear of the ~1.1% seed noise floor). Grouped by the field
+   placed at index 3: pressure-last ~0.0954 (best, ties the existing
+   `mx_my_pr` default), momentum_x-last ~0.0994, momentum_y-last ~0.1003
+   (worst). Confirms the `inflate_vae_io_channels` mechanism hypothesis
+   below -- see "Channel-order sweep" for the full table and per-slot
+   breakdown. `mx_my_pr` (density, momentum_x, momentum_y, pressure)
+   stays the default: it's already in the best (pressure-last) group and
+   is what every other config in this ledger uses.
+
+   Original framing kept for context: with `inflate_vae_io_channels` always
+   growing index 3 fresh (mean-init) while indices 0-2 keep the pretrained
+   RGB conv weights, which field lands in which slot is a free variable
+   nobody had tested -- every run so far used density, momentum_x,
+   momentum_y, pressure with no justification beyond "that's the order the
+   dataset happened to expose them in." See "Channel-order sweep" below for
+   the full 6-arm grid (built on `finetune_vae_baseline.yaml`, density
+   fixed at index 0, the other three fields permuted) and required code
+   change.
 
 ### Channel-order sweep (Open Question 8, new 2026-08-06)
 
@@ -610,14 +662,14 @@ to the same canonical order).
 **Grid** (tag = order of momentum_x/momentum_y/pressure after density;
 mx/my/pr abbreviate the three):
 
-| tag | channel_order (index 0-3) | config | status |
+| tag | channel_order (index 0-3) | config | val_vrmse |
 |---|---|---|---|
-| `mx_my_pr` | density, momentum_x, momentum_y, pressure | `finetune_vae_baseline.yaml` (reuse, no rerun needed) | done, val_vrmse **0.095396** |
-| `mx_pr_my` | density, momentum_x, pressure, momentum_y | `finetune_vae_baseline_chorder_mx_pr_my.yaml` | written, not launched |
-| `my_mx_pr` | density, momentum_y, momentum_x, pressure | `finetune_vae_baseline_chorder_my_mx_pr.yaml` | written, not launched |
-| `my_pr_mx` | density, momentum_y, pressure, momentum_x | `finetune_vae_baseline_chorder_my_pr_mx.yaml` | written, not launched |
-| `pr_mx_my` | density, pressure, momentum_x, momentum_y | `finetune_vae_baseline_chorder_pr_mx_my.yaml` | written, not launched |
-| `pr_my_mx` | density, pressure, momentum_y, momentum_x | `finetune_vae_baseline_chorder_pr_my_mx.yaml` | written, not launched |
+| `mx_my_pr` | density, momentum_x, momentum_y, pressure | `finetune_vae_baseline.yaml` (reuse) | 0.09540 |
+| `mx_pr_my` | density, momentum_x, pressure, momentum_y | `finetune_vae_baseline_chorder_mx_pr_my.yaml` (job 522472) | 0.10136 |
+| `my_mx_pr` | density, momentum_y, momentum_x, pressure | `finetune_vae_baseline_chorder_my_mx_pr.yaml` (job 522473) | **0.09536** |
+| `my_pr_mx` | density, momentum_y, pressure, momentum_x | `finetune_vae_baseline_chorder_my_pr_mx.yaml` (job 522474) | 0.10043 |
+| `pr_mx_my` | density, pressure, momentum_x, momentum_y | `finetune_vae_baseline_chorder_pr_mx_my.yaml` (job 522475) | 0.09922 |
+| `pr_my_mx` | density, pressure, momentum_y, momentum_x | `finetune_vae_baseline_chorder_pr_my_mx.yaml` (job 522476) | 0.09841 |
 
 Single variable per arm vs `finetune_vae_baseline.yaml`: `data.channel_order`
 + `adapter.channels` (must move together) + `data.channel_mean`/`channel_std`
@@ -625,21 +677,29 @@ Single variable per arm vs `finetune_vae_baseline.yaml`: `data.channel_order`
 the baseline, just reindexed, not re-measured). Everything else (seed 42,
 15 epochs, wsd, h1 50, lr 5e-5, adapter_lr_multiplier 1.0) unchanged.
 
-**Read-out criterion:** compare val_vrmse across all 6 arms. A gap under
-~2% between arms should be treated as inside the still-uncalibrated
-seed-noise band (Open Question 1) rather than a real difference, same
-caveat as every other sweep in this ledger. If one or more arms clear that
-band, the pattern to check is whether the effect tracks *which field lands
-in index 3* (the fresh-mean-init slot) rather than the two pretrained-slot
-positions (1 vs 2) -- that would confirm the inflate-init mechanism above
-rather than something else. If all 6 land within the noise band, channel
-order is established as not mattering and `mx_my_pr` (already the
-convention everywhere else) stays the default with no further changes
-needed.
+**ANSWERED (2026-08-08): channel order matters, and it tracks index 3.**
+6-arm spread is 0.0954-0.1014 (~6.1% relative), well clear of the ~1.1%
+seed-noise floor measured by the same pull (Open Question 1) -- this is a
+real effect, not noise. Grouped by which field sits in index 3 (the fresh
+mean-init slot):
 
-**Kill criterion:** none beyond the usual (epoch 2 `train_loss` higher than
-epoch 1's) -- this doesn't touch LR, capacity, or schedule, so the risk
-profile matches the already-reproduced baseline.
+| field at index 3 | arms | mean val_vrmse |
+|---|---|---|
+| pressure | `mx_my_pr`, `my_mx_pr` | **~0.0954** (best) |
+| momentum_x | `my_pr_mx`, `pr_my_mx` | ~0.0994 |
+| momentum_y | `mx_pr_my`, `pr_mx_my` | ~0.1003 (worst) |
+
+This confirms the `inflate_vae_io_channels` mechanism hypothesis below:
+whichever field is freshly mean-initialized (index 3) has a measurable,
+consistent effect on the converged result, and pressure tolerates that
+initialization best while momentum_y tolerates it worst. `mx_my_pr`
+(density, momentum_x, momentum_y, pressure -- the existing convention
+everywhere else in this ledger) stays the default: it's already in the
+best-performing (pressure-last) group, so there's no reason to switch.
+
+**Kill criterion:** none triggered (epoch 2 `train_loss` never exceeded
+epoch 1's in any arm) -- this doesn't touch LR, capacity, or schedule, so
+the risk profile matched the already-reproduced baseline as expected.
 
 **Known gap, deliberately NOT fixed yet (2026-08-06):** `channel_order` is
 only threaded through the VAE training/eval loop (`vae_trainer.py`'s three
@@ -700,34 +760,38 @@ not needed for this sweep.)
 
 **Grid:**
 
-| seed | config | status |
+| seed | config | val_vrmse |
 |---|---|---|
-| 42 | `finetune_vae_baseline.yaml` (reuse, no rerun needed) | done, val_vrmse **0.095396** |
-| 1 | `finetune_vae_baseline_seed1.yaml` | written, not launched |
-| 2 | `finetune_vae_baseline_seed2.yaml` | written, not launched |
+| 42 | `finetune_vae_baseline.yaml` (reuse) | 0.09513 |
+| 1 | `finetune_vae_baseline_seed1.yaml` (job 522477) | 0.09519 |
+| 2 | `finetune_vae_baseline_seed2.yaml` (job 522478) | 0.09411 |
 
 Single variable vs `finetune_vae_baseline.yaml`: `seed` only (42 -> 1, 42 ->
 2). `output_dir`/`wandb.tags` also change (required for every run to get
 its own directory per this ledger's own protocol point 6) but are not
 experimental variables.
 
-**Read-out criterion:** the spread across all three val_vrmse numbers (42,
-1, 2) is the seed noise floor. Any future sweep-arm gap smaller than that
-spread should be read as noise, not signal -- this directly recalibrates
-every "~1-2%, treat cautiously" caveat elsewhere in this document once a
-real number exists. A large spread (e.g. comparable to the ~9% fullenc-vs-
-baseline gap from the head-vs-tail sweep) would be a significant finding on
-its own: it would mean many of this ledger's existing "real" gains are not
-distinguishable from picking a different arbitrary seed.
+**ANSWERED (2026-08-08): seed noise floor is ~1.1%.** Spread across the
+three seeds is 0.09411-0.09519 (0.00108 absolute, ~1.1% relative to their
+mean). This is a **small** spread -- nowhere near the ~9% fullenc-vs-
+baseline gap from the head-vs-tail sweep, so that result (and the encoder-
+LR sweep's 0.03x/0.3x-vs-baseline gaps, both >1.7%) stand as real effects,
+not seed artifacts. Going forward, **use ~1.1% as the actual noise
+threshold** in place of every earlier "~1-2%, treat as noise" placeholder
+in this document -- concretely this affects:
+- Open Question 5's slowdecay verdict (-1.3% vs baseline) -- now barely
+  *outside* the measured floor rather than comfortably inside an assumed
+  2% one; that "ANSWERED: yes, decay length was right" conclusion is
+  weaker than it reads and would benefit from a repeat run if it becomes
+  load-bearing for a future decision.
+- Open Question 6's encoder-LR sweep -- 0.3x-vs-1.0x (~0.8%) is inside the
+  floor (not distinguishable), but 0.03x/0.3x-vs-0.1x (2.1%/1.7%) both
+  clear it (real effects).
+- Open Question 8's channel-order sweep -- all pairwise gaps there (up to
+  ~6.1%) clear the floor by a wide margin (real effect).
 
-**Kill criterion:** none beyond the usual (epoch 2 `train_loss` higher than
-epoch 1's) -- identical risk profile to the already-reproduced baseline.
-
-Launch (once ready):
-```
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_seed1.yaml
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_seed2.yaml
-```
+**Kill criterion:** none triggered (epoch 2 `train_loss` never exceeded
+epoch 1's in either seed run).
 
 ## sng_pvc throughput diagnostic
 
@@ -1094,7 +1158,7 @@ started returning more than four entries.
 | Per-run metrics, panels, resolved config | `finetune_vae_outputs_lundquist/<run>/{metrics,visualizations,training_config.yaml}` -- **tracked in git** since `f88eb09` |
 | Checkpoints | `finetune_vae_outputs_lundquist/<run>/checkpoints/vae_shockwave_best.safetensors` -- **gitignored**, this machine is the only copy |
 | Retired runs | git history, see Artifact retention under the Ledger |
-| Closed configs/outputs (2026-08-06 cleanup) | `configs/finetune_vae/archive/done/` + `finetune_vae_outputs_{lundquist,sng_pvc}/archive/done/<run>/` for finished, citable results (capacity-diagnostic attempts 1/3/4/5/6, full head-vs-tail sweep); `.../archive/known-bad/` for runs whose numbers are flagged uninterpretable (the 8-sim diagnostic tier of the head-vs-tail sweep, capacity attempt 2) -- see each folder's `README.md` before reusing anything inside |
+| Closed configs/outputs (2026-08-06 cleanup, extended 2026-08-08) | `configs/finetune_vae/archive/done/` + `finetune_vae_outputs_{lundquist,sng_pvc}/archive/done/<run>/` for finished, citable results (capacity-diagnostic attempts 1/3/4/5/6, full head-vs-tail sweep, encoder-LR sweep, channel-order sweep, seed noise floor sweep); `.../archive/known-bad/` for runs whose numbers are flagged uninterpretable (the 8-sim diagnostic tier of the head-vs-tail sweep, capacity attempt 2) -- see each folder's `README.md` before reusing anything inside |
 
 ## Protocol going forward
 

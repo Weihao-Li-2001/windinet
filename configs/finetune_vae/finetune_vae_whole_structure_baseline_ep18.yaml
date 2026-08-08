@@ -1,33 +1,42 @@
 # VAE finetuning config -- EPOCH-BUDGET CHECK on the whole-structure baseline.
 #
-# Single-variable follow-up to finetune_vae_whole_structure_baseline.yaml
-# (as `fullenc`, val_vrmse 0.08673, job 521389). Motivation: that run's own
+# Single-variable follow-up to finetune_vae_whole_structure_baseline.yaml.
+# Originally written against that file's 0.1x `fullenc` result (val_vrmse
+# 0.08673, job 521389); RESYNCED 2026-08-08 after the encoder-LR sweep
+# (Open Question 6, EXPERIMENTS.md) promoted `encoder_tail_lr_multiplier`
+# 0.1x -> 0.3x as the new baseline (val_vrmse 0.08516, job 521887) -- this
+# file's own multiplier is bumped to match, so `epochs` stays the ONLY
+# variable vs the *current* baseline instead of accidentally also changing
+# the encoder LR. Motivation (still holds under 0.3x): the baseline's
 # per-epoch curve flattens sharply as the wsd schedule decays to
 # min_learning_rate --
 #
-#   epoch 12 (lr 4.28e-5): 0.09522
+#   epoch 12 (lr 4.28e-5): 0.09522  (fullenc, 0.1x)
 #   epoch 13 (lr 2.55e-5): 0.08907  (-6.5%)
 #   epoch 14 (lr 8.18e-6): 0.08709  (-2.2%)
 #   epoch 15 (lr 1.00e-6): 0.08673  (-0.4%)
 #
-# -- and the same shape shows up in head012 and tail3. That could mean the
-# model has genuinely converged, or it could mean the wsd schedule (sized
-# for 15 epochs) decayed the LR to near-zero before the model was done
-# improving. This run answers which: `optimization.epochs` is the ONLY
-# thing changed (15 -> 18) -- `warmup_steps` (200, absolute) stays fixed,
-# but `stable_fraction` (0.7) is a *fraction* of the post-warmup budget, so
-# both the stable phase (more epochs at full 5e-5 before decay starts) and
-# the decay phase (more epochs easing down to the same 1e-6 floor) get
-# proportionally longer. No code change needed for this -- see
-# `windinet/training/vae_trainer.py`, `total_opt_steps = cfg.optimization.epochs * steps_per_epoch`.
+# -- and the same shape shows up in head012, tail3, and all four arms of the
+# encoder-LR sweep (0.3x itself: -6.5%/-2.2%/-0.4% at epochs 13/14/15,
+# EXPERIMENTS.md). That could mean the model has genuinely converged, or it
+# could mean the wsd schedule (sized for 15 epochs) decayed the LR to
+# near-zero before the model was done improving. This run answers which:
+# `optimization.epochs` is the ONLY thing changed (15 -> 18) -- `warmup_steps`
+# (200, absolute) stays fixed, but `stable_fraction` (0.7) is a *fraction* of
+# the post-warmup budget, so both the stable phase (more epochs at full 5e-5
+# before decay starts) and the decay phase (more epochs easing down to the
+# same 1e-6 floor) get proportionally longer. No code change needed for
+# this -- see `windinet/training/vae_trainer.py`,
+# `total_opt_steps = cfg.optimization.epochs * steps_per_epoch`.
 #
-# Read-out: compare final (epoch 18) val_vrmse to finetune_vae_whole_structure_baseline's
-# epoch 15 (0.08673 as fullenc). Also free from the same run: this config's
-# OWN epoch-15 row (schedule not yet near the floor, since decay is stretched
-# over 18 epochs now) vs. the original 15-epoch run's epoch-15 (already at
-# the floor) -- if this run's epoch 15 is *worse* than the original's, that's
-# direct evidence the longer schedule needs the extra epochs to catch up
-# rather than already being ahead throughout.
+# Read-out: compare final (epoch 18) val_vrmse to
+# finetune_vae_whole_structure_baseline_enclr0p3x's epoch 15 (0.08516, job
+# 521887 -- the current baseline number). Also free from the same run: this
+# config's OWN epoch-15 row (schedule not yet near the floor, since decay is
+# stretched over 18 epochs now) vs. the 15-epoch 0.3x run's epoch-15
+# (already at the floor) -- if this run's epoch 15 is *worse* than that
+# one's, that's direct evidence the longer schedule needs the extra epochs
+# to catch up rather than already being ahead throughout.
 #
 # Kill criterion: none beyond the usual (train_loss diverging). Only 3 extra
 # epochs (~20% more wall-clock vs the baseline) -- cheap enough not to need
@@ -66,7 +75,7 @@ data:
 optimization:
   learning_rate: 5e-5
   adapter_lr_multiplier: 1.0
-  encoder_tail_lr_multiplier: 0.1
+  encoder_tail_lr_multiplier: 0.3
   min_learning_rate: 1e-6
   scheduler_type: "wsd"
   stable_fraction: 0.7
