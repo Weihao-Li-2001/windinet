@@ -368,17 +368,44 @@ class VaeAdapterConfig(ConfigBaseModel):
         default="adapter",
         description="'adapter': 1x1 in/out adapters around a frozen 3-ch VAE. 'inflate': grow the VAE's conv_in/conv_out to read/write all channels natively (trains encoder.conv_in too).",
     )
-    inflate_init: Literal["zeros", "mean", "random"] = Field(
+    inflate_init: Literal["zeros", "mean", "random", "copy"] = Field(
         default="zeros",
         description=(
             "mode='inflate' only. 'zeros' keeps every pretrained slot and zeroes the new "
             "channel (preserves the pretrained forward); 'mean' seeds the new channel with "
-            "I3D-style averaging of the originals; 'random' discards the pretrained "
+            "I3D-style averaging of the originals; 'copy' seeds the new channel with an exact "
+            "copy of one specific original slot (see inflate_copy_channel) instead of "
+            "averaging all of them -- for a physically-paired field (e.g. momentum_y as the "
+            "new channel, momentum_x as an original one); 'random' discards the pretrained "
             "conv_in/conv_out entirely and reinitializes both, rescaled to preserve output "
             "variance -- the bet that LTXV's RGB patchify basis is wrong for CFD fields and "
             "is better relearned than adapted."
         ),
     )
+    inflate_copy_channel: str | None = Field(
+        default=None,
+        description=(
+            "inflate_init='copy' only: the physical channel name (must be one of the first "
+            "3 entries of `channels`, i.e. an original pretrained-RGB slot, not the newly-"
+            "grown 4th one) whose conv_in/conv_out weights are copied into the new channel's "
+            "slot at init."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_inflate_copy_channel(self) -> "VaeAdapterConfig":
+        if self.inflate_init == "copy":
+            if self.inflate_copy_channel is None:
+                raise ValueError("inflate_init='copy' requires inflate_copy_channel to be set")
+            if self.inflate_copy_channel not in self.channels[:3]:
+                raise ValueError(
+                    f"inflate_copy_channel={self.inflate_copy_channel!r} must be one of the "
+                    f"first 3 (original, pretrained-RGB) entries of channels={self.channels}, "
+                    "not the newly-grown 4th one"
+                )
+        elif self.inflate_copy_channel is not None:
+            raise ValueError("inflate_copy_channel is only meaningful when inflate_init='copy'")
+        return self
     freeze_conv_in: bool = Field(
         default=False,
         description=(

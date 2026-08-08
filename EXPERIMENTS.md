@@ -623,6 +623,116 @@ discontinuities. 5x spread, same model, same epoch.
    been swept. See "Decoder LR / adapter LR multiplier sweep" below for the
    two 3-arm grids and why a naive `learning_rate`-only sweep would
    confound decoder LR with the already-tuned encoder/conv_in LRs.
+10. **PLANNED, not yet run: does copying a physically-paired sibling
+    channel's pretrained weights beat `mean`-init for the freshly-grown
+    4th channel?** The channel-order sweep (Q8) picked the *arrangement*
+    of which field sits where, but every arm still used `inflate_init:
+    mean` for whichever field landed in the fresh slot -- averaging in
+    two physically unrelated scalar fields (density, pressure) alongside
+    whichever field genuinely belongs there. When the fresh slot is one
+    half of the momentum vector pair (momentum_x/momentum_y), there's a
+    more targeted choice available: copy the *other* half's pretrained
+    slot instead of averaging all three originals. See "Copy-init for a
+    physically-paired momentum channel" below for the full RGB/physical-
+    channel permutation table, the chosen arm, and the new `inflate_init:
+    'copy'` code path this needed.
+
+### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
+
+**THE QUESTION:** of the four physical fields, momentum_x and momentum_y
+are the one genuinely symmetric pair (same physical role, different
+spatial axis) -- density and pressure are each their own thing. In every
+channel-order arm where one of momentum_x/momentum_y lands in the fresh
+(index-3, mean-init) slot, `inflate_init: mean` seeds it as the average of
+*all three* original slots, silently mixing in density and pressure even
+though the physically closest analog (the other momentum component) is
+sitting right there in one of those three original slots. Does copying
+that sibling's pretrained weights directly, instead of diluting it with
+two unrelated scalar fields, give the fresh momentum channel a better
+starting point?
+
+**Permutations already run (the channel-order sweep, Q8) and which field
+sits in the fresh slot:**
+
+| tag | channel_order (index 0-3) | index-3 (fresh) field | mx/my split across pretrained+fresh? | val_vrmse |
+|---|---|---|---|---|
+| `mx_my_pr` (default) | density, momentum_x, momentum_y, pressure | pressure | no (both mx, my pretrained) | 0.09540 |
+| `my_mx_pr` | density, momentum_y, momentum_x, pressure | pressure | no (both mx, my pretrained) | **0.09536** (best overall) |
+| `pr_my_mx` | density, pressure, momentum_y, momentum_x | momentum_x | **yes** -- my pretrained (idx 2), mx fresh (idx 3) | 0.09841 (best of the split arms) |
+| `pr_mx_my` | density, pressure, momentum_x, momentum_y | momentum_y | yes -- mx pretrained (idx 2), my fresh (idx 3) | 0.09922 |
+| `my_pr_mx` | density, momentum_y, pressure, momentum_x | momentum_x | yes -- my pretrained (idx 1), mx fresh (idx 3) | 0.10043 |
+| `mx_pr_my` | density, momentum_x, pressure, momentum_y | momentum_y | yes -- mx pretrained (idx 1), my fresh (idx 3) | 0.10136 (worst overall) |
+
+Four of the six arms already split momentum_x/momentum_y across a
+pretrained slot and the fresh slot -- exactly the situation this question
+is about. **`pr_my_mx` is the best-performing of those four** (0.09841),
+so it's the arm this experiment builds on: momentum_y sits at index 2
+(pretrained), momentum_x sits at index 3 (fresh, currently mean-init).
+
+**SINGLE VARIABLE vs `finetune_vae_baseline_chorder_pr_my_mx.yaml`** (the
+already-archived, already-measured arm above, val_vrmse 0.09841, job
+522476) -- two fields move together since `inflate_init: 'copy'` requires
+naming its source, same "multiple YAML fields, one conceptual variable"
+pattern as every other sweep in this ledger:
+
+```
+adapter.inflate_init:         "mean" -> "copy"
+adapter.inflate_copy_channel: (unset) -> "momentum_y"
+```
+
+Everything else (channel_order, channel_mean/std, seed 42, 15 epochs,
+wsd, frozen encoder trunk) unchanged -- **deliberately still built on the
+frozen-trunk `finetune_vae_baseline.yaml` lineage, not the whole-structure
+baseline**, for the same reason Q8 itself made that choice: staying a
+clean single-variable comparison against an already-measured number
+(0.09841) rather than also confounding in the encoder-unfreeze-extent
+difference.
+
+Config: `finetune_vae_baseline_chorder_pr_my_mx_copyinit.yaml`.
+
+**Code change required** (this was not a pure-YAML experiment, same as
+Q8): `inflate_vae_io_channels` (`windinet/vae_adapter.py`) only supported
+`'zeros'`/`'mean'`/`'random'`. Added `'copy'`, which seeds the fresh
+channel's `encoder.conv_in`/`decoder.conv_out` slots (weight AND bias)
+with an exact copy of one named original slot instead of averaging all of
+them -- implemented as a 1-element-list degenerate case of the existing
+mean-over-a-set logic (`_fill_new_blocks`'s `src` list has length 1 for
+`'copy'`, length `n_orig` for `'mean'`), so no new averaging code path was
+needed. `VaeAdapterConfig` gained `inflate_copy_channel: str | None`
+(the source channel's name) with a validator requiring it be set (and be
+one of the *original* 3 channels, not the new 4th one) iff `inflate_init
+== 'copy'`. `VaeTrainer._load_vae` resolves the name to an index via
+`adapter_cfg.channels.index(...)` before calling
+`inflate_vae_io_channels`; the choice also round-trips through checkpoint
+metadata (`inflate_copy_channel` alongside the existing `inflate_init`) so
+`load_inflated_vae` (inference reload path) can reconstruct the same
+tensor shapes, though by that point the actual values get overwritten by
+the loaded checkpoint regardless of which init produced them originally.
+Verified with hand-built `nn.Conv3d` layers (small stand-in channel/block
+counts): `'copy'` reproduces the source slot's weight AND bias exactly in
+the new slot, `'mean'`/`'zeros'` are bit-identical to their pre-refactor
+behavior (regression check), and every existing checked-in config still
+loads through `VaeTrainerConfig` unchanged. **Not yet run through an
+actual training step.**
+
+**Read-out criterion:** compare this run's epoch-15 val_vrmse to
+`pr_my_mx`'s 0.09841 against the ~1.1% seed-noise floor (Open Question 1).
+If `copy` clears the floor in the improving direction, that's evidence the
+fresh channel's init should be picked per-field (copy a real sibling when
+one exists) rather than uniformly mean-averaging everything -- worth then
+checking whether the same swap on the other three split arms (`pr_mx_my`,
+`my_pr_mx`, `mx_pr_my`) also improves before generalizing the claim.
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's). Expected
+low risk -- `copy` is a strictly gentler intervention than `random` (which
+discards all 3 pretrained slots): only the fresh channel's init changes,
+and it changes to another real pretrained-derived filter, not zeros or
+noise.
+
+Launch (once ready):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_my_mx_copyinit.yaml
+```
 
 ### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)
 

@@ -154,11 +154,17 @@ class VaeTrainer:
             self._adapter_meta = meta
         elif adapter_cfg.enabled and adapter_cfg.mode == "inflate":
             n = len(adapter_cfg.channels)
-            inflate_vae_io_channels(self._vae, n=n, init=adapter_cfg.inflate_init)
+            copy_from_index = (
+                adapter_cfg.channels.index(adapter_cfg.inflate_copy_channel)
+                if adapter_cfg.inflate_init == "copy"
+                else None
+            )
+            inflate_vae_io_channels(self._vae, n=n, init=adapter_cfg.inflate_init, copy_from_index=copy_from_index)
             self._inflated = True
+            copy_suffix = f", copy_from={adapter_cfg.inflate_copy_channel!r}" if adapter_cfg.inflate_init == "copy" else ""
             logger.info(
                 f"VAE inflated to {n} native channels "
-                f"(init={adapter_cfg.inflate_init}); encoder.conv_in is trainable"
+                f"(init={adapter_cfg.inflate_init}{copy_suffix}); encoder.conv_in is trainable"
             )
             # Resume: load the finetuned decoder + grown encoder.conv_in weights
             # over the freshly inflated (pretrained-init) VAE.
@@ -1146,6 +1152,7 @@ class VaeTrainer:
             "format": "ltx-inflated-io-v1" if self._inflated else "ltx-decoder-plus-adapters-v1",
             "mode": adapter_cfg.mode,
             "inflate_init": adapter_cfg.inflate_init,
+            "inflate_copy_channel": str(adapter_cfg.inflate_copy_channel),
             "channels": str(vae.channels if isinstance(vae, AdaptedVAE) else adapter_cfg.channels),
             "n": str(len(vae.channels) if isinstance(vae, AdaptedVAE) else len(adapter_cfg.channels)),
             "k": str(vae.k if isinstance(vae, AdaptedVAE) else 0),

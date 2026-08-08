@@ -163,7 +163,15 @@ def load_inflated_vae(
     meta = safe_open(str(ckpt_path), framework="pt", device="cpu").metadata() or {}
     n = int(meta.get("n", 4))
     init = meta.get("inflate_init", "zeros")
-    inflate_vae_io_channels(vae, n=n, init=init)
+    copy_from_index = None
+    if init == "copy":
+        # channels/inflate_copy_channel round-trip as str(list)/str(name) in checkpoint
+        # metadata (see VaeTrainer._save_checkpoint) -- eval() back to a real list.
+        import ast
+
+        channels = ast.literal_eval(meta["channels"])
+        copy_from_index = channels.index(meta["inflate_copy_channel"])
+    inflate_vae_io_channels(vae, n=n, init=init, copy_from_index=copy_from_index)
     load_inflated_vae_checkpoint(vae, ckpt_path, device=device, dtype=dtype)
     return vae
 

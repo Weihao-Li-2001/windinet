@@ -217,7 +217,7 @@ def _reinit_scaled(new: nn.Conv3d, old: nn.Conv3d) -> None:
 
 
 @torch.no_grad()
-def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
+def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros", copy_from_index: int | None = None):
     """Make the LTX VAE natively read/write ``n`` channels instead of 3.
 
     The encoder patchifies (C x patch^2) before ``conv_in`` and the decoder
@@ -238,6 +238,15 @@ def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
         from clean gradients.
       * ``'mean'`` -- keep all pretrained slots, seed the new channel with the
         mean of the originals at the same patch position (I3D-style).
+      * ``'copy'`` -- keep all pretrained slots, seed the new channel with an
+        exact copy of one specific original slot (``copy_from_index``, required
+        when ``init == 'copy'``) instead of averaging all of them. Intended for
+        a physically-paired field that already occupies one of the original
+        (pretrained-RGB) slots -- e.g. if ``momentum_x`` is one of the original
+        3 channels and ``momentum_y`` is the newly-grown 4th, copying
+        ``momentum_x``'s slot gives ``momentum_y`` the same starting basis as
+        its symmetric sibling instead of an average that also mixes in
+        unrelated scalar fields (density, pressure).
       * ``'random'`` -- **discard the pretrained projections entirely** and
         reinitialize both layers from scratch, rescaled to preserve the output
         variance (see :func:`_reinit_scaled`). The premise is that LTXV's
@@ -251,20 +260,34 @@ def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
         Expect a much worse epoch 1 than 'zeros'/'mean'; the bet is on the
         endpoint, not the start.
     """
-    if init not in ("zeros", "mean", "random"):
-        raise ValueError(f"init must be 'zeros', 'mean' or 'random', got {init!r}")
+    if init not in ("zeros", "mean", "random", "copy"):
+        raise ValueError(f"init must be 'zeros', 'mean', 'random' or 'copy', got {init!r}")
     n_orig = int(vae.config.in_channels)
     if n < n_orig:
         raise ValueError(f"n={n} must be >= original in_channels={n_orig}")
+    if init == "copy":
+        if copy_from_index is None or not (0 <= copy_from_index < n_orig):
+            raise ValueError(
+                f"init='copy' requires copy_from_index in [0, {n_orig}), got {copy_from_index!r}"
+            )
+
+    def _src_indices(block: int) -> list[int] | None:
+        # Which original-channel block(s) feed a newly-grown channel's init.
+        # 'copy' -> a single source block; 'mean' -> every original block;
+        # 'zeros'/'random' never reach here (see call sites below).
+        if init == "copy":
+            return [copy_from_index * block]
+        return [c * block for c in range(n_orig)]
 
     def _fill_new_blocks(w_new: torch.Tensor, block: int, axis: int) -> None:
         # w_new indexed on `axis` as [c0_block, c1_block, ... c_{n-1}_block].
+        if init == "zeros":
+            return  # already zeroed
+        src_bases = _src_indices(block)
         for c_new in range(n_orig, n):
             for p in range(block):
                 dst = c_new * block + p
-                if init == "zeros":
-                    continue  # already zeroed
-                src = [c * block + p for c in range(n_orig)]
+                src = [base + p for base in src_bases]
                 if axis == 1:
                     w_new[:, dst] = w_new[:, src].mean(dim=1)
                 else:
@@ -304,10 +327,11 @@ def inflate_vae_io_channels(vae, n: int = 4, init: str = "zeros"):
             new.bias.zero_()
             new.bias[: old.out_channels] = old.bias
         _fill_new_blocks(new.weight, block, axis=0)
-        if old.bias is not None and init == "mean":
+        if old.bias is not None and init in ("mean", "copy"):
+            src_bases = _src_indices(block)
             for p in range(block):
                 for c_new in range(n_orig, n):
-                    new.bias[c_new * block + p] = new.bias[[c * block + p for c in range(n_orig)]].mean()
+                    new.bias[c_new * block + p] = new.bias[[base + p for base in src_bases]].mean()
     co.conv = new
     co.out_channels = n * block
     vae.decoder.out_channels = n * block

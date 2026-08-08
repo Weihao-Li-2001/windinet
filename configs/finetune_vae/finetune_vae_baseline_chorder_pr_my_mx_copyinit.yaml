@@ -1,0 +1,128 @@
+# VAE finetuning config -- COPY-INIT for a physically-paired momentum
+# channel (Open Question 10).
+#
+# Single-variable follow-up to the already-completed channel-order sweep
+# arm finetune_vae_baseline_chorder_pr_my_mx.yaml (val_vrmse 0.09841, job
+# 522476, now archived -- see configs/finetune_vae/archive/done/ and
+# EXPERIMENTS.md "Channel-order sweep"). That arm's channel_order is
+# [density, pressure, momentum_y, momentum_x]: density/pressure/momentum_y
+# occupy the 3 original (pretrained-RGB) slots, momentum_x is the newly-
+# grown 4th slot, seeded with `inflate_init: mean` -- i.e. the average of
+# density, pressure, AND momentum_y, three of which (density, pressure)
+# have nothing to do with momentum_x physically.
+#
+# THE QUESTION: momentum_x and momentum_y are the symmetric pair of a
+# single vector field (same physical role, different axis). Does seeding
+# the freshly-grown momentum_x with a COPY of momentum_y's pretrained
+# slot -- its actual symmetric sibling -- beat averaging in two unrelated
+# scalar fields?
+#
+# CHANGE FROM finetune_vae_baseline_chorder_pr_my_mx.yaml (ONE conceptual
+# variable, two fields move together since inflate_init='copy' requires
+# naming its source):
+#   adapter.inflate_init:         "mean" -> "copy"
+#   adapter.inflate_copy_channel: (unset) -> "momentum_y"
+# Everything else (channel_order, channel_mean/std, seed 42, 15 epochs,
+# wsd, h1 50, lr 5e-5, frozen encoder trunk) UNCHANGED -- this is still
+# built on finetune_vae_baseline.yaml's frozen-trunk architecture, not the
+# whole-structure baseline, specifically so it stays a clean single-variable
+# comparison against the already-measured pr_my_mx number (0.09841) rather
+# than also confounding in the encoder-unfreeze-extent difference.
+#
+# Requires the inflate_init='copy' code path (windinet/vae_adapter.py
+# inflate_vae_io_channels, new copy_from_index param; windinet/config.py
+# VaeAdapterConfig.inflate_copy_channel + validator) added alongside this
+# config -- see EXPERIMENTS.md "Open Question 10" for the read-out/kill
+# criteria and the full RGB/physical-channel permutation table this arm
+# was picked from.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_my_mx_copyinit.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # THE variable (with inflate_copy_channel below): "mean" -> "copy".
+  inflate_init: "copy"
+  # momentum_x (the new 4th slot here) copies its physically-symmetric
+  # sibling momentum_y's pretrained slot, instead of averaging in
+  # density+pressure+momentum_y.
+  inflate_copy_channel: "momentum_y"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "pressure", "momentum_y", "momentum_x"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_order: ["density", "pressure", "momentum_y", "momentum_x"]
+  channel_mean: [0.905097647712509, 0.9031908053899714, -0.0019089379643528095, 0.0040453659499771295]
+  channel_std: [0.6607349375392083, 0.8050358917795326, 0.5262512462358824, 0.5328754120427532]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "copy-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "channel-order-sweep", "chorder-pr_my_mx", "momentum-copy-init"]
+
+seed: 42
+output_dir: "finetune_vae_baseline_chorder_pr_my_mx_copyinit"
+clean_output_dir: true
