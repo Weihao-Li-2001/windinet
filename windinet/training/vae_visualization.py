@@ -15,17 +15,35 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from windinet.training.shockwave_data import CHANNEL_NAMES
+
 
 def denormalize_fields(
     tensor: torch.Tensor,
     channel_mean: list[float],
     channel_std: list[float],
     normalization_clip: float,
+    channel_order: list[str] | None = None,
+    log_transform_channels: list[str] | None = None,
 ) -> torch.Tensor:
-    """Convert normalized [B,C,F,H,W] fields back to physical values."""
+    """Convert normalized [B,C,F,H,W] fields back to physical values.
+
+    Inverts build_shockwave_video's two preprocessing steps in reverse order:
+    z-score first (always), then exp() for any channel named in
+    `log_transform_channels` (requires `channel_order` to map those names to
+    stacked indices) -- undoes build_shockwave_video's log() so callers that
+    want physical units (visualization panels) see real density/pressure,
+    not log-density/log-pressure.
+    """
     mean = tensor.new_tensor(channel_mean).view(1, 4, 1, 1, 1)
     scale = tensor.new_tensor(channel_std).view(1, 4, 1, 1, 1) * normalization_clip
-    return tensor * scale + mean
+    out = tensor * scale + mean
+    if log_transform_channels:
+        order = channel_order or CHANNEL_NAMES
+        idx = [order.index(name) for name in log_transform_channels]
+        out = out.clone()
+        out[:, idx] = out[:, idx].exp()
+    return out
 
 
 def save_reconstruction_panels(

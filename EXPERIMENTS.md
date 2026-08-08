@@ -636,6 +636,17 @@ discontinuities. 5x spread, same model, same epoch.
     physically-paired momentum channel" below for the full RGB/physical-
     channel permutation table, the chosen arm, and the new `inflate_init:
     'copy'` code path this needed.
+11. **PLANNED, not yet run: does log-compressing density before
+    z-scoring lower val_vrmse?** Density is strictly positive and spans a
+    wide dynamic range (real dataset: min 0.024, max 26.1) -- log(density)
+    is a standard CFD/turbulence preprocessing trick to stop the long
+    right tail (shock-compressed high-density regions) from dominating a
+    linear-scale loss at the expense of near-vacuum resolution. Built on
+    the current whole-structure baseline (0.3x), single variable
+    `data.log_transform_channels: [] -> ["density"]`. See "Log-density
+    experiment" below for the new `build_shockwave_video`/
+    `denormalize_fields` code path this needed and the read-out/kill
+    criteria.
 
 ### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
 
@@ -732,6 +743,88 @@ noise.
 Launch (once ready):
 ```
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_my_mx_copyinit.yaml
+```
+
+### Log-density experiment (Open Question 11, new 2026-08-08)
+
+**THE QUESTION:** density is strictly positive and spans a wide dynamic
+range (`euler_mq_128_only_train.yaml`: min 0.024, max 26.1 -- over 3
+orders of magnitude). Every run so far z-scores the raw value, which
+means shock-compressed high-density regions (the long right tail) and
+near-vacuum regions (close to the floor) compete on one linear scale --
+the tail can dominate RMSE-family losses while the floor gets
+proportionally little resolution. `log(density)` is the standard
+CFD/turbulence fix: compresses the tail, expands resolution near the
+floor, and turns multiplicative density variations into additive ones
+(physically closer to how compression ratios are usually reasoned about
+in gas dynamics).
+
+**Mechanism:** `windinet.training.shockwave_data.build_shockwave_video`
+gained `log_transform_channels: list[str] | None` -- for each named
+channel, the raw physical field is replaced with `log(field.clamp(min=
+LOG_TRANSFORM_EPS))` *before* the existing z-score step, not instead of
+it. `VaeDataConfig.log_transform_channels` (validated to only accept
+`density`/`pressure` -- momentum_x/momentum_y can be negative, `log()` is
+undefined there) drives this, and -- since this config already uses
+`normalization_stats_file` (see the dedicated ledger entry above) --
+`validate_normalization_stats`'s file-lookup automatically switches to
+the `log_<name>` entry (e.g. `log_density`, mean -0.288/std 0.604) instead
+of `<name>`'s raw entry (mean 0.905/std 0.661) for any channel listed in
+`log_transform_channels`, with no second number to hand-edit.
+`windinet.training.vae_visualization.denormalize_fields` (used only by
+the visualization panels, not by any loss/metric) inverts both steps in
+reverse order -- undo the z-score, then `exp()` the named channels -- so
+reconstruction panels still show physical density, not log-density.
+Training losses and `val_vrmse` (including the per-channel breakdown
+above) are computed in the same z-scored space every other channel
+already uses -- with this flag on, that space is log-density-z-scored for
+the density channel specifically, exactly mirroring how every other
+sweep in this ledger already operates entirely in normalized space.
+
+**Single variable vs `finetune_vae_whole_structure_baseline.yaml`** (0.3x
+encoder LR, the current baseline):
+```
+data.log_transform_channels: [] -> ["density"]
+```
+Config: `finetune_vae_whole_structure_baseline_logdensity.yaml`.
+
+**Known gap, same shape as the channel-order sweep's:** `scripts/
+preprocess_dataset.py` and `scripts/inference_shockwave.py` call
+`build_shockwave_video`/`denormalize_fields` without passing
+`log_transform_channels` (or `channel_order`, the pre-existing gap) --
+if this experiment's checkpoint is ever taken into stage-2 (DiT)
+preprocessing or inference before those two scripts are updated, density
+would be silently treated as untransformed. Training/eval within this
+experiment are unaffected.
+
+**Verified (not yet an actual training run):** `VaeDataConfig` rejects
+`log_transform_channels: ["momentum_x"]`; with `normalization_stats_file`
+set, `channel_mean[0]`/`channel_std[0]` resolve to `log_density`'s -0.288/
+0.604 instead of density's raw 0.905/0.661, other three channels
+untouched; a hand-built round-trip (`build_shockwave_video` with
+`log_transform_channels=["density"]`, then `denormalize_fields` with the
+same argument) recovers the original physical density -- and every other
+channel -- to float32 precision (~1e-7 max abs diff) with zero elements
+needing to saturate against `normalization_clip`; every existing
+checked-in config still loads through `VaeTrainerConfig` unchanged
+(default `log_transform_channels: []` is a no-op, verified byte-identical
+`channel_mean`/`channel_std` to before this feature existed).
+
+**Read-out criterion:** compare epoch-15 `val_vrmse` (and specifically
+`val_vrmse_density`, the per-channel breakdown above -- this is the one
+channel the change actually touches) to the baseline's 0.08516 (job
+521887), against the ~1.1% seed-noise floor (Open Question 1).
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's). No
+elevated risk expected -- this changes what density's z-scored values
+*mean*, not the model architecture or any LR, and log-space statistics
+computed from the same file are already well-formed (finite mean/std,
+`euler_mq_128_only_train.yaml`'s `log_density` block has existed since
+before this pull).
+
+Launch (once ready):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_logdensity.yaml
 ```
 
 ### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)
@@ -1383,6 +1476,63 @@ per-channel `sqrt(mse/var)` computation exactly; returns all-zero for
 `pred == target`) and a dry-run of the `_evaluate` accumulation logic with
 a fake `channel_order` -- produces the expected `val_vrmse_<name>` keys.
 **Not yet run through an actual training step.**
+
+## Canonical normalization-stats file, `normalization_stats_file` (2026-08-08)
+
+**THE PROBLEM:** every VAE training config carried `data.channel_mean`/
+`data.channel_std` as inline literals, copy-pasted into every single
+config file. Channel-order-sweep configs additionally had to **hand-
+reindex** the same four numbers per arm (e.g. `pr_my_mx`'s config manually
+reordered them to match its `channel_order`) -- easy to get wrong silently
+(a transposition would validate fine, just train on subtly wrong stats),
+and there was no single place to update if the numbers themselves were
+ever revised (e.g. after `scripts/compute_channel_stats.py`, added
+earlier this pull, recomputes them from the real dataset instead of
+`configs/finetune_vae/euler_mq_128_only_train.yaml`'s original hand
+computation).
+
+**FIX:** `VaeDataConfig` gained `normalization_stats_file: str | Path |
+None`. When set, `channel_mean`/`channel_std` are loaded from that file's
+`data_normalization_stats` block (same `{channel_name: {mean, std, ...}}`
+shape `euler_mq_128_only_train.yaml` already used, and what
+`compute_channel_stats.py --output` writes) and **reordered to match
+`channel_order` automatically** -- the hand-reindexing step is gone.
+`channel_mean`/`channel_std` became optional (`None` default); a
+`model_validator` requires exactly one of "both set inline" or
+"`normalization_stats_file` set," so there's no silent-precedence
+ambiguity if a config somehow specified both.
+
+**Migrated the 8 active (non-archived) VAE configs** to
+`normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"`
+in place of their inline numbers (`finetune_vae_baseline.yaml`, the
+whole-structure baseline + its `ep18`/decoder-LR-sweep/adapter-LR-sweep
+variants, and the copy-init config) -- verified byte-identical
+`channel_mean`/`channel_std` before/after the migration for all 8, so this
+is a pure refactor, not a behavior change. Archived (`archive/done/`)
+configs were left untouched on purpose -- they're closed, citable
+snapshots, not live code to keep in sync.
+
+**Sets up 256x256_ds support (Open Question 4) for free:** once
+`scripts/compute_channel_stats.py` runs against `256x256_ds/train.h5` and
+its `--output` JSON exists, any 256-resolution config just points
+`normalization_stats_file` at that JSON instead of
+`euler_mq_128_only_train.yaml` -- no code change, and no risk of
+accidentally training a 256-resolution run on the 128-resolution dataset's
+stats (previously plausible, since copy-pasting the wrong file's numbers
+would validate fine, same 4-value list shape either way).
+
+**`yaml.safe_load` reads both `.yaml` and `.json`** (JSON is a YAML
+subset) -- the hand-written `euler_mq_128_only_train.yaml` and
+`compute_channel_stats.py`'s JSON output work through the identical code
+path with no format-specific branching.
+
+Verified: `VaeDataConfig` unit-level (default channel_order, permuted
+channel_order reproduces the previously-hand-transcribed `pr_my_mx`
+numbers exactly, both-set/neither-set both raise, loading a
+`compute_channel_stats.py`-shaped JSON file works), plus every checked-in
+config across the whole repo still loads through `VaeTrainerConfig`
+(same one pre-existing, unrelated failure as before -- a template
+fragment that was never a valid trainer config to begin with).
 
 ## Where things live
 

@@ -274,6 +274,9 @@ class ShockWaveDataset(Dataset):
             "id": sid,
         }
     
+LOG_TRANSFORM_EPS = 1e-6
+
+
 def build_shockwave_video(
     sample: dict[str, Tensor],
     device: torch.device,
@@ -281,6 +284,7 @@ def build_shockwave_video(
     channel_std: list[float] | None = None,
     normalization_clip: float = 5.0,
     channel_order: list[str] | None = None,
+    log_transform_channels: list[str] | None = None,
 ) -> Tensor:
     """Build a 4-channel shockwave video [B, 4, F, H, W].
 
@@ -295,6 +299,20 @@ def build_shockwave_video(
     aligned with `channel_mean`/`channel_std` (config.VaeDataConfig.channel_order
     validates both). Defaults to CHANNEL_NAMES, the layout every run before
     the 2026-08 channel-order sweep used.
+
+    `log_transform_channels` (config.VaeDataConfig.log_transform_channels)
+    names physical fields to replace with `log(field)` *before* z-score
+    normalization -- restricted by that config's own validator to the two
+    strictly-positive fields (density, pressure), since log() is undefined
+    for momentum_x/momentum_y's signed values. `channel_mean`/`channel_std`
+    for these channels must already be the log-space statistics (e.g.
+    euler_mq_128_only_train.yaml's `log_density` block via
+    VaeDataConfig.normalization_stats_file, which resolves this
+    automatically) -- this function has no way to tell raw stats from
+    log-space ones, it just z-scores whatever it's given. Clamped to
+    LOG_TRANSFORM_EPS first so a not-quite-zero field value (data noise,
+    not expected in practice -- the real dataset's density/pressure floors
+    are ~0.02/0.001) can't silently produce -inf/NaN.
 
     Unlike WinDiNet, ShockWaveNet does not prepend an artificial
     conditioning frame. The first simulation frame is treated as
@@ -312,6 +330,9 @@ def build_shockwave_video(
     for name, tensor in fields.items():
         if tensor.ndim == 3:
             fields[name] = tensor.unsqueeze(0)
+
+    for name in log_transform_channels or []:
+        fields[name] = torch.log(fields[name].clamp(min=LOG_TRANSFORM_EPS))
 
     # each field: [B, T, H, W]
     x = torch.stack([fields[name] for name in order], dim=1)  # [B, 4, F, H, W]

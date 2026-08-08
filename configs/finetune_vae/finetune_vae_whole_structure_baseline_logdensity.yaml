@@ -1,0 +1,137 @@
+# VAE finetuning config -- LOG-DENSITY EXPERIMENT (Open Question 11).
+#
+# Single-variable follow-up to finetune_vae_whole_structure_baseline.yaml
+# (0.3x encoder LR, val_vrmse 0.08516, job 521887 as
+# finetune_vae_whole_structure_baseline_enclr0p3x.yaml -- see "New reference
+# baseline" note in that file). Density spans a wide dynamic range (real
+# dataset: min 0.024, max 26.1, per euler_mq_128_only_train.yaml) and is
+# strictly positive -- log-compressing it before z-scoring is a standard
+# CFD/turbulence preprocessing trick that pulls in the long right tail
+# (shock-compressed high-density regions) and gives small/near-vacuum
+# densities proportionally more resolution, instead of every density value
+# competing on a single linear scale where the tail can dominate the loss.
+#
+# THE QUESTION: does replacing raw density with log(density) (still
+# z-scored, just with log-space statistics -- see below) lower val_vrmse
+# on the current best (whole-structure, 0.3x) architecture?
+#
+# CHANGE FROM finetune_vae_whole_structure_baseline.yaml (ONE conceptual
+# variable -- data.log_transform_channels is the actual switch;
+# normalization_stats_file already points at euler_mq_128_only_train.yaml,
+# which has always carried a log_density block, so no second file/number
+# needs to change):
+#   data.log_transform_channels: [] -> ["density"]
+# This makes windinet.training.shockwave_data.build_shockwave_video replace
+# density with log(density) before z-scoring, and
+# VaeDataConfig.normalization_stats_file's lookup automatically switches to
+# the log_density entry (mean -0.288, std 0.604) instead of density's raw
+# entry (mean 0.905, std 0.661) for that channel's z-score -- see
+# windinet/config.py's VaeDataConfig.validate_normalization_stats and
+# EXPERIMENTS.md "Open Question 11" for the full mechanism, including how
+# denormalize_fields (visualization) inverts both the z-score and the log
+# so reconstruction panels still show physical density, not log-density.
+# Everything else (encoder_tail_lr_multiplier 0.3x, seed 42, 15 epochs,
+# wsd, whole encoder trunk unfrozen) UNCHANGED.
+#
+# Code change required alongside this config: build_shockwave_video and
+# denormalize_fields both gained a log_transform_channels parameter
+# (windinet/training/shockwave_data.py, windinet/training/vae_visualization.py),
+# VaeDataConfig gained the log_transform_channels field + validator
+# (restricted to density/pressure -- momentum_x/momentum_y can be negative,
+# log() is undefined there). Verified: config validation correctly resolves
+# log_density stats from the file and rejects momentum fields; a hand-built
+# round-trip (build_shockwave_video -> denormalize_fields) recovers the
+# original physical density (and every other channel) to float32 precision
+# with zero values needing to hit the normalization_clip saturation bound.
+# Not yet run through an actual training step.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_logdensity.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  # THE variable: density is replaced with log(density) before z-scoring
+  # (normalization_stats_file's lookup switches to the log_density entry
+  # automatically for this channel -- see header).
+  log_transform_channels: ["density"]
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 15
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline", "log-density"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_logdensity"
+clean_output_dir: true

@@ -745,6 +745,7 @@ class VaeTrainer:
                         channel_std=cfg.data.channel_std,
                         normalization_clip=cfg.data.normalization_clip,
                         channel_order=cfg.data.channel_order,
+                        log_transform_channels=cfg.data.log_transform_channels,
                     )
                     with self._accelerator.autocast():
                         recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
@@ -1014,6 +1015,7 @@ class VaeTrainer:
                 channel_std=self._config.data.channel_std,
                 normalization_clip=self._config.data.normalization_clip,
                 channel_order=self._config.data.channel_order,
+                log_transform_channels=self._config.data.log_transform_channels,
             )
             with self._accelerator.autocast():
                 recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
@@ -1081,6 +1083,7 @@ class VaeTrainer:
                 channel_std=cfg.data.channel_std,
                 normalization_clip=cfg.data.normalization_clip,
                 channel_order=cfg.data.channel_order,
+                log_transform_channels=cfg.data.log_transform_channels,
             )
             with self._accelerator.autocast():
                 recon, _, _, _ = self._forward_pass(x)
@@ -1090,12 +1093,16 @@ class VaeTrainer:
                 cfg.data.channel_mean,
                 cfg.data.channel_std,
                 cfg.data.normalization_clip,
+                channel_order=cfg.data.channel_order,
+                log_transform_channels=cfg.data.log_transform_channels,
             )
             prediction = denormalize_fields(
                 recon[:, :, :orig_F],
                 cfg.data.channel_mean,
                 cfg.data.channel_std,
                 cfg.data.normalization_clip,
+                channel_order=cfg.data.channel_order,
+                log_transform_channels=cfg.data.log_transform_channels,
             )
             sample_id_value = batch.get("id", [f"sample_{sample_index:04d}"])
             sample_id = str(sample_id_value[0] if isinstance(sample_id_value, (list, tuple)) else sample_id_value)

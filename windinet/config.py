@@ -263,8 +263,32 @@ class VaeDataConfig(ConfigBaseModel):
             "otherwise dominate the runtime of a tiny training set."
         ),
     )
-    channel_mean: list[float] = Field(description="Per-channel training-set means")
-    channel_std: list[float] = Field(description="Per-channel training-set standard deviations")
+    channel_mean: list[float] | None = Field(
+        default=None,
+        description="Per-channel training-set means, positionally aligned with channel_order. "
+        "Mutually exclusive with normalization_stats_file -- set exactly one of the two.",
+    )
+    channel_std: list[float] | None = Field(
+        default=None,
+        description="Per-channel training-set standard deviations, positionally aligned with "
+        "channel_order. Mutually exclusive with normalization_stats_file -- set exactly one of the two.",
+    )
+    normalization_stats_file: str | Path | None = Field(
+        default=None,
+        description=(
+            "Path to a YAML/JSON file with a data_normalization_stats block -- "
+            "{channel_name: {mean, std, ...}}, the same shape "
+            "configs/finetune_vae/euler_mq_128_only_train.yaml already has and "
+            "scripts/compute_channel_stats.py's --output writes. When set, "
+            "channel_mean/channel_std are populated from it (looked up by name and "
+            "reordered to match channel_order) instead of being typed inline -- lets "
+            "every config for a given resolution share one canonical stats file "
+            "(and pick up a recomputed one, e.g. after scripts/compute_channel_stats.py "
+            "runs against a new dataset like 256x256_ds, without hand-editing every "
+            "config's numbers) instead of duplicating/hand-reindexing the same four "
+            "numbers per config the way channel-order-sweep configs previously did."
+        ),
+    )
     normalization_clip: float = Field(
         default=5.0,
         gt=0.0,
@@ -284,6 +308,35 @@ class VaeDataConfig(ConfigBaseModel):
         ),
     )
 
+    log_transform_channels: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Physical fields to replace with log(field) before z-score normalization "
+            "(windinet.training.shockwave_data.build_shockwave_video), instead of the raw "
+            "value. Restricted to the two strictly-positive fields (density, pressure) -- "
+            "momentum_x/momentum_y can be negative, log() is undefined there. When paired "
+            "with normalization_stats_file, the stats lookup automatically uses the "
+            "'log_<name>' entry (e.g. euler_mq_128_only_train.yaml's log_density block) "
+            "instead of '<name>' for these channels -- using inline channel_mean/channel_std "
+            "instead means supplying already-log-space statistics yourself."
+        ),
+    )
+
+    @field_validator("log_transform_channels")
+    @classmethod
+    def validate_log_transform_channels(cls, values: list[str]) -> list[str]:
+        allowed = {"density", "pressure"}
+        bad = sorted(set(values) - allowed)
+        if bad:
+            raise ValueError(
+                f"log_transform_channels only supports strictly-positive fields "
+                f"{sorted(allowed)}; got {bad} (momentum_x/momentum_y can be negative, "
+                "log() is undefined there)"
+            )
+        if len(set(values)) != len(values):
+            raise ValueError("log_transform_channels must not contain duplicates")
+        return values
+
     @field_validator("channel_order")
     @classmethod
     def validate_channel_order(cls, values: list[str]) -> list[str]:
@@ -294,6 +347,42 @@ class VaeDataConfig(ConfigBaseModel):
 
     @model_validator(mode="after")
     def validate_normalization_stats(self):
+        has_inline = self.channel_mean is not None or self.channel_std is not None
+        has_file = self.normalization_stats_file is not None
+        if has_inline and has_file:
+            raise ValueError(
+                "set either channel_mean/channel_std or normalization_stats_file, not both"
+            )
+        if has_file:
+            if self.channel_mean is not None or self.channel_std is not None:
+                raise ValueError("normalization_stats_file set: channel_mean/channel_std must be unset")
+            import yaml
+
+            with open(self.normalization_stats_file) as fh:
+                # yaml.safe_load also parses JSON (a YAML subset) -- same loader
+                # works for the hand-written euler_mq_128_only_train.yaml and for
+                # scripts/compute_channel_stats.py's --output JSON.
+                stats = yaml.safe_load(fh).get("data_normalization_stats", {})
+            # log_transform_channels entries look up "log_<name>" (e.g.
+            # log_density) instead of "<name>" -- see build_shockwave_video,
+            # which replaces these fields with log(field) before z-scoring,
+            # so the z-score itself must use the log-space statistics.
+            stats_keys = [
+                f"log_{name}" if name in self.log_transform_channels else name
+                for name in self.channel_order
+            ]
+            missing = [key for key in stats_keys if key not in stats]
+            if missing:
+                raise ValueError(
+                    f"normalization_stats_file={self.normalization_stats_file!r} is missing "
+                    f"stats for {missing} (needed for channel_order={self.channel_order}, "
+                    f"log_transform_channels={self.log_transform_channels})"
+                )
+            self.channel_mean = [stats[key]["mean"] for key in stats_keys]
+            self.channel_std = [stats[key]["std"] for key in stats_keys]
+        elif self.channel_mean is None or self.channel_std is None:
+            raise ValueError("set either channel_mean and channel_std, or normalization_stats_file")
+
         if len(self.channel_mean) != 4 or len(self.channel_std) != 4:
             raise ValueError("channel_mean and channel_std must each contain four values")
         if any(value <= 0 for value in self.channel_std):

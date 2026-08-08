@@ -63,8 +63,11 @@ resume_weights_only: false
 data:
   data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
   channel_order: ["density", "pressure", "momentum_y", "momentum_x"]
-  channel_mean: [0.905097647712509, 0.9031908053899714, -0.0019089379643528095, 0.0040453659499771295]
-  channel_std: [0.6607349375392083, 0.8050358917795326, 0.5262512462358824, 0.5328754120427532]
+  # Was hand-reindexed inline channel_mean/channel_std -- switched 2026-08-08
+  # to normalization_stats_file, which now reorders by channel_order
+  # automatically (see VaeDataConfig.normalization_stats_file), removing the
+  # manual-reindexing step every channel-order-sweep config previously needed.
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
   normalization_clip: 5.0
   num_sim_frames: null
   eval_sims: 675
