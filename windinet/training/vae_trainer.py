@@ -54,6 +54,7 @@ from windinet.losses import (
     reconstruction_losses,
     SSIMLoss,
     vrms_loss,
+    vrms_per_channel,
 )
 
 from windinet.loss_weighting import (
@@ -86,6 +87,20 @@ def vrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> float:
     plain float, for the "val_vrmse" eval metric specifically.
     """
     return float(vrms_loss(pred.float(), target.float(), eps=eps).item())
+
+
+@torch.no_grad()
+def vrmse_per_channel(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    """Per-channel breakdown of vrmse(): variance-normalized RMSE per physical field.
+
+    Thin float32-tensor-returning wrapper around windinet.losses.vrms_per_channel,
+    same reasoning as vrmse() above -- kept separate from the differentiable
+    vrms_loss/vrms_per_channel so callers never need to worry about grad state.
+    Caller is responsible for mapping the returned [C] tensor's indices back to
+    physical field names via cfg.data.channel_order (the order build_shockwave_video
+    actually stacked channels in for this run).
+    """
+    return vrms_per_channel(pred.float(), target.float(), eps=eps)
 
 
 class VaeTrainer:
@@ -1022,6 +1037,12 @@ class VaeTrainer:
             # contributes 0 rather than KeyError.
             sums["total_loss"] += float(sum(weights.get(name, 0.0) * value for name, value in losses.items()).item())
             sums["vrmse"] += vrmse(recon, target)
+            # Per-channel breakdown of the same metric, keyed by physical field
+            # name (not raw index) so it stays interpretable across channel-order
+            # sweep configs that permute which field occupies which channel slot.
+            per_channel_vrmse = vrmse_per_channel(recon, target)
+            for name, value in zip(self._config.data.channel_order, per_channel_vrmse.tolist()):
+                sums[f"vrmse_{name}"] += value
             for name, value in losses.items():
                 sums[name] += float(value.item())
             count += 1

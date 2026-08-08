@@ -46,3 +46,30 @@ def vrms_loss(
     variance = target.var(dim=dims, unbiased=False)
 
     return torch.sqrt(mse / (variance + eps)).mean()
+
+
+def vrms_per_channel(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Same formula as vrms_loss, broken down per channel instead of collapsed.
+
+    Reduces over every dim except batch and channel (instead of every dim
+    but batch), so each physical field gets its own variance-normalized RMSE
+    -- lets e.g. "is pressure specifically worse than momentum_x" be read
+    off directly instead of only ever seeing the all-channels-mixed scalar.
+
+    Args:
+        pred, target: [B, C, T, H, W]
+        eps: numerical stability term.
+
+    Returns:
+        [C] tensor, one VRMSE per channel, averaged over the batch.
+    """
+    dims = tuple(range(2, pred.dim()))
+    diff = pred - target
+    mse = diff.square().mean(dim=dims)
+    variance = target.var(dim=dims, unbiased=False)
+
+    return torch.sqrt(mse / (variance + eps)).mean(dim=0)

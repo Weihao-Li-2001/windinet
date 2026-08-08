@@ -1339,6 +1339,51 @@ switched to `weights.get(name, 0.0)` -- both were previously exact-key
 assumptions that would `KeyError` the moment `reconstruction_losses()`
 started returning more than four entries.
 
+## Per-channel VRMSE, active by default (2026-08-08)
+
+`val_vrmse` (the eval metric everything in this ledger is ranked on) was
+always the 4-channels-mixed-together aggregate -- no way to tell whether a
+given result's gain or loss was concentrated in one physical field (e.g.
+"did pressure specifically get worse") versus spread evenly. `_evaluate`
+now also computes VRMSE **per physical channel** and writes it to
+metrics.csv as `val_vrmse_<channel_name>` (one column per entry of that
+run's own `data.channel_order`, e.g. `val_vrmse_density`,
+`val_vrmse_momentum_x`, `val_vrmse_momentum_y`, `val_vrmse_pressure`) --
+named by physical field, not raw index, so the columns stay directly
+comparable across channel-order-sweep configs that permute which field
+sits in which slot.
+
+**Mechanism:** `windinet.losses.vrms_per_channel` (`windinet/losses/vrms.py`)
+is `vrms_loss`'s per-channel sibling -- same `sqrt(mse/var)` formula, but
+reduces over every dim except batch *and* channel instead of collapsing
+channels into the scalar too, returning a `[C]` tensor. `VaeTrainer.
+vrmse_per_channel()` wraps it the same way the existing `vrmse()` wraps
+`vrms_loss` (`@torch.no_grad()`, always a detached tensor). `_evaluate`
+calls it once per batch alongside the existing aggregate `vrmse()` call,
+accumulates into the same `defaultdict(float)` `sums` used for h2/pcc/vrms/
+kl, keyed `f"vrmse_{name}"` for `name` in `cfg.data.channel_order` -- no
+changes needed to the all-reduce, averaging, or `metrics_row`/CSV-writing
+code, all of which already iterate `sums`/`val_metrics` dynamically (same
+extensibility the H2/PCC/VRMS/KL addition above relies on).
+
+**No config changes anywhere** -- this is always-on, not opt-in (unlike
+H2/PCC/VRMS/KL as training losses, which stay opt-in via `loss_weighting.
+weights`). Every run launched from this commit onward gets the 4 extra
+columns automatically. **Does not backfill already-recorded runs** --
+every metrics.csv committed before this change (baseline, encoder-LR
+sweep, channel-order sweep, seed sweep, etc.) only has the aggregate
+`val_vrmse` column; per-channel breakdowns are only available for runs
+launched after `windinet/training/vae_trainer.py` picked this up. Directly
+useful starting with the copy-init experiment (Open Question 10, above):
+its hypothesis is specifically about momentum_x's own reconstruction
+quality, which the aggregate `val_vrmse` could not previously isolate.
+
+Verified with hand-built tensors (`vrms_per_channel` matches a manual
+per-channel `sqrt(mse/var)` computation exactly; returns all-zero for
+`pred == target`) and a dry-run of the `_evaluate` accumulation logic with
+a fake `channel_order` -- produces the expected `val_vrmse_<name>` keys.
+**Not yet run through an actual training step.**
+
 ## Where things live
 
 | | |
