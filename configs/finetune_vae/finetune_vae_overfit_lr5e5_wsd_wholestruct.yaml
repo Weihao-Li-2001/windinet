@@ -37,12 +37,18 @@
 # 40, so `warmup_steps: 50` never comes close to completing in 50 epochs.
 # Same symptom the README describes (warmup never released), different
 # mechanism. Whichever it was, the fix is the same: DO NOT submit this
-# config through jobs/sng_pvc/finetune_vae.sbatch or finetune_vae_diag.sbatch.
-# There is no sng_pvc launcher today that pins effective_batch=1 the way
-# jobs/lundquist/finetune_vae_debug.sbatch does -- use that one (see Usage
-# below). If EXPERIMENTS.md's known-bad README should be corrected to
-# describe this mechanism instead, that is a separate edit -- not made by
-# this file.
+# config through jobs/sng_pvc/finetune_vae.sbatch or finetune_vae_diag.sbatch
+# -- both patch gradient_accumulation_steps to hit effective_batch=32 on 8
+# tiles. Use jobs/sng_pvc/finetune_vae_debug.sbatch instead (added
+# alongside this config; mirrors jobs/lundquist/finetune_vae_debug.sbatch's
+# role -- 1 tile, effective_batch=1 passed explicitly, see Usage below).
+# jobs/lundquist/finetune_vae_debug.sbatch itself was tried first but
+# failed at submission on this account/login node ("Invalid generic
+# resource (gres) specification") -- sng_pvc is where this project's runs
+# actually live, hence the new script rather than debugging lundquist's
+# gres setup. If EXPERIMENTS.md's known-bad README should be corrected to
+# describe the gradient_accumulation_steps mechanism instead of
+# overfit_repeat, that is a separate edit -- not made by this file.
 #
 # THE QUESTION: does unfreezing the entire encoder trunk (not just the tail)
 # raise the 8-sim memorization ceiling above attempts 4-6's ~0.059-0.061
@@ -83,11 +89,14 @@
 # STEP MATH (1 GPU, accum 1): 8 sims x 5 repeats = 40 optimizer steps/epoch,
 # 50 epochs = 2000 steps, ~64 min (matching attempts 4-6's timing).
 #
-# Usage -- MUST run at effective_batch 1 (1 GPU, accum 1), see root-cause
+# Usage -- MUST run at effective_batch 1 (1 tile, accum 1), see root-cause
 # note above:
+#   sbatch jobs/sng_pvc/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
+#
+# On lundquist (if gres/partition access is ever sorted out there):
 #   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
 #
-# Portable entry point (matches what the debug launcher patches to):
+# Portable entry point (matches what either debug launcher patches to):
 #   accelerate launch --num_processes 1 scripts/finetune_vae.py \
 #       configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
 

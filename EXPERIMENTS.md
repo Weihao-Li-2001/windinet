@@ -878,9 +878,18 @@ batch 32 against 40 samples/epoch -- roughly 1 optimizer step/epoch
 instead of 40, so `warmup_steps: 50` never comes close to completing in 50
 epochs. Same end symptom the README describes, different mechanism.
 Whichever write-up is right, the actionable fix is identical: **do not
-submit an overfit-diagnostic config through a sng_pvc launcher.** There is
-no sng_pvc equivalent of `jobs/lundquist/finetune_vae_debug.sbatch` (which
-explicitly patches `effective_batch=1`) today.
+submit an overfit-diagnostic config through `jobs/sng_pvc/finetune_vae.sbatch`
+or `finetune_vae_diag.sbatch`** -- both hard-code 8 tiles and derive
+`gradient_accumulation_steps` to hit `effective_batch=32`.
+`jobs/sng_pvc/finetune_vae_debug.sbatch` (added alongside this question) is
+the sng_pvc counterpart of `jobs/lundquist/finetune_vae_debug.sbatch`: 1
+tile, `effective_batch=1` passed explicitly to `patch_config_for_cluster()`,
+same "one optimizer step per sim" contract. lundquist's own debug script
+was tried first for launching Open Question 12's run and failed at
+submission (`sbatch: error: Invalid generic resource (gres) specification`
+on this account/login node) -- sng_pvc is where this project's runs
+actually live, hence the new script rather than debugging lundquist's gres
+setup.
 
 **Single variable vs attempt 4** (`finetune_vae_overfit_lr5e5_wsd.yaml`):
 ```
@@ -905,10 +914,10 @@ through `VaeTrainerConfig` unchanged.
 
 **Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's).
 
-Launch (once ready) -- **must** go through the lundquist debug launcher,
-see root-cause note above:
+Launch (once ready) -- **must** go through a debug launcher that pins
+effective_batch=1, see root-cause note above:
 ```
-sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
+sbatch jobs/sng_pvc/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
 ```
 
 ### RMSE-only loss ablation (Open Question 13, new 2026-08-08)
