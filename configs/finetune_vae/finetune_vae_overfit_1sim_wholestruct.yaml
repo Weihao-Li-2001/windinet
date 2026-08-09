@@ -1,0 +1,154 @@
+# CAPACITY DIAGNOSTIC -- overfit a SINGLE simulation (1 trajectory). Not a
+# training run. PhD-advisor-suggested follow-up to the 8-sim capacity
+# diagnostic (Open Question 12, finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml,
+# job 523504, val_vrmse 0.05867): what reconstruction loss can the CURRENT
+# whole-structure baseline (finetune_vae_whole_structure_baseline.yaml --
+# down_blocks[0,1,2] + encoder tail unfrozen, encoder_tail_lr_multiplier
+# 0.3x) reach when memorization only has to cover one trajectory instead of
+# eight? A floor here is the cleanest possible read of the architecture's
+# own capacity, with dataset diversity removed from the picture entirely.
+#
+# SINGLE VARIABLE vs finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml:
+#   data.overfit_sims:    8 -> 1
+#   data.overfit_repeat:  5 -> 40
+# overfit_repeat scaled up so optimizer-steps-per-epoch stays exactly 40
+# (1 sim x 40 repeat == 8 sims x 5 repeat) -- same warmup_steps: 50 / wsd
+# schedule shape as the 8-sim run, so the two results are comparable step
+# for step, not just epoch for epoch. Everything else (peak LR 5e-5, wsd,
+# stable_fraction 0.7, 50 epochs, seed 42) unchanged.
+#
+# WHICH SIM: perm[:1] of the seed-42 shuffle used by vae_trainer.py's
+# split logic -- the same single sim that was first among the 8-sim run's
+# eight (see that config's header: "spans gamma regimes 1.13 / 1.30 /
+# 1.365 / 1.40 / 1.453 x3 / 1.597" -- this is whichever of those is head
+# of the shuffle).
+#
+# READ-OUT (val_vrmse == train reconstruction here, by design): compare
+# against the 8-sim floor of 0.05867. Expect this to land AT OR BELOW that
+# number -- one trajectory is a strict subset of the memorization problem
+# eight already solved to that floor, so anything higher would mean the
+# extra repeat count (40 vs effectively 5) or the single-sim training
+# distribution destabilizes optimization, not a real capacity result.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) -- but per
+# the 8-sim run's own finding, early-epoch train_loss bumps under wsd are
+# common and often benign; the real signal is whether the decay phase
+# (last ~30% of epochs, once the wsd schedule starts ramping learning_rate
+# down from peak) lands cleanly, not whether every early epoch improves.
+#
+# Usage -- MUST run at effective_batch 1 (1 tile, accum 1), same reason as
+# the 8-sim config (jobs/sng_pvc/finetune_vae.sbatch and
+# finetune_vae_diag.sbatch both retarget gradient_accumulation_steps to
+# hit sng_pvc's effective_batch=32 default, which silently breaks this
+# diagnostic's "one optimizer step per repeat" design -- see Open Question
+# 12's root-cause note in EXPERIMENTS.md):
+#   sbatch jobs/sng_pvc/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_1sim_wholestruct.yaml
+#
+# Portable entry point (matches what the debug launcher patches to):
+#   accelerate launch --num_processes 1 scripts/finetune_vae.py \
+#       configs/finetune_vae/finetune_vae_overfit_1sim_wholestruct.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  # mean, matching the baseline: the diagnostic has to measure the model
+  # that is actually being trained, not a variant.
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # Matches finetune_vae_whole_structure_baseline.yaml: entire encoder
+  # trunk trainable, not just the tail.
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # THE variable: 8 -> 1 sim.
+  overfit_sims: 1
+  # THE variable: 5 -> 40, holding steps/epoch at 40 (== 8 x 5 from the
+  # 8-sim run) so the wsd schedule and warmup_steps: 50 behave identically.
+  overfit_repeat: 40
+  eval_sims: 675          # ignored while overfit_sims is set
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from the 8-sim whole-structure diagnostic.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 50
+  batch_size: 1
+  # 1, not the cluster default -- one optimizer step per repeat. MUST be
+  # launched through jobs/sng_pvc/finetune_vae_debug.sbatch, which pins
+  # effective_batch=1 and so leaves this value alone.
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 50
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  # Baseline weights, matching the 8-sim diagnostic and the full-data
+  # whole-structure baseline -- isolates the capacity question from the
+  # objective-choice one.
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 5
+  num_samples: 1
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  # null = never save -- this run answers a question, its weights are
+  # worthless.
+  interval: null
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: false
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "diagnostic", "overfit", "wsd", "whole-structure", "1sim"]
+
+seed: 42
+# Fresh directory, distinct from every prior attempt -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_overfit_1sim_wholestruct"
+clean_output_dir: true
