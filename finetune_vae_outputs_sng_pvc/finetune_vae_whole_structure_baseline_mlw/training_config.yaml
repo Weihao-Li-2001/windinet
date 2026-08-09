@@ -73,7 +73,7 @@ loss_weighting:
   weight_lr: 0.025
   weights:
     h1: 50.0
-    mlw: 0.0
+    mlw: 0.0001
     rmse: 1.0
     ssim: 0.15
 model:
@@ -95,7 +95,7 @@ optimization:
   warmup_start_factor: 0.01
   warmup_steps: 200
   weight_decay: 0.0
-output_dir: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline
+output_dir: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_mlw
 resume_from: null
 resume_weights_only: false
 seed: 42
@@ -119,7 +119,7 @@ wandb:
   - mean-init
   - wsd
   - 18ep
-  - h1x2
   - lr1x
   - shockwave-cfd
   - whole-structure-baseline
+  - mlw-retest

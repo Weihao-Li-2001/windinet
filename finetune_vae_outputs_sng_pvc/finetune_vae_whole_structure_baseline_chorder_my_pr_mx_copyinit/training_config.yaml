@@ -6,17 +6,17 @@ adapter:
   activation: gelu
   channels:
   - density
-  - momentum_x
   - momentum_y
   - pressure
+  - momentum_x
   checkpoint: null
   default_temb: 0.0
   enabled: true
   freeze_conv_in: false
   hidden_channels: 32
   identity_init: false
-  inflate_copy_channel: null
-  inflate_init: mean
+  inflate_copy_channel: momentum_y
+  inflate_init: copy
   mode: inflate
   unfreeze_down_blocks:
   - 0
@@ -33,19 +33,19 @@ clean_output_dir: true
 data:
   channel_mean:
   - 0.905097647712509
-  - 0.0040453659499771295
   - -0.0019089379643528095
   - 0.9031908053899714
+  - 0.0040453659499771295
   channel_order:
   - density
-  - momentum_x
   - momentum_y
   - pressure
+  - momentum_x
   channel_std:
   - 0.6607349375392083
-  - 0.5328754120427532
   - 0.5262512462358824
   - 0.8050358917795326
+  - 0.5328754120427532
   data_root: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5
   eval_sims: 675
   log_transform_channels: []
@@ -95,7 +95,7 @@ optimization:
   warmup_start_factor: 0.01
   warmup_steps: 200
   weight_decay: 0.0
-output_dir: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline
+output_dir: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_chorder_my_pr_mx_copyinit
 resume_from: null
 resume_weights_only: false
 seed: 42
@@ -116,10 +116,13 @@ wandb:
   tags:
   - vae
   - inflate
-  - mean-init
+  - copy-init
   - wsd
   - 18ep
   - h1x2
   - lr1x
   - shockwave-cfd
   - whole-structure-baseline
+  - channel-order-sweep-v2
+  - chorder-my_pr_mx
+  - momentum-copy-init

@@ -5,10 +5,10 @@ acceleration:
 adapter:
   activation: gelu
   channels:
+  - pressure
   - density
   - momentum_x
   - momentum_y
-  - pressure
   checkpoint: null
   default_temb: 0.0
   enabled: true
@@ -32,20 +32,20 @@ checkpoints:
 clean_output_dir: true
 data:
   channel_mean:
+  - 0.9031908053899714
   - 0.905097647712509
   - 0.0040453659499771295
   - -0.0019089379643528095
-  - 0.9031908053899714
   channel_order:
+  - pressure
   - density
   - momentum_x
   - momentum_y
-  - pressure
   channel_std:
+  - 0.8050358917795326
   - 0.6607349375392083
   - 0.5328754120427532
   - 0.5262512462358824
-  - 0.8050358917795326
   data_root: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5
   eval_sims: 675
   log_transform_channels: []
@@ -95,7 +95,7 @@ optimization:
   warmup_start_factor: 0.01
   warmup_steps: 200
   weight_decay: 0.0
-output_dir: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline
+output_dir: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_chorder_pr_d_mx_my
 resume_from: null
 resume_weights_only: false
 seed: 42
@@ -123,3 +123,5 @@ wandb:
   - lr1x
   - shockwave-cfd
   - whole-structure-baseline
+  - channel-order-sweep-v2
+  - chorder-pr_d_mx_my
