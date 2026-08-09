@@ -1,0 +1,48 @@
+START TIME: Sat 08 Aug 2026 01:44:51 PM CEST
+job=523501 node=i20r03c05s04
+h5_path=/hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5 compare_to=configs/finetune_vae/euler_mq_128_only_train.yaml output=/hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/channel_stats_recomputed.json
+4500 simulations in 
+/hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5
+Scanning simulations ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4500/4500 1:07:35 0:00:00
+                             Channel statistics --                              
+    /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/train.h5    
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ channel      ┃ mean      ┃ std      ┃ min        ┃ max       ┃ count         ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ density      │ 0.905098  │ 0.660735 │ 0.023603   │ 26.117867 │ 7,446,528,000 │
+│ momentum_x   │ 0.004045  │ 0.532875 │ -26.673208 │ 26.215584 │ 7,446,528,000 │
+│ momentum_y   │ -0.001909 │ 0.526251 │ -30.704308 │ 26.208109 │ 7,446,528,000 │
+│ pressure     │ 0.903191  │ 0.805036 │ 0.001024   │ 24.749456 │ 7,446,528,000 │
+│ log_density  │ -0.288075 │ 0.604286 │ -3.746363  │ 3.262620  │ 7,446,528,000 │
+│ log_pressure │ -0.347238 │ 0.692862 │ -6.883690  │ 3.208804  │ 7,446,528,000 │
+└──────────────┴───────────┴──────────┴────────────┴───────────┴───────────────┘
+       Diff vs configs/finetune_vae/euler_mq_128_only_train.yaml       
+┏━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┓
+┃ channel      ┃ stat ┃ computed   ┃ reference  ┃ abs diff ┃ rel diff ┃
+┡━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━┩
+│ density      │ mean │ 0.905098   │ 0.905098   │ 4.44e-16 │ 0.00%    │
+│ density      │ std  │ 0.660735   │ 0.660735   │ 1.11e-16 │ 0.00%    │
+│ density      │ min  │ 0.023603   │ 0.023603   │ 0.00e+00 │ 0.00%    │
+│ density      │ max  │ 26.117867  │ 26.117867  │ 0.00e+00 │ 0.00%    │
+│ momentum_x   │ mean │ 0.004045   │ 0.004045   │ 8.67e-18 │ 0.00%    │
+│ momentum_x   │ std  │ 0.532875   │ 0.532875   │ 0.00e+00 │ 0.00%    │
+│ momentum_x   │ min  │ -26.673208 │ -26.673208 │ 0.00e+00 │ 0.00%    │
+│ momentum_x   │ max  │ 26.215584  │ 26.215584  │ 0.00e+00 │ 0.00%    │
+│ momentum_y   │ mean │ -0.001909  │ -0.001909  │ 8.67e-19 │ 0.00%    │
+│ momentum_y   │ std  │ 0.526251   │ 0.526251   │ 1.11e-16 │ 0.00%    │
+│ momentum_y   │ min  │ -30.704308 │ -30.704308 │ 0.00e+00 │ 0.00%    │
+│ momentum_y   │ max  │ 26.208109  │ 26.208109  │ 0.00e+00 │ 0.00%    │
+│ pressure     │ mean │ 0.903191   │ 0.903191   │ 1.44e-15 │ 0.00%    │
+│ pressure     │ std  │ 0.805036   │ 0.805036   │ 5.55e-16 │ 0.00%    │
+│ pressure     │ min  │ 0.001024   │ 0.001024   │ 0.00e+00 │ 0.00%    │
+│ pressure     │ max  │ 24.749456  │ 24.749456  │ 0.00e+00 │ 0.00%    │
+│ log_density  │ mean │ -0.288075  │ -0.288075  │ 3.89e-16 │ 0.00%    │
+│ log_density  │ std  │ 0.604286   │ 0.604286   │ 8.88e-16 │ 0.00%    │
+│ log_density  │ min  │ -3.746363  │ -3.746363  │ 0.00e+00 │ 0.00%    │
+│ log_density  │ max  │ 3.262620   │ 3.262620   │ 0.00e+00 │ 0.00%    │
+│ log_pressure │ -    │ -          │ MISSING    │ -        │ -        │
+└──────────────┴──────┴────────────┴────────────┴──────────┴──────────┘
+Wrote 
+/hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/128x128_ds/channel_stats_re
+computed.json
+END TIME: Sat 08 Aug 2026 02:52:30 PM CEST
