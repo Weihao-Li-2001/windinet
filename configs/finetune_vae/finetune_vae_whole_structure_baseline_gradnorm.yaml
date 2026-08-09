@@ -1,0 +1,193 @@
+# VAE finetuning config -- GRADNORM adaptive loss weighting, opt-in for
+# the first time on this baseline (Open Question 15).
+#
+# THE QUESTION: every run in this ledger uses `strategy: "fixed"` --
+# hand-picked, hand-swept weights (rmse 1.0, h1 50.0, ssim 0.15, mlw 0.0).
+# `windinet/loss_weighting/gradnorm.py` (GradNorm, Chen et al. 2018) has
+# existed in the codebase the whole time but has never been tried: it
+# adaptively re-weights each loss component once per epoch so that each
+# one's *gradient norm* tracks a shared target proportional to how far
+# behind/ahead its own training progress is relative to the others,
+# instead of a human picking fixed numbers. Does it match or beat the
+# hand-tuned fixed weights, without the manual sweep cost?
+#
+# CAUTION, already on record: `strategy: "softadapt"` (the other adaptive
+# option in this codebase) caused MLW to collapse/blow up in an earlier,
+# now-archived config (see the old finetune_vae.yaml header, referenced
+# in EXPERIMENTS.md "Established"). GradNorm is a different algorithm --
+# it balances gradient *magnitudes*, not loss *values* like SoftAdapt --
+# so that specific failure mode isn't guaranteed to recur, but this run
+# should be watched at least as carefully as SoftAdapt's was, not assumed
+# safe by analogy to the fixed-weight arms' track record.
+#
+# COST WARNING, found while building this config, not yet load-tested:
+# `windinet/loss_weighting/utils.py compute_grad_norms` calls
+# `torch.autograd.grad` ONCE PER LOSS COMPONENT PER BATCH (4 components
+# here: rmse/h1/ssim/mlw -- see REQUIRED_LOSS_NAMES note below), each a
+# full backward pass over every trainable parameter (~1.25B: decoder +
+# entire unfrozen encoder trunk + conv_in on this whole-structure
+# baseline), on top of the one combined backward pass every fixed-weight
+# run already does. That's ~5x the backward-pass work per batch, and
+# `enable_gradient_checkpointing: true` (recomputes activations during
+# backward) makes each of those extra backward calls costlier still, not
+# cheaper. This pull's fixed-weight arms ran ~1200-1250s/epoch train time
+# at 18 epochs; a naive multiplier suggests this arm could plausibly cost
+# several times that -- easily enough to blow past the sbatch script's
+# hardcoded `--time=12:00:00`, well before 18 epochs finish, especially
+# once eval and the per-epoch GradNorm.update() overhead are added on
+# top. **NOT MEASURED YET.** DECISION (2026-08-10): launch directly at
+# full 8-tile scale rather than timing-probe first -- skips the cheap
+# 1-tile measurement step below. To absorb the unmeasured overhead
+# without the risk of the run being killed mid-epoch-18 by the sbatch
+# script's default `--time=12:00:00`, launch with the partition ceiling
+# instead (`partition=general` allows up to 24h, per the sbatch header
+# comment):
+#   sbatch --time=24:00:00 jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_gradnorm.yaml
+# If it still doesn't finish 18 epochs within 24h, the per-epoch "Epoch N
+# timing" log lines will at least show the real overhead multiplier
+# after the fact, informing whether a resubmission or a scoped-down
+# rerun (fewer epochs, or fewer loss_names) is worth it.
+#
+# (Originally-recommended, skipped by choice: run this same config
+# through `jobs/sng_pvc/finetune_vae_debug.sbatch` first -- 1 tile,
+# cheap -- for 2-3 "Epoch N timing" log lines, then `scancel` it, to
+# measure the real per-batch overhead multiplier before committing 8
+# tiles. Still a reasonable fallback if the 24h full run above doesn't
+# finish.)
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline.yaml (18
+# epochs, 0.3x encoder LR, whole-structure unfreeze):
+#   loss_weighting.strategy:    "fixed" -> "gradnorm"
+#   loss_weighting.loss_names:  (unused under fixed) -> ["rmse", "h1", "ssim", "mlw"]
+# `loss_weighting.weights` is left at schema default and unused --
+# `build_loss_weighting` only reads it when strategy == "fixed"; GradNorm
+# always self-initializes every entry in `loss_names` at 1.0 and adapts
+# from there (windinet/loss_weighting/gradnorm.py __init__). `alpha`
+# (1.5) and `weight_lr` (0.025) left at class defaults -- untuned, not
+# part of this question (this run asks "does GradNorm's default beat
+# hand-tuned fixed weights," not "what is GradNorm's best alpha").
+#
+# NOTE ON loss_names: `VaeTrainerConfig`'s validator requires all of
+# REQUIRED_LOSS_NAMES ({rmse, h1, ssim, mlw}) present in `loss_names` when
+# strategy != "fixed" -- `mlw` cannot be left out even though the
+# fixed-weight baseline currently runs it at weight 0.0. This is itself
+# informative: GradNorm starts `mlw` at weight 1.0 and will show whether
+# it adapts `mlw`'s weight down toward the fixed-weight sweep's own
+# "net-negative" finding (Open Question, "Established" section,
+# EXPERIMENTS.md) or disagrees with it.
+#
+# READ-OUT: compare epoch-18 val_vrmse to the reconfirmed baseline's
+# ~0.0834, against the ~1.1% seed-noise floor. Also worth plotting the
+# 4 weights' trajectory over epochs (recoverable from checkpointed
+# `loss_weighter` state, see VaeTrainer's resume path,
+# `self.loss_weighter.__dict__.update(state["loss_weighter"])`) --
+# where GradNorm's weights land relative to the hand-tuned (1.0, 50.0,
+# 0.15, 0.0) values is itself a result, independent of whether val_vrmse
+# improves.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) PLUS watch
+# the per-loss weights themselves for the SoftAdapt-style failure mode --
+# if any single weight runs away (min_weight/max_weight are 1e-6/1e6, a
+# very wide band) or `mlw`'s weight climbs instead of adapting toward 0,
+# stop and inspect before trusting val_vrmse from that run.
+#
+# Usage (full 8-tile run, extended time limit -- see COST WARNING above):
+#   sbatch --time=24:00:00 jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_gradnorm.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # Whole-structure unfreeze, unchanged from the baseline.
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from the baseline.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  # THE variable: fixed -> gradnorm.
+  strategy: "gradnorm"
+  # Required (validator needs all of rmse/h1/ssim/mlw present); GradNorm
+  # inits each at weight 1.0 and adapts from there, ignoring `weights`
+  # below entirely.
+  loss_names: ["rmse", "h1", "ssim", "mlw"]
+  alpha: 1.5
+  weight_lr: 0.025
+  # Unused under strategy=gradnorm (build_loss_weighting only reads this
+  # for strategy=fixed) -- left at schema default for documentation only.
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "gradnorm"]
+
+seed: 42
+# Distinct from every other output_dir in this project -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# once already (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_whole_structure_baseline_gradnorm"
+clean_output_dir: true

@@ -1,0 +1,117 @@
+# VAE finetuning config -- mlw WEIGHT 0.0 -> 1e-4, RETEST under the
+# whole-structure + 18-epoch baseline (Open Question 18).
+#
+# THE QUESTION: "mlw at weight 1e-4 is net-negative" is already recorded
+# in "Established" (EXPERIMENTS.md) -- but that finding is from the OLD
+# frozen-trunk baseline, before the encoder trunk was unfrozen (Open
+# Question 3) or epochs went 15 -> 18 (Open Question 7). This ledger has
+# needed to re-verify several "old baseline" conclusions after those two
+# changes (e.g. the encoder-LR sweep itself, the channel-order sweep v2
+# batch) -- mlw's "net-negative" verdict has never been checked against
+# the current setup. Same weight (1e-4) as the original finding, so this
+# is a clean retest, not a new value to interpret in isolation.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline.yaml (18
+# epochs, 0.3x encoder LR, whole-structure unfreeze):
+#   loss_weighting.weights.mlw:  0.0 -> 1e-4
+# Everything else UNCHANGED.
+#
+# READ-OUT: compare epoch-18 val_vrmse to the reconfirmed baseline's
+# ~0.0834, against the ~1.1% seed-noise floor (Open Question 1). If this
+# arm reads net-negative again (same direction as the original finding),
+# that closes the question with higher confidence (same verdict on two
+# different baselines). If it reads differently, the original verdict was
+# specific to the frozen-trunk regime, not a general property of mlw.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's). No elevated
+# risk -- this is a rerun of a previously-completed, non-diverging
+# perturbation, just on a different baseline.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_mlw.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    # THE variable: 0.0 -> 1e-4 (retest of the old baseline's
+    # "net-negative" finding, same value, new baseline).
+    mlw: 1.0e-4
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "mlw-retest"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_mlw"
+clean_output_dir: true

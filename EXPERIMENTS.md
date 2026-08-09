@@ -792,6 +792,71 @@ discontinuities. 5x spread, same model, same epoch.
     *magnitude* -- h1 (weight 50, by far the largest coefficient) and ssim
     (0.15) have never both been zeroed. See "RMSE-only loss ablation"
     below for the single-variable config and the read-out/kill criteria.
+14. **PLANNED, config written, not yet submitted (as of 2026-08-09): does
+    adding `h2` (curvature loss, coded since the H2/PCC/VRMS/KL addition
+    but never given nonzero weight) reduce val_vrmse further on top of
+    `h1`?** Motivated by a reconstruction panel shared 2026-08-09 (epoch
+    15, sample 2507_gamma1.4, frame 50): residuals are broadband speckle
+    across every channel, not just concentrated at shock edges -- the
+    same high-wavenumber-loss pattern "The bandwidth ceiling" section
+    already diagnosed quantitatively, now visible directly. `h1` is
+    confirmed load-bearing (Open Question 13 above); `h2` is one order
+    further (curvature, not just gradient) and could catch over-smoothed
+    peaks a first-derivative penalty alone misses. See "H2 loss term"
+    below for the weight-choice rationale (25.0, picked to match h1's
+    weighted contribution) and the read-out/kill criteria.
+15. **PLANNED, config written, not yet submitted: does GradNorm
+    (adaptive gradient-magnitude-based loss weighting, coded but never
+    used) match or beat the hand-tuned fixed weights, without the manual
+    sweep cost?** Deliberately scoped down from a broader loss-function
+    exploration (KL divergence for latent regularization -- motivated by
+    the not-yet-run DiT stage needing a reasonably well-behaved latent
+    space to sample from, per a PhD-advisor request -- plus PCC and
+    further h1/ssim/mlw weight retuning under the current baseline) --
+    those are deferred; this question is scoped to GradNorm on/off only
+    for now. **Real cost risk found while writing this config, not yet
+    measured:** GradNorm's gradient-norm bookkeeping does one full extra
+    backward pass per loss component per batch (4 here: rmse/h1/ssim/mlw)
+    on top of the normal combined backward -- roughly 5x the backward-pass
+    work of every fixed-weight arm in this ledger, which could plausibly
+    blow past the sbatch script's 12h time limit before 18 epochs finish.
+    **DECISION: launch directly at full 8-tile scale anyway**, with
+    `sbatch --time=24:00:00` (the partition ceiling) to absorb the
+    unmeasured overhead rather than probing first. See "GradNorm loss
+    weighting" below for the full cost analysis.
+16. **PLANNED, config written, not yet submitted: h1 weight 50 -> 100,
+    first retest under the whole-structure + 18-epoch baseline.** h1 was
+    last tuned (25 -> 50) on the old frozen-trunk baseline, before Open
+    Questions 3/7 changed the trainable-parameter count and epoch budget.
+    Untested direction: does doubling again help, hurt, or land in the
+    same ~2% noise band as every prior h1/mlw magnitude perturbation?
+    Config: `finetune_vae_whole_structure_baseline_h1x2.yaml`.
+17. **PLANNED, config written, not yet submitted: ssim weight 0.15 ->
+    0.3 -- the first time ssim's own weight has ever been independently
+    swept.** Unlike h1 and mlw, ssim's weight was set once at the very
+    first baseline and never varied on its own (Open Question 13 only
+    ever zeroed it as part of a compound h1+ssim ablation). Config:
+    `finetune_vae_whole_structure_baseline_ssimx2.yaml`.
+18. **PLANNED, config written, not yet submitted: mlw weight 0.0 ->
+    1e-4, RETEST under the whole-structure + 18-epoch baseline.** "mlw at
+    1e-4 is net-negative" ("Established" above) is an old-frozen-trunk-
+    baseline finding, never re-checked after Open Questions 3/7. Same
+    weight as the original finding, so this is a clean retest, not a new
+    value. Config: `finetune_vae_whole_structure_baseline_mlw.yaml`.
+19. **PLANNED, config written, not yet submitted: KL divergence weight
+    0.0 -> 1e-7 (on) vs the reconfirmed baseline (off).** PhD-advisor-
+    requested, motivated by the not-yet-run DiT stage needing a
+    reasonably regularized latent space to sample from -- a win here is
+    "latent space more regularized without costing much val_vrmse," not
+    necessarily "val_vrmse improves." Required diagnosing the `val_kl`/
+    `train_kl` blip (up to 6.4e8 in epoch 1-2 of some prior runs, vs.
+    ~2e5 steady state) before a weight could be chosen responsibly --
+    root cause confirmed as diffusers' own `logvar` clamp (`[-30, 20]`)
+    combined with the freshly-inflated conv_in's uncalibrated initial
+    posterior, self-correcting within 1-2 epochs; not a bug. See "KL
+    divergence weight" below for the full diagnosis, the weight-choice
+    math, and why `max_grad_norm` clipping caps the practical risk.
+    Config: `finetune_vae_whole_structure_baseline_kl.yaml`.
 
 ### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
 
@@ -1212,6 +1277,319 @@ result alone. No config change adopted -- the current weighted objective
 baseline job 521887's 2) caveat as Q7/Q9/Q11 also applies here -- doesn't
 change the verdict (+1.97% is a real gap regardless of dataloader
 parallelism).
+
+### H2 loss term (Open Question 14, new 2026-08-09)
+
+**PLANNED, not yet launched.** `h2` (`windinet/losses/h2_semi_norm.py`)
+has been computed and logged (`train_h2`/`val_h2`) in every whole-
+structure-lineage run since "New loss components (H2/PCC/VRMS/KL)" above,
+but always at implicit weight 0.0 -- this is the first run that actually
+trains against it.
+
+**THE QUESTION:** a reconstruction panel (epoch 15, sample
+2507_gamma1.4, frame 50, shared 2026-08-09) shows residuals as broadband
+speckle across all 4 channels, not concentrated only at shock edges --
+the same high-wavenumber information loss "The bandwidth ceiling" section
+quantified, now visible directly rather than inferred from the aggregate
+metric. `h1` (first-derivative/gradient matching) is confirmed
+load-bearing (Open Question 13: removing it costs +1.97% val_vrmse). `h2`
+is one order past `h1` -- it penalizes curvature (second-derivative)
+mismatches specifically, which a pure gradient penalty can still miss
+(e.g. a peak whose slopes on both sides match but whose curvature at the
+apex doesn't -- an over-smoothed peak, exactly the qualitative failure
+mode already on record). Does adding it reduce val_vrmse further beyond
+what `h1` already buys, or is the gradient axis already saturated (same
+"axis exhausted" pattern seen for h1/mlw magnitude perturbations)?
+
+**Weight choice:** `h2`'s raw magnitude tracks `h1`'s raw magnitude at
+roughly 2x throughout training -- checked across all 8 whole-structure-
+lineage runs in the 2026-08-08 pull (e.g. `ep18`'s epoch-18 row:
+`train_h1` 0.000302, `train_h2` 0.000631, ratio 2.08x; `rmseonly`'s
+epoch-15 row: 0.000333 vs 0.000686, ratio 2.06x -- consistent across
+otherwise-different arms). `h1`'s weight is 50.0; weighting `h2` at
+**25.0** gives it roughly the same *weighted* contribution to the total
+loss `h1` currently has -- a "put it on equal footing" starting point,
+not a tuned value. If this arm helps, a weight sweep around 25.0 (mirror
+of how `h1` itself went 25 -> 50 earlier in this ledger) is the natural
+follow-up.
+
+**Single variable vs `finetune_vae_whole_structure_baseline.yaml`** (18
+epochs, 0.3x encoder LR): `loss_weighting.weights.h2`: unset (0.0) ->
+25.0. Everything else unchanged.
+
+Config: `finetune_vae_whole_structure_baseline_h2.yaml`. Verified: loads
+through `VaeTrainerConfig` (resolved `loss_weighting.weights` ==
+`{rmse: 1.0, h1: 50.0, ssim: 0.15, mlw: 0.0, h2: 25.0}`).
+
+**Read-out criterion:** compare epoch-18 val_vrmse to the baseline's
+~0.0834 (job 523486, pending reconfirmation under the promoted baseline's
+own name per the "Channel-order sweep v2" batch above), against the
+~1.1% seed-noise floor. Check the per-channel VRMSE breakdown too -- if
+`h2` is doing real work, the biggest per-channel gain should track
+whichever channel's residual looked most speckled/unstructured in the
+motivating panel, not spread evenly across all 4 (that pattern would
+suggest something more generic, like effectively acting as extra
+smoothing regularization rather than targeted curvature correction).
+Qualitative panel check same as Open Question 13: less broadband speckle
+in the residual maps, not just a lower scalar -- a `val_vrmse` win from
+`h2` acting as generic extra smoothing (rather than fixing curvature
+specifically) would be a weaker result than the hypothesis intends, same
+caveat Q13's h1/ssim removal read-out already carries in the other
+direction.
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's). Per
+this pull's own finding (declr2x, adapterlr0.3x, the Q12 overfit
+diagnostic, all above), an isolated epoch-to-epoch `train_loss` bump
+alone is common and often benign -- confirm `val_vrmse` also regresses
+before treating one as real. No elevated divergence risk expected: a
+bounded second-derivative penalty at a weight comparable to `h1`'s, which
+has run without incident in every prior arm.
+
+**Separate from this run, not tracked here:** the same motivating panel
+also shows a repeated bright edge artifact along the left boundary in
+multiple channels (density, pressure) -- looks like a systematic
+boundary/padding effect (this dataset has open boundaries on all sides,
+per the HF dataset card `rha6696/euler_mq`), not random noise. A
+loss-weight change is not expected to fix this if it's real; it would
+need a separate look at the VAE's conv padding mode / how edge pixels
+are handled in the encoder/decoder, independent of which loss terms are
+active. Not investigated as part of this pull.
+
+Launch (once ready):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_h2.yaml
+```
+
+### GradNorm loss weighting (Open Question 15, new 2026-08-09)
+
+**PLANNED, config written, not yet submitted.** Scoped down from a wider
+loss-function discussion (2026-08-09): the fuller plan (KL divergence for
+latent regularization ahead of the not-yet-run DiT stage, PCC, and
+retuning h1/ssim/mlw's weights under the current 18-epoch whole-structure
+baseline for the first time) is deferred -- this question is GradNorm
+on/off only, for now.
+
+**THE QUESTION:** every run in this ledger uses `loss_weighting.strategy:
+"fixed"` -- every weight (rmse 1.0, h1 50.0, ssim 0.15, mlw 0.0) is
+hand-picked and hand-swept. `windinet/loss_weighting/gradnorm.py`
+(GradNorm, Chen et al. 2018) has existed in the codebase since the
+H2/PCC/VRMS/KL pull but has never actually been used -- it adaptively
+re-weights each active loss component once per epoch so each one's
+*gradient norm* tracks a shared target based on how far behind/ahead its
+own training progress is relative to the others. Does it match or beat
+the hand-tuned fixed weights without the manual sweep cost?
+
+**Caution already on record:** `strategy: "softadapt"` (the other
+adaptive option in this codebase) caused MLW to collapse/blow up in an
+earlier, now-archived config (see the old `finetune_vae.yaml` header,
+referenced in "Established" above). GradNorm is a different algorithm --
+it balances gradient *magnitudes*, not loss *values* like SoftAdapt --
+so that specific failure mode isn't guaranteed to recur, but this run
+should get at least the same level of scrutiny SoftAdapt's failure was
+caught with, not be assumed safe by analogy to the fixed-weight arms'
+clean track record.
+
+**Cost warning, found while building this config, NOT YET MEASURED:**
+`windinet/loss_weighting/utils.py`'s `compute_grad_norms` calls
+`torch.autograd.grad` once per loss component per batch (4 here --
+`REQUIRED_LOSS_NAMES` forces `loss_names` to include all of rmse/h1/ssim/
+mlw whenever `strategy != "fixed"`, `mlw` cannot be dropped even though
+the fixed-weight baseline currently runs it at weight 0.0), each a full
+backward pass over every trainable parameter (~1.25B on this
+whole-structure baseline: decoder + entire unfrozen encoder trunk +
+conv_in), on top of the one combined backward every fixed-weight run
+already does -- roughly **5x the backward-pass work per batch**.
+`enable_gradient_checkpointing: true` (recomputes activations during
+backward) makes each of those 4 extra backward calls costlier still, not
+cheaper. This pull's fixed-weight arms ran ~1200-1250s/epoch train time
+at 18 epochs; a naive multiplier suggests this arm could easily exceed
+the sbatch script's hardcoded `--time=12:00:00` before 18 epochs finish.
+
+**DECISION (2026-08-10): launch directly at full 8-tile scale**, skipping
+the originally-recommended cheap 1-tile timing probe. To absorb the
+unmeasured overhead without risking the run getting killed mid-epoch-18
+by the sbatch script's default `--time=12:00:00`, launch with the
+`partition=general` ceiling instead (24h, per the sbatch header
+comment -- `--time` passed on the `sbatch` command line overrides the
+script's own `#SBATCH --time` directive, standard SLURM precedence):
+```
+sbatch --time=24:00:00 jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_gradnorm.yaml
+```
+If it still doesn't finish 18 epochs within 24h, the per-epoch "Epoch N
+timing" log lines will at least show the real overhead multiplier after
+the fact. Fallback if that happens: the originally-recommended timing
+probe --
+```
+sbatch jobs/sng_pvc/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_gradnorm.yaml
+```
+(1 tile, cheap, cancel after 2-3 "Epoch N timing" log lines in
+`log_finetuning_vae/sng_pvc/<jobid>-wh_debug_vae.out`) -- won't reproduce
+the whole-structure baseline's exact per-epoch train time, but the
+*relative* GradNorm-vs-fixed overhead multiplier should transfer
+reasonably well to 8 tiles, since the extra backward-pass cost is
+per-batch-per-tile, not something parallelism amortizes away.
+
+**Single variable vs `finetune_vae_whole_structure_baseline.yaml`** (18
+epochs, 0.3x encoder LR, whole-structure unfreeze):
+```
+loss_weighting.strategy:    "fixed" -> "gradnorm"
+loss_weighting.loss_names:  (unused under fixed) -> ["rmse", "h1", "ssim", "mlw"]
+```
+`alpha` (1.5) and `weight_lr` (0.025) left at class defaults -- untuned,
+not part of this question (this asks "does GradNorm's default beat
+hand-tuned fixed weights," not "what is GradNorm's best alpha"). `mlw`
+being forced into `loss_names` despite running at weight 0.0 in the
+fixed-weight baseline is itself informative -- GradNorm starts every
+entry at weight 1.0 and adapts from there, so this run will show whether
+it adapts `mlw`'s weight down toward the fixed-weight sweep's own
+"net-negative" finding or disagrees with it.
+
+Config: `finetune_vae_whole_structure_baseline_gradnorm.yaml`. Verified:
+loads through `VaeTrainerConfig` (`strategy=gradnorm`,
+`loss_names=['rmse','h1','ssim','mlw']`, `alpha=1.5`, `weight_lr=0.025`).
+
+**Read-out criterion:** compare epoch-18 val_vrmse to the reconfirmed
+baseline's ~0.0834, against the ~1.1% seed-noise floor. Independent of
+whether val_vrmse improves, the 4 weights' trajectory over training is
+itself a result worth recording (recoverable from the checkpointed
+`loss_weighter` state) -- where GradNorm lands relative to the hand-tuned
+(1.0, 50.0, 0.15, 0.0) values, and whether it converges to a stable point
+at all or keeps drifting through epoch 18.
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's) PLUS
+watch the per-loss weights themselves for a SoftAdapt-style runaway --
+`min_weight`/`max_weight` are 1e-6/1e6, a very wide band, so a genuine
+blowup is possible without hitting a hard clamp. If any single weight
+runs away, or `mlw`'s climbs instead of adapting toward 0, stop and
+inspect before trusting `val_vrmse` from that run.
+
+Launch: see "DECISION" above -- direct full-scale submission with an
+extended 24h time limit, not a timing probe first.
+
+### Existing-loss weight retests: h1x2, ssimx2, mlw (Open Questions 16/17/18, new 2026-08-10)
+
+**PLANNED, configs written, not yet submitted.** Three single-variable
+retests of the currently-active fixed weights (`rmse: 1.0, h1: 50.0,
+ssim: 0.15, mlw: 0.0`), each vs `finetune_vae_whole_structure_baseline.
+yaml` (18 epochs, 0.3x encoder LR, whole-structure unfreeze) with exactly
+one weight changed:
+
+| # | arm | change | why now, not before |
+|---|---|---|---|
+| 16 | `h1x2` | `h1: 50.0 -> 100.0` | h1's only prior sweep (25->50) predates the whole-structure unfreeze (Q3) and the 18-epoch promotion (Q7); untested direction (higher, not just re-confirming) |
+| 17 | `ssimx2` | `ssim: 0.15 -> 0.3` | ssim's weight has **never** been independently swept, on any baseline -- Q13 only zeroed it as part of a compound h1+ssim ablation |
+| 18 | `mlw` | `mlw: 0.0 -> 1e-4` | "net-negative at 1e-4" is an old-frozen-trunk-baseline finding ("Established" above), never re-checked post Q3/Q7 -- same weight as the original finding, so this is a clean retest |
+
+Configs: `finetune_vae_whole_structure_baseline_h1x2.yaml`,
+`finetune_vae_whole_structure_baseline_ssimx2.yaml`,
+`finetune_vae_whole_structure_baseline_mlw.yaml`. All three verified
+loading through `VaeTrainerConfig` with exactly the intended single
+changed weight.
+
+**Read-out:** each vs the reconfirmed baseline's ~0.0834, against the
+~1.1% seed-noise floor. Independent single-variable comparisons -- don't
+combine into a joint ranking (same caveat as every other multi-arm batch
+in this ledger).
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's) for all
+three. Low risk on all three -- these are all magnitude perturbations of
+already-active, already-well-behaved terms, not new components or
+architecture changes.
+
+Launch:
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_h1x2.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ssimx2.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_mlw.yaml
+```
+
+### KL divergence weight (Open Question 19, new 2026-08-10)
+
+**PLANNED, config written, not yet submitted.** PhD-advisor-requested,
+motivated by the not-yet-run DiT stage ("DiT (stage 2, not yet run)"
+above) training on this VAE's precomputed latents -- a latent space
+finetuned with zero KL regularization is free to drift into whatever
+shape best serves reconstruction alone, not necessarily one a downstream
+diffusion model can sample from cleanly. **A win here is "the latent
+space is more regularized without costing much val_vrmse," not
+necessarily "val_vrmse improves."**
+
+**Blip diagnosis, done before choosing a weight (2026-08-10):**
+`val_kl`/`train_kl` were found (in an earlier audit of the 2026-08-08
+pull) to spike to 1e8-1e9 scale in epoch 1-2 of some runs -- up to 6.4e8
+(`copyinit`, job 523495) -- against a steady-state value of ~1.9e5-2.2e5
+common to every run regardless of arm. Inconsistent across otherwise-
+similar runs (4 of 8 whole-structure-lineage arms showed no blip at all),
+which made "is this safe to weight?" genuinely unclear.
+
+**Root cause, confirmed by reading diffusers' own source** (`site-
+packages/diffusers/models/autoencoders/vae.py`,
+`DiagonalGaussianDistribution.__init__`), not this repo's code:
+```python
+self.logvar = torch.clamp(self.logvar, -30.0, 20.0)
+```
+`exp(20) ~= 4.85e8`. `windinet/losses/kl_divergence.py` **sums** (does
+not average) `0.5*(mean^2 + exp(logvar) - logvar - 1)` over every
+non-batch dimension of the latent tensor -- a SINGLE element pinned at
+the clamp ceiling contributes `0.5*(exp(20)-20-1) ~= 2.43e8` to that sum
+on its own, matching the observed blip scale almost exactly (6.4e8 ~=
+2-3 saturated elements). The freshly-inflated `conv_in`'s 4th channel
+starts with no calibration for what a sane posterior looks like;
+ordinary reconstruction-loss gradient descent pulls it back within 1-2
+epochs (same "epoch 1-2 rough, then clean" shape already on record for
+Q12's overfit diagnostic and others). **This is expected behavior given
+a known, deliberate diffusers safety clamp -- not a bug, and not
+something needing a code fix**, just a weight choice that respects the
+bound it implies.
+
+An attempt to reproduce this end-to-end (load the real pretrained VAE,
+inflate it, encode a random tensor, inspect `logvar`'s clamp-ceiling
+element count directly) was started but timed out on this environment's
+CPU-only inference before finishing -- the diffusers-source-level
+mechanism above is confirmed by reading the actual clamp constant, which
+is sufficient to act on; the empirical repro would only add a specific
+observed count of saturated elements, not change the diagnosis.
+
+**Weight choice: 1e-7.** Two considerations:
+- Steady state (`2e5 * 1e-7 = 0.02`): comparable to `rmse`'s own
+  ~0.011-0.013 contribution at convergence -- meaningfully regularizing,
+  not negligible.
+- Worst-case blip (`6.4e8 * 1e-7 ~= 64`): large relative to a typical
+  epoch-1 `total_loss` (~0.03-0.11 across this ledger), enough to
+  dominate that one epoch's gradient *direction* -- but `optimization.
+  max_grad_norm: 5.0` clips the actual gradient *step* regardless of the
+  raw loss magnitude, so this cannot cause an unbounded optimizer
+  blowup. The realistic downside is a wasted epoch or two, not
+  divergence, recoverable over the remaining 16-17 epochs -- this is why
+  1e-7 was chosen over the more conservative 1e-9/1e-8 an earlier,
+  pre-diagnosis pass of this design was considering.
+
+**Single variable vs `finetune_vae_whole_structure_baseline.yaml`:**
+`loss_weighting.weights.kl`: unset (0.0) -> 1e-7. Everything else
+unchanged. Config: `finetune_vae_whole_structure_baseline_kl.yaml`.
+Verified loading through `VaeTrainerConfig`.
+
+**Read-out:** compare epoch-18 val_vrmse to the reconfirmed baseline's
+~0.0834, against the ~1.1% seed-noise floor -- but per the framing above,
+val_vrmse holding steady while the latent space regularizes is itself a
+pass. **Gap: no existing diagnostic reports per-epoch latent mean/std/
+logvar summary statistics**, so the "did the latent space actually get
+more regularized" half of the question can't be read out yet -- would
+need a pure-monitoring addition (no loss/training change) to close this
+properly. Not implemented as part of this config.
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's) -- BUT
+expect epoch 1 to look rough per the diagnosis above; that alone is not a
+kill signal. Watch `train_kl` directly instead: 1e5-1e9 at epoch 1
+dropping back to 1e5-1e6 by epoch 2-3 is the expected/diagnosed pattern.
+Genuine kill signal: `train_kl` still at 1e8+ by epoch 3-4 (blip never
+resolving), or `train_total_loss` diverging upward across multiple
+consecutive epochs (not just one rough epoch 1).
+
+Launch:
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl.yaml
+```
 
 ### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)
 

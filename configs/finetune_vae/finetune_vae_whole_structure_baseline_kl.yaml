@@ -1,0 +1,166 @@
+# VAE finetuning config -- KL DIVERGENCE regularizer, on for the first
+# time (Open Question 19). Paired with the reconfirmed baseline itself as
+# the "off" arm -- no separate off config needed, `kl` is already unset
+# (0.0) there.
+#
+# THE QUESTION: motivated by the not-yet-run DiT stage (EXPERIMENTS.md
+# "DiT (stage 2, not yet run)") training on this VAE's precomputed
+# latents -- a latent space finetuned with zero KL regularization is free
+# to drift into whatever shape best serves reconstruction alone, which
+# isn't necessarily a shape a downstream diffusion model can sample from
+# cleanly. This is a PhD-advisor-requested direction, not one motivated by
+# val_vrmse itself -- a win here is "the latent space is more regularized
+# without costing much reconstruction," not "val_vrmse went down."
+#
+# BLIP DIAGNOSIS (2026-08-10, done before choosing a weight -- see
+# EXPERIMENTS.md "KL divergence weight" below for the full writeup):
+# `val_kl`/`train_kl` spike to 1e8-1e9 scale in epoch 1-2 of SOME runs in
+# this ledger (up to 6.4e8, job 523495/copyinit) despite a steady-state
+# value of ~2e5 everywhere. ROOT CAUSE CONFIRMED by reading diffusers'
+# own DiagonalGaussianDistribution.__init__ (site-packages, not this
+# repo): `self.logvar = torch.clamp(self.logvar, -30.0, 20.0)`. exp(20)
+# ~= 4.85e8 -- a SINGLE latent element pinned at the clamp ceiling (freshly
+# -inflated conv_in producing a wildly uncalibrated posterior before a few
+# gradient steps correct it) contributes ~2.4e8 to the KL sum (windinet/
+# losses/kl_divergence.py sums, does not average, over the full latent
+# tensor) on its own -- matches the observed blip scale almost exactly.
+# Self-corrects within 1-2 epochs as ordinary reconstruction-loss gradient
+# descent pulls the encoder's output back toward a sane range, same as
+# every other "epoch 1-2 looks rough, decay phase lands clean" pattern
+# already on record in this ledger (Q12's overfit diagnostic, etc.).
+# NOT a bug -- diffusers' clamp already bounds the worst case, so this
+# needed a weight choice that respects that bound, not a code fix.
+#
+# WEIGHT CHOICE: 1e-7. Two considerations, not just one:
+#   - Steady state (~2e5 * 1e-7 = 0.02): comparable to rmse's own
+#     ~0.011-0.013 contribution at convergence -- a meaningful, not
+#     negligible, regularization strength once the blip has passed.
+#   - Worst-case blip (6.4e8 * 1e-7 ~= 64): large relative to a typical
+#     epoch-1 total_loss (~0.03-0.11 across this ledger's arms), enough to
+#     dominate that epoch's gradient DIRECTION -- but `optimization.
+#     max_grad_norm: 5.0` clips the actual gradient STEP regardless of how
+#     large the raw loss value is, so this cannot cause an unbounded
+#     optimizer blowup the way it might without clipping. The realistic
+#     downside is "1-2 epochs spend their gradient budget chasing KL
+#     instead of reconstruction," not divergence -- recoverable over the
+#     remaining 16-17 epochs, not a reason to go more conservative than
+#     necessary (an earlier, pre-diagnosis pass of this design considered
+#     1e-9/1e-8 out of caution; the clamp+clipping combination found here
+#     removes most of that risk, so this settles on the larger, more
+#     genuinely regularizing 1e-7 instead).
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline.yaml (18
+# epochs, 0.3x encoder LR, whole-structure unfreeze):
+#   loss_weighting.weights.kl:  (unset, 0.0) -> 1e-7
+# Everything else UNCHANGED.
+#
+# READ-OUT: compare epoch-18 val_vrmse to the reconfirmed baseline's
+# ~0.0834, against the ~1.1% seed-noise floor -- but per "THE QUESTION"
+# above, val_vrmse holding steady (not necessarily improving) while the
+# latent statistics move toward N(0,I) is itself a pass, not a null
+# result. No existing diagnostic reports latent mean/std/logvar summary
+# stats across an epoch -- would need one added (pure monitoring, no loss
+# change) to actually read out the "is the latent space more regularized"
+# half of the question; not implemented as part of this config.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) -- BUT
+# expect epoch 1 specifically to look rough per the blip diagnosis above;
+# don't treat that alone as a kill signal. Instead watch epoch 1's
+# `train_kl` value directly (metrics.csv logs it unconditionally): if it's
+# in the 1e5-1e9 range and epoch 2 drops back toward 1e5-1e6, that is the
+# expected/diagnosed pattern, not a problem. Genuine kill signal: `train_
+# kl` still at 1e8+ by epoch 3-4 (blip never resolving) or `train_total_
+# loss` diverging upward across multiple consecutive epochs (not just
+# one rough epoch 1).
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable: unset (0.0) -> 1e-7. See "WEIGHT CHOICE" in the
+    # header -- calibrated against both steady-state KL magnitude (~2e5)
+    # and the diagnosed worst-case blip (~6.4e8), with max_grad_norm's
+    # clipping as the safety net against the latter.
+    kl: 1.0e-7
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "kl-divergence"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_kl"
+clean_output_dir: true

@@ -1,0 +1,162 @@
+# VAE finetuning config -- H2 (CURVATURE) LOSS TERM, opt-in for the first
+# time (Open Question 14).
+#
+# Single-variable follow-up to finetune_vae_whole_structure_baseline.yaml
+# (now 18 epochs, 0.3x encoder LR -- see the file's own header changelog).
+# `h2` (windinet/losses/h2_semi_norm.py) has been computed and logged in
+# every run since "New loss components (H2/PCC/VRMS/KL)" (EXPERIMENTS.md)
+# but has never had a nonzero weight -- this is the first run to actually
+# train against it.
+#
+# THE QUESTION: reconstruction panels (e.g. epoch-15 sample
+# 2507_gamma1.4, frame 50, shared 2026-08-09) show the same pattern "The
+# bandwidth ceiling" section already diagnosed quantitatively -- residuals
+# are broadband speckle across every channel, not just concentrated at
+# shock edges, meaning the model is losing high-wavenumber content
+# generally, not only failing at discontinuities specifically. `h1`
+# (gradient/first-derivative matching) is already confirmed load-bearing
+# (Open Question 13: removing it makes val_vrmse measurably worse). `h2`
+# is "one order past h1" -- it penalizes curvature mismatches, which a
+# pure first-derivative penalty can still miss (e.g. an over-smoothed
+# peak whose slope matches on both sides but whose second derivative is
+# wrong at the peak itself). Does adding it reduce val_vrmse further, on
+# top of what h1 already buys?
+#
+# WEIGHT CHOICE: h2's raw magnitude tracks h1's raw magnitude at roughly
+# 2x throughout training (checked across all 8 whole-structure-lineage
+# runs in the 2026-08-08 pull, e.g. epoch-15 train_h1/train_h2 pairs
+# consistently show train_h2 ~= 2 * train_h1). h1's weight is 50.0, so
+# weighting h2 at 25.0 gives it roughly the same *weighted* contribution
+# to the total loss as h1 currently has -- a "put it on equal footing"
+# starting point, not a tuned value. If this arm helps, a proper weight
+# sweep (mirroring how h1 went 25 -> 50) is the natural follow-up, same
+# as every other loss-weight question in this ledger.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline.yaml:
+#   loss_weighting.weights.h2:  (unset, defaults to 0.0) -> 25.0
+# Everything else (18 epochs, 0.3x encoder LR, whole-structure unfreeze,
+# rmse/h1/ssim/mlw weights, seed 42) UNCHANGED.
+#
+# READ-OUT: compare epoch-18 val_vrmse to the baseline's ~0.0834 (job
+# 523486, pending reconfirmation under this file's own name -- see
+# EXPERIMENTS.md "Channel-order sweep v2" batch), against the ~1.1%
+# seed-noise floor (Open Question 1). Also check the per-channel VRMSE
+# breakdown (val_vrmse_<channel>, active by default since 2026-08-08) --
+# if h2 helps, it should show up most on whichever channel's residual
+# looked most speckled/unstructured in the panels that motivated this
+# run, not spread evenly. Qualitative panel check same as Open Question
+# 13: look for less speckle/broadband noise in the residual maps, not
+# just a lower scalar.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's). Per this
+# pull's own finding (EXPERIMENTS.md, several arms), an isolated
+# epoch-to-epoch train_loss bump alone is common and often benign --
+# check whether val_vrmse also regresses before treating one as real. No
+# elevated divergence risk expected from adding a bounded second-
+# derivative penalty at a weight comparable to h1's, which has run
+# without incident in every prior arm.
+#
+# SEPARATE FROM THIS RUN: the same panels that motivated this arm also
+# show a repeated bright edge artifact along the left boundary in
+# multiple channels (density, pressure) -- looks like a systematic
+# boundary/padding effect (this dataset has open boundaries on all
+# sides, per the HF dataset card), not noise. A loss-weight change is not
+# expected to fix that if it's real -- it needs a separate look at the
+# VAE's conv padding mode / how edge pixels are handled, not tracked as
+# part of this experiment.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_h2.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  # Whole-structure unfreeze, unchanged from the baseline.
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  # Unchanged from the baseline.
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable: h2 was implicitly 0.0 (unset) in every prior run.
+    # 25.0 chosen to roughly match h1's weighted contribution -- see
+    # header for the raw-magnitude ratio this is based on.
+    h2: 25.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "h2-loss"]
+
+seed: 42
+# Distinct from every other output_dir in this project -- clean_output_dir
+# wipes the target at startup, reusing a name is how baseline #3 was lost
+# once already (see EXPERIMENTS.md protocol point 6).
+output_dir: "finetune_vae_whole_structure_baseline_h2"
+clean_output_dir: true
