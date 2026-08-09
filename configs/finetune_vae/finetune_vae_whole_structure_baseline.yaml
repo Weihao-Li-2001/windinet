@@ -26,10 +26,22 @@
 # 4-arm grid (0.03x/0.1x/0.3x/1.0x). 1.0x was close behind (0.08584, ~0.8%
 # off 0.3x -- inside the ~1.1% seed-noise floor measured by the same pull,
 # Open Question 1) but 0.3x is adopted per the sweep's own read-out
-# criterion (lowest wins). This file's own output_dir has NOT been re-run
-# under the new value yet -- the up-to-date reproduction of "the baseline"
-# is job 521887 / finetune_vae_whole_structure_baseline_enclr0p3x until
-# this file is relaunched under its own name.
+# criterion (lowest wins).
+#
+# UPDATED 2026-08-09: epochs bumped 15 -> 18 after the epoch-budget check
+# (Open Question 7, EXPERIMENTS.md) concluded -- 18 epochs gave val_vrmse
+# 0.08344 (job 523486, as finetune_vae_whole_structure_baseline_ep18.yaml),
+# ~2.0% better than the 15-epoch baseline's 0.08516 (job 521887), clearing
+# the ~1.1% seed-noise floor. Gains were still shrinking at epoch 18
+# (-1.6% ep16->17, -0.4% ep17->18), not fully plateaued -- see
+# EXPERIMENTS.md Open Question 7 for the full per-epoch table and the
+# `num_dataloader_workers` caveat on that comparison. This file's own
+# output_dir has NOT been re-run under either updated value (0.3x LR + 18
+# epochs together) yet -- the up-to-date reproduction of "the baseline" is
+# job 523486 / finetune_vae_whole_structure_baseline_ep18 until this file
+# is relaunched under its own name. First launch under this combined
+# config should confirm it reproduces ~0.0834 before anything is built on
+# top of it.
 #
 # CHECKPOINTS ARE REAL. save_best_only stays on. The latent space moves
 # (freeze_conv_in is false): any precomputed latents / DiT trained on a
@@ -93,7 +105,7 @@ optimization:
   min_learning_rate: 1e-6
   scheduler_type: "wsd"
   stable_fraction: 0.7
-  epochs: 15
+  epochs: 18
   batch_size: 1
   # 2 GPUs x accum 16 = effective batch 32 (see jobs/lundquist/finetune_vae_2gpu.sbatch).
   # CHANGE THIS TOGETHER WITH --num_processes, never one alone.
@@ -140,7 +152,7 @@ checkpoints:
 wandb:
   enabled: false
   project: "windinet"
-  tags: ["vae", "inflate", "mean-init", "wsd", "15ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline"]
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline"]
 
 seed: 42
 # Distinct from every other output_dir in this project -- clean_output_dir

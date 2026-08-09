@@ -1,0 +1,114 @@
+# VAE finetuning config -- channel-order arm `mx_pr_my` COPY-INIT,
+# built on the new (2026-08-09) 18-epoch whole-structure baseline.
+#
+# Part of the "channel-order sweep v2" re-run requested after ep18 was
+# promoted into finetune_vae_whole_structure_baseline.yaml (EXPERIMENTS.md
+# Open Question 7) -- re-does the momentum_x/momentum_y copy-init question
+# (Open Question 10) across all 4 of Q8's original "momentum-split"
+# arrangements (not just pr_my_mx, which is all that was tested before),
+# plus 2 new arrangements where density itself is moved off index 0 for
+# the first time (see EXPERIMENTS.md for the full 6-arm table).
+#
+# channel_order: ["density", "momentum_x", "pressure", "momentum_y"]
+# Fresh (4th, newly-grown) slot: momentum_y
+# Copy-init source (physically-paired sibling): momentum_x
+#
+# Prior result to compare against (mean-init, same channel_order, OLD
+# frozen-trunk baseline -- not a clean single-variable diff, see
+# EXPERIMENTS.md for the within-this-pull mean-init control instead):
+# mx_pr_my, job 522472, old frozen-trunk baseline, val_vrmse 0.10136 -- worst of the 6 original Q8 arms (mean-init only -- first copy-init attempt on this arm)
+#
+# Single variable vs finetune_vae_whole_structure_baseline_chorder_mx_pr_my.yaml
+# (this arm's mean-init sibling, same pull): adapter.inflate_init "mean" ->
+# "copy", adapter.inflate_copy_channel (unset) -> "momentum_x".
+# Everything else identical -- channel_order, 18 epochs, 0.3x encoder LR,
+# whole-structure unfreeze, seed 42.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_mx_pr_my_copyinit.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "copy"
+  inflate_copy_channel: "momentum_x"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "pressure", "momentum_y"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  channel_order: ["density", "momentum_x", "pressure", "momentum_y"]
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "copy-init", "wsd", "18ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline", "channel-order-sweep-v2", "chorder-mx_pr_my", "momentum-copy-init"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_chorder_mx_pr_my_copyinit"
+clean_output_dir: true

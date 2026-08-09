@@ -552,8 +552,44 @@ discontinuities. 5x spread, same model, same epoch.
      ~0.4-2% per epoch late in all 4 runs' schedules, so the ranking above
      could still shift with more epochs. `finetune_vae_whole_structure_baseline_ep18.yaml`
      exists for this but has not been launched.
-7. **PLANNED, not yet run: was 15 epochs actually enough for the
-   whole-structure baseline?** All three of `fullenc`/`head012`/`tail3`'s
+7. ~~Was 15 epochs actually enough for the whole-structure baseline?~~
+   **ANSWERED (2026-08-09): yes, real (if flattening) gain from 3 more
+   epochs.** `finetune_vae_whole_structure_baseline_ep18.yaml` (job 523486)
+   reached epoch-18 val_vrmse **0.08344**, ~2.0% better than the 15-epoch
+   baseline's 0.08516 (job 521887) -- clears the ~1.1% seed-noise floor
+   (Open Question 1). This run's own epoch-15 checkpoint read 0.09039,
+   *worse* than the original 15-epoch run's, confirming the predicted
+   mechanism: stretching the wsd schedule over 18 epochs leaves LR higher
+   at epoch 15 (not yet decayed to the floor), so it needs epochs 16-18 to
+   catch up and then pull ahead (0.09039 -> 0.08516 -> 0.08379 -> 0.08344).
+   Per-epoch gains are shrinking (-5.8% ep15->16, -1.6% ep16->17, -0.4%
+   ep17->18) -- flattening, consistent with genuine (if slowing) convergence rather
+   than a schedule artifact, but not yet fully plateaued; a 20-21 epoch
+   follow-up would be needed to see where it actually levels off. **Cost
+   correction (2026-08-09):** an earlier pass of this write-up compared
+   ep18's 6h33m wall-clock to "baseline's ~5h30m" without checking --
+   job 521887's actual log shows **9h21m**, because that job (and the
+   whole encoder-LR sweep) ran *before* the eval-parallelization fix (see
+   "Eval parallelization fix" below); its eval phase cost ~780-980s/epoch,
+   not the ~38s every job in this later pull gets. So in raw wall-clock,
+   ep18 (post-fix, 18 epochs) actually finished **faster** than the
+   pre-fix 15-epoch baseline job, which says nothing about the real
+   per-epoch cost of "15 vs 18 epochs" -- that comparison needs two
+   same-codebase runs. The honest same-codebase estimate: ep18's own
+   steady-state rate is ~1246s/epoch (train+eval), so 3 extra epochs cost
+   ~62 extra minutes relative to a 15-epoch run under the *current*
+   codebase (~20% more, consistent with 18/15 epochs at a roughly
+   constant per-epoch rate) -- not the 6h33m-vs-9h21m comparison a naive
+   read of the two jobs' own totals would suggest.
+   See "Epoch-budget result (Open Question 7)" below for
+   the full per-epoch table. **Promoted 2026-08-09** --
+   `finetune_vae_whole_structure_baseline.yaml`'s `optimization.epochs`
+   is now `18`, per the file's own header changelog. Not yet re-run under
+   its own name to confirm the ~0.0834 reproduction -- see "Channel-order
+   sweep v2 + copy-init extension" below, which launches that confirmation
+   run alongside a 12-arm follow-up built on top of it.
+
+   Original framing kept for context: all three of `fullenc`/`head012`/`tail3`'s
    per-epoch val_vrmse flatten sharply as the wsd schedule decays to
    `min_learning_rate` (e.g. `fullenc`: -6.5% at epoch 13, -2.2% at epoch
    14, only **-0.4%** at epoch 15, where lr has decayed to 1.00e-6 -- same
@@ -576,20 +612,61 @@ discontinuities. 5x spread, same model, same epoch.
    larger total -- this is exactly "give the schedule more room, let LR
    keep decaying, see if it still improves," no code change needed.
 
+   **Single-variable check (2026-08-09), diffing the two runs' actual
+   resolved `training_config.yaml`s:** confirms `optimization.epochs`
+   (15 -> 18) is the only *intentional* difference, but the two jobs'
+   configs also differ in `data.num_dataloader_workers` (2 for job
+   521887, 4 for job 523486) -- this is the same pre-existing
+   cluster-default cutover documented in the "Timing caveat" note under
+   the encoder-LR sweep above (job 521887 was submitted before the
+   `workers: 2 -> 4` default change landed). Not expected to affect
+   converged `val_vrmse` (it only changes dataloader prefetch
+   parallelism, not any computation or randomness in the training step
+   itself), so the epoch-budget conclusion should still hold, but it
+   means this comparison isn't a perfectly clean single-variable diff
+   against job 521887 specifically -- a re-run of the 15-epoch baseline
+   under the current codebase would close this gap if it ever matters.
+
    **Read-out:** compare this run's epoch-18 val_vrmse to
-   `finetune_vae_whole_structure_baseline`'s epoch-15 (0.08673 as
-   `fullenc`). Also free from the same run without a second job: compare
-   *this* run's own epoch-15 row (schedule not yet near the floor at that
-   point, since decay is now stretched over 18 epochs) to the original
-   15-epoch run's epoch-15 (already at the floor) -- if this run's epoch 15
-   reads *worse* than the original's, that's direct evidence the longer
-   schedule needs the extra epochs to catch back up rather than leading
-   throughout, which would support "genuinely still improving" over
-   "already converged."
+   `finetune_vae_whole_structure_baseline`'s epoch-15. **Note (2026-08-09):
+   this criterion was written when `fullenc` (0.08673, job 521389) was
+   still the reference point -- the encoder-LR sweep (Open Question 6)
+   has since promoted 0.3x (0.08516, job 521887) as the actual current
+   baseline. The result below is read against 0.08516; the direction of
+   the conclusion is unchanged (ep18 still wins) but the margin is smaller
+   than it would be against the stale 0.08673 number.** Also free from the
+   same run without a second job: compare *this* run's own epoch-15 row
+   (schedule not yet near the floor at that point, since decay is now
+   stretched over 18 epochs) to the original 15-epoch run's epoch-15
+   (already at the floor) -- if this run's epoch 15 reads *worse* than the
+   original's, that's direct evidence the longer schedule needs the extra
+   epochs to catch back up rather than leading throughout, which would
+   support "genuinely still improving" over "already converged."
 
    **Kill criterion:** none beyond the usual (train_loss diverging) --
    only 3 extra epochs (~20% more wall-clock than the baseline), cheap
    enough not to need one.
+
+   **Epoch-budget result (Open Question 7), job 523486, 8 tiles,
+   `finetune_vae_whole_structure_baseline_ep18.yaml`, launched 2026-08-08
+   10:43 CEST, wall-clock 6h33m:**
+
+   | epoch | learning_rate | val_vrmse | vs prior epoch |
+   |---|---|---|---|
+   | 13 | 5.00e-5 (still at peak -- stable phase runs longer under the stretched schedule) | 0.10881 | -- |
+   | 14 | 4.60e-5 (decay just starting) | 0.09523 | -12.5% |
+   | 15 | 3.40e-5 | 0.09039 | -5.1% (vs baseline's *converged* 0.08516 at its own epoch 15: **+6.1% worse**) |
+   | 16 | 1.85e-5 | 0.08516 | -5.8% (matches the 15-epoch baseline's final number almost exactly) |
+   | 17 | 5.87e-6 | 0.08379 | -1.6% |
+   | 18 | 1.00e-6 (floor) | **0.08344** | -0.4% |
+
+   Final verdict: **0.08344 vs baseline 0.08516 = -2.02%, clears the
+   ~1.1% noise floor** -- a real, if modest and flattening, improvement.
+   15 epochs was not quite enough for the whole-structure baseline;
+   `stable_fraction 0.7`'s decay was reaching `min_learning_rate` slightly
+   before the model was done improving, matching the hypothesis above.
+   Kill criterion never triggered (train_loss monotonically decreasing
+   throughout).
 8. ~~Does the order of the 4 physical channels matter?~~ **ANSWERED
    (2026-08-08): yes, and it tracks which field lands in index 3 (the fresh
    mean-init slot).** All 6 arms done, val_vrmse ranges 0.0954-0.1014 (~6%
@@ -611,47 +688,88 @@ discontinuities. 5x spread, same model, same epoch.
    the full 6-arm grid (built on `finetune_vae_baseline.yaml`, density
    fixed at index 0, the other three fields permuted) and required code
    change.
-9. **PLANNED, not yet run: decoder LR and conv_in adapter LR
-   multiplier -- untested on the whole-structure baseline.** Encoder
-   unfreeze extent (Q3) and `encoder_tail_lr_multiplier` (Q6) are both
-   answered; the two remaining LR knobs on this baseline's trainable
-   weights -- decoder's own `optimization.learning_rate` (5e-5, unchanged
-   since the very first ledger entry) and `adapter_lr_multiplier`
-   (conv_in's multiplier of decoder LR, 1.0x, never independently
-   questioned even though conv_in is a mix of pretrained-basis and
-   freshly-grown channels, same ambiguity that motivated Q6) -- have never
-   been swept. See "Decoder LR / adapter LR multiplier sweep" below for the
-   two 3-arm grids and why a naive `learning_rate`-only sweep would
-   confound decoder LR with the already-tuned encoder/conv_in LRs.
-10. **PLANNED, not yet run: does copying a physically-paired sibling
-    channel's pretrained weights beat `mean`-init for the freshly-grown
-    4th channel?** The channel-order sweep (Q8) picked the *arrangement*
-    of which field sits where, but every arm still used `inflate_init:
-    mean` for whichever field landed in the fresh slot -- averaging in
-    two physically unrelated scalar fields (density, pressure) alongside
-    whichever field genuinely belongs there. When the fresh slot is one
-    half of the momentum vector pair (momentum_x/momentum_y), there's a
-    more targeted choice available: copy the *other* half's pretrained
-    slot instead of averaging all three originals. See "Copy-init for a
-    physically-paired momentum channel" below for the full RGB/physical-
-    channel permutation table, the chosen arm, and the new `inflate_init:
-    'copy'` code path this needed.
-11. **PLANNED, not yet run: does log-compressing density before
-    z-scoring lower val_vrmse?** Density is strictly positive and spans a
-    wide dynamic range (real dataset: min 0.024, max 26.1) -- log(density)
-    is a standard CFD/turbulence preprocessing trick to stop the long
-    right tail (shock-compressed high-density regions) from dominating a
-    linear-scale loss at the expense of near-vacuum resolution. Built on
-    the current whole-structure baseline (0.3x), single variable
-    `data.log_transform_channels: [] -> ["density"]`. See "Log-density
-    experiment" below for the new `build_shockwave_video`/
+9. ~~Decoder LR and conv_in adapter LR multiplier -- untested on the
+   whole-structure baseline.~~ **ANSWERED (2026-08-09): baseline's
+   existing values (decoder LR 5e-5, adapter_lr_multiplier 1.0x) are
+   already at/near the optimum on both axes -- lowering either hurts (real
+   effect), raising either does nothing (noise).** Decoder LR 0.5x: +4.6%
+   worse (clears floor). Decoder LR 2.0x: -0.54% (noise). Adapter LR 0.3x:
+   +3.2% worse (clears floor). Adapter LR 3.0x: +0.12% (noise). See
+   "Decoder LR / adapter LR multiplier sweep" below for the full grids.
+   No config change adopted -- this closes the question rather than moving
+   the baseline.
+
+   Original framing kept for context: encoder unfreeze extent (Q3) and
+   `encoder_tail_lr_multiplier` (Q6) are both answered; the two remaining
+   LR knobs on this baseline's trainable weights -- decoder's own
+   `optimization.learning_rate` (5e-5, unchanged since the very first
+   ledger entry) and `adapter_lr_multiplier` (conv_in's multiplier of
+   decoder LR, 1.0x, never independently questioned even though conv_in is
+   a mix of pretrained-basis and freshly-grown channels, same ambiguity
+   that motivated Q6) -- have never been swept. See "Decoder LR / adapter
+   LR multiplier sweep" below for the two 3-arm grids and why a naive
+   `learning_rate`-only sweep would confound decoder LR with the
+   already-tuned encoder/conv_in LRs.
+10. ~~Does copying a physically-paired sibling channel's pretrained
+    weights beat `mean`-init for the freshly-grown 4th channel?~~
+    **ANSWERED (2026-08-09): no, null result.** `copy` (momentum_y ->
+    momentum_x's fresh slot) landed val_vrmse 0.09831 vs `mean`-init's
+    0.09841 (`pr_my_mx`, job 522476) -- a 0.10% gap, far inside the ~1.1%
+    seed-noise floor. Copying the sibling channel's weights is not
+    distinguishable from mean-averaging all three original channels here.
+    See "Copy-init for a physically-paired momentum channel" below for the
+    full result and a caveat on the per-channel breakdown.
+
+    Original framing kept for context: the channel-order sweep (Q8) picked
+    the *arrangement* of which field sits where, but every arm still used
+    `inflate_init: mean` for whichever field landed in the fresh slot --
+    averaging in two physically unrelated scalar fields (density,
+    pressure) alongside whichever field genuinely belongs there. When the
+    fresh slot is one half of the momentum vector pair (momentum_x/
+    momentum_y), there's a more targeted choice available: copy the
+    *other* half's pretrained slot instead of averaging all three
+    originals. See "Copy-init for a physically-paired momentum channel"
+    below for the full RGB/physical-channel permutation table, the chosen
+    arm, and the new `inflate_init: 'copy'` code path this needed.
+11. ~~Does log-compressing density before z-scoring lower val_vrmse?~~
+    **ANSWERED (2026-08-09): borderline, does not clear the noise floor.**
+    `log_transform_channels: ["density"]` landed val_vrmse 0.08433 vs
+    baseline 0.08516 -- a 0.97% gap, just under the ~1.1% seed-noise
+    floor. Not confidently a real effect. The per-channel `val_vrmse_
+    density` breakdown (0.10211) has no baseline counterpart to compare
+    against (per-channel VRMSE postdates the baseline run), so whether
+    density specifically improved is unverifiable with current data. See
+    "Log-density experiment" below for the full result and what a
+    follow-up would need.
+
+    Original framing kept for context: density is strictly positive and
+    spans a wide dynamic range (real dataset: min 0.024, max 26.1) --
+    log(density) is a standard CFD/turbulence preprocessing trick to stop
+    the long right tail (shock-compressed high-density regions) from
+    dominating a linear-scale loss at the expense of near-vacuum
+    resolution. Built on the current whole-structure baseline (0.3x),
+    single variable `data.log_transform_channels: [] -> ["density"]`. See
+    "Log-density experiment" below for the new `build_shockwave_video`/
     `denormalize_fields` code path this needed and the read-out/kill
     criteria.
-12. **PLANNED, not yet run: what is the 8-sim memorization ceiling under
-    the whole-structure unfreeze?** The capacity diagnostic (Open Question
-    2) that established the 0.059-0.061 "partial" floor only ever had
-    `encoder.conv_in` (attempt 4) or the tail alone (attempts 5/6)
-    trainable. The one attempt at the full trunk,
+12. ~~What is the 8-sim memorization ceiling under the whole-structure
+    unfreeze?~~ **ANSWERED (2026-08-09): the ceiling does not move.**
+    50-epoch overfit diagnostic with the entire encoder trunk unfrozen
+    (job 523504) landed val_vrmse **0.05867**, squarely in the
+    "0.05-0.06, no material change from attempts 4-6" bucket of the
+    pre-registered read-out table (not the `<=0.03` bucket). Unfreezing
+    the whole trunk does not raise the raw memorization capacity above
+    what tail-only/conv_in-only unfreezing already achieved -- the
+    whole-structure baseline's ~10% full-data gain (Open Questions 3/6)
+    is buying something other than more memorization capacity. Open
+    Question 4 (latent bandwidth) stays the primary lever for further
+    gains. See "Capacity diagnostic re-run under whole-structure unfreeze"
+    below for the full result.
+
+    Original framing kept for context: the capacity diagnostic (Open
+    Question 2) that established the 0.059-0.061 "partial" floor only
+    ever had `encoder.conv_in` (attempt 4) or the tail alone (attempts
+    5/6) trainable. The one attempt at the full trunk,
     `archive/known-bad/finetune_vae_overfit_lr5e5_wsd_fullenc.yaml`, is
     flagged known-bad and also predates the encoder-LR sweep (Open
     Question 6) that picked 0.3x over the 0.1x it used. See "Capacity
@@ -659,13 +777,21 @@ discontinuities. 5x spread, same model, same epoch.
     corrected config, a root-cause finding for *why* the known-bad attempt
     failed (which is not what `archive/known-bad/README.md` currently
     says), and the read-out/kill criteria.
-13. **PLANNED, not yet run: does training on RMSE alone (h1 = ssim = 0)
-    change val_vrmse relative to the current weighted objective?** "The
-    loss-weight axis is exhausted" (see "Established" above) was only ever
-    tested by perturbing h1/mlw's *magnitude* -- h1 (weight 50, by far the
-    largest coefficient) and ssim (0.15) have never both been zeroed. See
-    "RMSE-only loss ablation" below for the single-variable config and the
-    read-out/kill criteria.
+13. ~~Does training on RMSE alone (h1 = ssim = 0) change val_vrmse
+    relative to the current weighted objective?~~ **ANSWERED (2026-08-09):
+    yes, RMSE-only is worse -- h1/ssim are net-positive regularizers, not
+    just gradient dilution.** Zeroing h1 and ssim landed val_vrmse 0.08684
+    vs baseline 0.08516, +1.97% worse, clearing the ~1.1% noise floor.
+    `val_vrmse` is itself RMSE-family, so this is not a metric-alignment
+    artifact -- the smoothness/structural terms are doing real work.
+    Qualitative panel check (oversmoothing/artifacts at shocks) is still
+    outstanding. See "RMSE-only loss ablation" below for the full result.
+
+    Original framing kept for context: "the loss-weight axis is exhausted"
+    (see "Established" above) was only ever tested by perturbing h1/mlw's
+    *magnitude* -- h1 (weight 50, by far the largest coefficient) and ssim
+    (0.15) have never both been zeroed. See "RMSE-only loss ablation"
+    below for the single-variable config and the read-out/kill criteria.
 
 ### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
 
@@ -757,12 +883,31 @@ checking whether the same swap on the other three split arms (`pr_mx_my`,
 low risk -- `copy` is a strictly gentler intervention than `random` (which
 discards all 3 pretrained slots): only the fresh channel's init changes,
 and it changes to another real pretrained-derived filter, not zeros or
-noise.
+noise. Not triggered (train_loss monotonically decreasing).
 
-Launch (once ready):
-```
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_my_mx_copyinit.yaml
-```
+**RESULT, job 523495, 8 tiles, launched 2026-08-08 12:54 CEST, wall-clock
+4h00m (faster than the whole-structure sweep's ~1200-1260s/epoch train
+time -- this lineage is frozen-trunk, adapter-only, ~854s/epoch train):**
+
+| arm | val_vrmse | vs `pr_my_mx` (0.09841, job 522476) |
+|---|---|---|
+| `mean` (job 522476) | 0.09841 | -- |
+| `copy` (job 523495) | **0.09831** | -0.10% |
+
+**ANSWERED: null result, inside the ~1.1% seed-noise floor.** Copying
+momentum_y's pretrained weights into momentum_x's fresh slot is not
+distinguishable from `mean`-averaging all three original channels --
+`inflate_init: 'copy'` is not adopted. Per-channel breakdown for this run
+(`val_vrmse_momentum_x` 0.13743, `val_vrmse_momentum_y` 0.13630,
+`val_vrmse_density` 0.11795, `val_vrmse_pressure` 0.11471) cannot be
+compared against `pr_my_mx`'s own per-channel numbers, because per-channel
+VRMSE (see "Per-channel VRMSE, active by default" below) postdates job
+522476 -- so there is no way, with current data, to check whether
+momentum_x specifically moved even though the aggregate didn't. A
+follow-up would need to re-run `pr_my_mx` under the current codebase to
+get a comparable per-channel baseline before this question can be probed
+further; not done here since the aggregate result already reads as null
+and doesn't motivate chasing a per-channel signal.
 
 ### Log-density experiment (Open Question 11, new 2026-08-08)
 
@@ -839,12 +984,31 @@ elevated risk expected -- this changes what density's z-scored values
 *mean*, not the model architecture or any LR, and log-space statistics
 computed from the same file are already well-formed (finite mean/std,
 `euler_mq_128_only_train.yaml`'s `log_density` block has existed since
-before this pull).
+before this pull). Not triggered (train_loss monotonically decreasing).
 
-Launch (once ready):
-```
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_logdensity.yaml
-```
+**RESULT, job 523502, 8 tiles, launched 2026-08-08 15:34 CEST, wall-clock
+5h40m (slowest arm in this pull, ~1246s/epoch train -- the extra
+log/exp round-trip in `build_shockwave_video`/`denormalize_fields` is the
+likely cause, not confirmed):**
+
+| metric | value | vs baseline (0.08516) |
+|---|---|---|
+| `val_vrmse` (aggregate) | 0.08433 | -0.97% |
+| `val_vrmse_density` | 0.10211 | no comparable baseline (see below) |
+
+**ANSWERED: borderline, does not clear the noise floor.** -0.97% falls
+just short of the ~1.1% seed-noise floor -- not confidently a real
+improvement. The one number that would actually settle this,
+`val_vrmse_density` compared against the baseline's *own* per-channel
+density VRMSE, isn't available: job 521887 predates the per-channel VRMSE
+feature ("Per-channel VRMSE, active by default" below), so there's no
+baseline-density number to diff against. `log_transform_channels:
+["density"]` is not adopted on this evidence, but the question is not
+cleanly closed either -- a re-run of the baseline under the current
+codebase (to get a comparable per-channel number) would be needed to say
+more. Same `num_dataloader_workers` (4 vs baseline job 521887's 2) caveat
+as Q7/Q9 above also applies here -- doesn't change the borderline
+reading.
 
 ### Capacity diagnostic re-run under whole-structure unfreeze (Open Question 12, new 2026-08-08)
 
@@ -913,12 +1077,58 @@ through `VaeTrainerConfig` unchanged.
 | >= 0.08 | worse than the frozen/tail-only attempts -- suspect optimization instability at 1-GPU/accum-1 gradient noise, not a capacity answer; debug before drawing a conclusion |
 
 **Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's).
+**Literally triggered** (epoch 1 `train_loss` 0.18299 -> epoch 2 0.21708),
+but read in context, not a real divergence -- see full trajectory below.
 
-Launch (once ready) -- **must** go through a debug launcher that pins
-effective_batch=1, see root-cause note above:
-```
-sbatch jobs/sng_pvc/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
-```
+**RESULT, job 523504, 1 tile, `finetune_vae_debug.sbatch`
+(`effective_batch=1`), launched 2026-08-08 16:05 CEST, wall-clock 1h06m
+(50 epochs, ~62s/epoch train + ~3.2s eval -- far cheaper than any
+whole-structure full-data run). Full per-epoch trajectory checked (not
+just the tail), correcting an earlier pass that only looked at the last
+3 rows:**
+
+Epochs 1-35 (warmup + wsd stable phase, `learning_rate` at or near the
+5e-5 peak) **oscillate hard**, `val_vrmse` swinging 0.13-0.63 with no
+clean trend -- `train_loss` itself rises epoch 1->2 (0.183->0.217) and
+spikes again at epoch 4 (0.350) and epoch 10 (0.371), which is exactly
+the same shape the original capacity-diagnostic attempts 2/3 (constant
+LR, "oscillated 0.10-0.30 all 50 epochs") showed, and exactly what
+attempt 4 established the fix for: the wsd schedule's **decay phase**
+(epochs 36-50 here, `learning_rate` ramping down from ~5e-5 to the 1e-6
+floor) is what actually produces a clean landing, not the stable phase.
+That pattern reproduces here almost exactly: `val_vrmse` only becomes
+monotonic once decay starts (epoch 36: 0.147 -> epoch 50: 0.0587,
+smooth throughout), stable in the last 5 epochs (0.0652/0.0627/0.0607/
+0.0592/0.0587). Per-channel breakdown at epoch 50: pressure is the worst
+channel throughout the whole run and stays worst at convergence
+(val_vrmse_pressure 0.1189 vs density 0.0797/momentum_x 0.1081/
+momentum_y 0.0762) -- consistent with pressure's per-channel VRMSE also
+reading highest in the log-density and RMSE-only whole-structure runs
+above, so this isn't specific to this diagnostic.
+
+**Read on the kill criterion specifically:** the literal "epoch 2
+train_loss above epoch 1's" trigger would have called this run dead at
+epoch 2, but it recovered and produced the same clean, stable,
+low-noise landing the wsd schedule reliably gives once decay starts --
+same as how attempts 2/3's early oscillation was a false alarm relative
+to attempt 4's eventual clean landing. Worth restating the kill
+criterion's actual intent for early oscillation under wsd: watch whether
+the **decay-phase** epochs trend down cleanly, not whether every early
+epoch individually improves on the last.
+
+val_vrmse (== train reconstruction) landed at **0.05867** (epoch 50,
+stable through epochs 46-50: 0.05919/0.05875/0.05867).
+
+**ANSWERED: falls in the "~0.05-0.06, no material change" bucket, not
+`<=0.03`.** Unfreezing the entire encoder trunk does not raise the 8-sim
+memorization ceiling above what attempts 4-6 (tail-only/conv_in-only)
+already reached (0.0588-0.061). Read together with the read-out table's
+own framing: the whole-structure baseline's ~10% gain over the
+frozen-trunk baseline on full data (Open Questions 3/6) is not explained
+by a capacity increase from unfreezing more of the trunk -- something
+else about the wider trunk (better features, not more raw memorization
+room) is doing the work. Open Question 4 (latent bandwidth / input
+resolution) stays the primary lever toward the `<=0.03` band.
 
 ### RMSE-only loss ablation (Open Question 13, new 2026-08-08)
 
@@ -964,12 +1174,44 @@ a qualitative check before being read as a strict improvement.
 
 **Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's). No
 elevated divergence risk expected -- `max_grad_norm` clipping is unchanged
-regardless of which loss terms contribute to the pre-clip gradient.
+regardless of which loss terms contribute to the pre-clip gradient. Not
+triggered.
 
-Launch (once ready):
-```
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_rmseonly.yaml
-```
+**RESULT, job 523503, 8 tiles, launched 2026-08-08 15:57 CEST, wall-clock
+5h31m (~1226s/epoch train, in line with the other whole-structure arms):**
+
+| metric | epoch 15 | vs baseline (0.08516) |
+|---|---|---|
+| `val_vrmse` | 0.08684 | **+1.97% worse** |
+| `val_rmse` | 0.01271 | (`train_rmse == train_total_loss` here by construction, h1/ssim contribute 0) |
+
+**ANSWERED: RMSE-only is worse, clears the noise floor -- h1/ssim are
+net-positive regularizers, not just gradient dilution.** +1.97% is above
+the ~1.1% seed-noise floor, so this reads as a real degradation, not
+noise. Since `val_vrmse` is itself in the RMSE family, the naive
+"dropping the extra terms should let the optimizer focus purely on
+amplitude accuracy" intuition does not hold here -- h1 (curvature/
+gradient-matching) and ssim (structural similarity) are evidently
+suppressing a failure mode (oversmoothing / high-frequency noise at shock
+discontinuities, per "The bandwidth ceiling" above) that otherwise costs
+more RMSE than the gradient budget spent on them. **Qualitative panel
+check (the read-out criterion's second half) is still outstanding, and
+correction (2026-08-09): it isn't currently possible from what's on this
+disk, not just "not done yet" as an earlier pass of this write-up implied.**
+`visualization.enabled: true` in the resolved config confirms panels were
+generated on the cluster during training, but **none of the 9 new run
+directories in this pull have a local `visualizations/` folder** -- only
+`metrics/` and `training_config.yaml` were pulled/committed this round,
+unlike the "Where things live" table's own description of what should be
+tracked (`{metrics,visualizations,training_config.yaml}`). Closing this
+out needs either pulling `finetune_vae_outputs_sng_pvc/
+finetune_vae_whole_structure_baseline_rmseonly/visualizations/` from the
+cluster and committing it, or accepting the quantitative `val_vrmse`
+result alone. No config change adopted -- the current weighted objective
+(`rmse*1.0 + h1*50.0 + ssim*0.15`) stays as-is. Same `num_dataloader_workers` (4 vs
+baseline job 521887's 2) caveat as Q7/Q9/Q11 also applies here -- doesn't
+change the verdict (+1.97% is a real gap regardless of dataloader
+parallelism).
 
 ### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)
 
@@ -996,21 +1238,21 @@ conceptual variable" pattern the channel-order sweep used for
 **Grid A -- decoder LR** (baseline anchor 5e-5, encoder/conv_in absolute
 LR pinned):
 
-| tag | `learning_rate` | `adapter_lr_multiplier` | `encoder_tail_lr_multiplier` | config | status |
-|---|---|---|---|---|---|
-| 0.5x | 2.5e-5 | 2.0 (pins conv_in at 5e-5) | 0.6 (pins encoder at 1.5e-5) | `finetune_vae_whole_structure_baseline_declr0p5x.yaml` | written, not launched |
-| 1.0x | 5e-5 | 1.0 | 0.3 | `finetune_vae_whole_structure_baseline.yaml` (reuse job 521887, no rerun needed) | done, val_vrmse **0.08516** |
-| 2.0x | 1e-4 | 0.5 (pins conv_in at 5e-5) | 0.15 (pins encoder at 1.5e-5) | `finetune_vae_whole_structure_baseline_declr2x.yaml` | written, not launched |
+| tag | `learning_rate` | `adapter_lr_multiplier` | `encoder_tail_lr_multiplier` | config | val_vrmse | vs 1.0x |
+|---|---|---|---|---|---|---|
+| 0.5x | 2.5e-5 | 2.0 (pins conv_in at 5e-5) | 0.6 (pins encoder at 1.5e-5) | `finetune_vae_whole_structure_baseline_declr0p5x.yaml` (job 523487) | 0.08910 | **+4.6% worse** |
+| 1.0x | 5e-5 | 1.0 | 0.3 | `finetune_vae_whole_structure_baseline.yaml` (reuse job 521887) | **0.08516** | -- |
+| 2.0x | 1e-4 | 0.5 (pins conv_in at 5e-5) | 0.15 (pins encoder at 1.5e-5) | `finetune_vae_whole_structure_baseline_declr2x.yaml` (job 523490) | 0.08470 | -0.54% (noise) |
 
 **Grid B -- conv_in adapter LR multiplier** (decoder LR and
 `encoder_tail_lr_multiplier` both pinned at baseline, no compensation
 needed since this multiplier doesn't rescale anything else):
 
-| tag | `adapter_lr_multiplier` | config | status |
-|---|---|---|---|
-| 0.3x | 0.3 (conv_in abs LR 1.5e-5) | `finetune_vae_whole_structure_baseline_adapterlr0p3x.yaml` | written, not launched |
-| 1.0x | 1.0 (conv_in abs LR 5e-5) | `finetune_vae_whole_structure_baseline.yaml` (reuse job 521887, no rerun needed) | done, val_vrmse **0.08516** |
-| 3.0x | 3.0 (conv_in abs LR 1.5e-4) | `finetune_vae_whole_structure_baseline_adapterlr3x.yaml` | written, not launched |
+| tag | `adapter_lr_multiplier` | config | val_vrmse | vs 1.0x |
+|---|---|---|---|---|
+| 0.3x | 0.3 (conv_in abs LR 1.5e-5) | `finetune_vae_whole_structure_baseline_adapterlr0p3x.yaml` (job 523488) | 0.08792 | **+3.2% worse** |
+| 1.0x | 1.0 (conv_in abs LR 5e-5) | `finetune_vae_whole_structure_baseline.yaml` (reuse job 521887) | **0.08516** | -- |
+| 3.0x | 3.0 (conv_in abs LR 1.5e-4) | `finetune_vae_whole_structure_baseline_adapterlr3x.yaml` (job 523489) | 0.08526 | +0.12% (noise) |
 
 Unlike Q6 (where the encoder trunk's pretrained basis made "less LR than
 decoder" the a priori expectation), Grid B has no directional prior: 3 of
@@ -1033,14 +1275,52 @@ val_vrmse heading toward 0.15-0.2+ instead of down from the
 ~0.10-0.11 baseline-adapter-only starting point). Grid B's arms carry
 lower risk regardless of direction since conv_in is only 221,312 params.
 
-Launch (once ready, 4 new jobs total -- both grids reuse job 521887 as
-their shared 1.0x point):
-```
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_declr0p5x.yaml
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_declr2x.yaml
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_adapterlr0p3x.yaml
-sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_adapterlr3x.yaml
-```
+**RESULT (2026-08-09), all 4 new jobs launched 2026-08-08 10:43 CEST, 8
+tiles each, ~5.5h wall-clock apiece (declr0.5x 5h35m, declr2x 5h30m,
+adapterlr0.3x 5h28m, adapterlr3x 5h34m):**
+
+**ANSWERED: both grids show the same pattern -- lowering either LR from
+the baseline hurts (real effect, clears the ~1.1% noise floor), raising
+either does nothing distinguishable (inside the noise floor).** The
+current baseline values (decoder LR 5e-5, `adapter_lr_multiplier` 1.0x)
+are already at or near the optimum on both axes independently. No config
+change adopted -- this closes Q9 rather than moving the baseline. (Grid
+B's original "no directional prior" framing turned out not to matter in
+practice: neither direction helped, only lowering hurt, same as Grid A.)
+
+**Same single-variable caveat as Q7's ep18 check applies to all 4 arms
+here** (2026-08-09): all four were submitted in the same 10:43 CEST
+2026-08-08 batch as `ep18`, so all four resolved configs carry
+`data.num_dataloader_workers: 4` against the reused 1.0x point's
+(job 521887) `2` -- not expected to move converged `val_vrmse`, but not a
+perfectly clean diff against 521887 specifically. Doesn't change either
+grid's verdict (the "lower hurts, higher doesn't help" pattern is
+consistent across both LR directions in both grids, which a dataloader
+setting wouldn't produce).
+
+**Kill-criterion note, corrected 2026-08-09 after a full per-epoch
+re-check (the first pass only looked at final rows).** Two arms, not
+one, show a `train_loss` rise that literally triggers "epoch N above
+epoch N-1's":
+- **declr2x** (the arm flagged above for "elevated watch" -- decoder LR
+  1e-4, double every decoder LR used elsewhere): epoch 1->2 rose
+  0.10465 -> 0.15253.
+- **adapterlr0.3x**, not flagged in advance and a bigger spike: epoch
+  2->3 rose 0.07299 -> **0.22332** (~3x), driven almost entirely by
+  `train_h1` (0.00046 -> 0.00260) and `train_h2` (0.00083 -> 0.00688)
+  jumping for that one epoch. Crucially, `val_total_loss` and `val_vrmse`
+  both kept *improving* across the same epoch (0.0815 -> 0.0757, 0.2034
+  -> 0.1955) -- this was a noisy train-side epoch (a few outlier
+  batches/gradients skewing that epoch's average), not a real regression,
+  since held-out performance never wavered.
+
+Every other arm in both grids stayed monotonically decreasing
+epoch-over-epoch. Neither flagged run diverged (final val_vrmse: declr2x
+0.08470, adapterlr0.3x 0.08792, both finishing in line with their
+neighbors) and neither approached the 0.15-0.2+ danger range the original
+watch-note called out, so both read as the same benign early-training
+noise seen elsewhere in this pull (e.g. the Q12 overfit diagnostic
+below), not the instability the watch was guarding against.
 
 ### Channel-order sweep (Open Question 8, new 2026-08-06)
 
@@ -1158,6 +1438,110 @@ sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseli
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_mx_my.yaml
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_my_mx.yaml
 ```
+
+### Channel-order sweep v2 + copy-init extension (Open Questions 8/10 revisited, configs written 2026-08-09)
+
+**PLANNED, not yet launched.** Follow-up to promoting ep18 into
+`finetune_vae_whole_structure_baseline.yaml` (Open Question 7, above):
+the channel-order sweep (Q8) and copy-init question (Q10) were both
+originally answered on older baselines (Q8 on the frozen-trunk baseline,
+Q10 on `pr_my_mx` under that same frozen-trunk lineage) -- neither has
+been checked against the current 18-epoch whole-structure baseline. This
+batch does three things at once:
+
+1. **Confirms the promoted baseline reproduces** ~0.0834 under its own
+   name (the header changelog in `finetune_vae_whole_structure_baseline.
+   yaml` flags this as still needed).
+2. **Extends Q10's copy-init question from 1 arm to all 4** of Q8's
+   original "momentum-split" arrangements (previously only `pr_my_mx` had
+   a copy-init variant) -- each paired with a same-arrangement mean-init
+   control run on the *new* baseline, so the copy-vs-mean diff is clean
+   (not confounded by the frozen-trunk-vs-whole-structure difference the
+   original Q10 read-out had against `pr_my_mx`'s old number).
+3. **Tests a variable Q8 never varied: density's own position.** Every
+   arm in the original 6-arm Q8 sweep fixed `density` at index 0 by
+   convention, never as a swept variable. Two new arrangements here move
+   `pressure` into index 0 and `density` into index 1 instead, on top of
+   the existing momentum-split logic -- if these read differently from
+   their density-at-0 counterparts, index-0 was doing more than just
+   "holds whichever field is there," which Q8's original framing didn't
+   distinguish.
+
+**The 6 channel-order arms** (each run twice: mean-init control +
+copy-init), all built on `finetune_vae_whole_structure_baseline.yaml`
+(18 epochs, 0.3x encoder LR, whole-structure unfreeze, seed 42) with
+**only** `data.channel_order` + `adapter.channels` (+ `adapter.
+inflate_init` / `adapter.inflate_copy_channel` for the copy variant)
+changed per protocol point 1:
+
+| # | channel_order | fresh slot | copy source | prior result (old frozen-trunk baseline, NOT a clean diff) |
+|---|---|---|---|---|
+| 1 | density, pressure, momentum_y, momentum_x | momentum_x | momentum_y | `pr_my_mx`, job 522476, 0.09841 (mean); copy-init already tested once, job 523495, 0.09831 -- see "Copy-init" above |
+| 2 | density, pressure, momentum_x, momentum_y | momentum_y | momentum_x | `pr_mx_my`, job 522475, 0.09922 (mean only) |
+| 3 | density, momentum_x, pressure, momentum_y | momentum_y | momentum_x | `mx_pr_my`, job 522472, 0.10136 (mean only, worst of original 6) |
+| 4 | density, momentum_y, pressure, momentum_x | momentum_x | momentum_y | `my_pr_mx`, job 522474, 0.10043 (mean only) |
+| 5 | **pressure, density**, momentum_x, momentum_y | momentum_y | momentum_x | none -- density has never been moved off index 0 before |
+| 6 | **pressure, density**, momentum_y, momentum_x | momentum_x | momentum_y | none -- density has never been moved off index 0 before |
+
+Configs: `finetune_vae_whole_structure_baseline_chorder_<tag>.yaml`
+(mean) / `finetune_vae_whole_structure_baseline_chorder_<tag>_copyinit.
+yaml` (copy), `<tag>` in `{pr_my_mx, pr_mx_my, mx_pr_my, my_pr_mx,
+pr_d_mx_my, pr_d_my_mx}`. All 12 verified loading through
+`VaeTrainerConfig`; spot-checked `pr_d_mx_my`'s resolved `channel_mean`/
+`channel_std` against `normalization_stats_file` -- correctly reorders to
+`[pressure, density, momentum_x, momentum_y]` (pressure's mean 0.9032
+first, density's 0.9051 second), confirming the density-moved case is
+handled the same way arm-permutation already was for Q8/Q10.
+
+**Read-out criteria:**
+- Arms 1-4: compare each arm's copy-init vs its own mean-init sibling
+  (same channel_order, same new baseline) against the ~1.1% seed-noise
+  floor (Open Question 1) -- does copy-init help on any arm now that the
+  comparison is clean, not just `pr_my_mx` (already null on the old
+  comparison, job 523495 vs 522476).
+- Arms 1-4 mean-init vs each other, and vs arms 5-6's mean-init: does the
+  ~6% spread Q8 found on the old baseline persist under whole-structure
+  unfreeze + 18 epochs, and do arms 5-6 (density moved) fall inside or
+  outside that spread -- if inside, index-0 has no special status beyond
+  "holds a pretrained slot like any other"; if arms 5-6 are outliers
+  (better or worse), density's specific position matters beyond that.
+- All arms vs the reconfirmed baseline (`finetune_vae_whole_structure_
+  baseline.yaml` under its own name, expected ~0.0834): sanity bound, not
+  expected to beat the default `mx_my_pr` order given Q8's original
+  finding that pressure-last arrangements won.
+
+**Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's) for
+every arm -- given this pull's own finding that isolated epoch-to-epoch
+`train_loss` bumps are common and usually benign (declr2x, adapterlr0.3x,
+the Q12 overfit diagnostic, all above), don't kill on a single bump alone;
+check whether `val_vrmse` also regresses before treating one as real.
+
+**Launch (13 jobs total -- run these from the cluster, this environment
+has no `sbatch` access):**
+```
+# 1. Confirm the promoted baseline (18ep + 0.3x encoder LR) reproduces ~0.0834
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml
+
+# 2. Six channel-order arms x {mean, copy}
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_my_mx.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_my_mx_copyinit.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_mx_my.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_mx_my_copyinit.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_mx_pr_my.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_mx_pr_my_copyinit.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_my_pr_mx.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_my_pr_mx_copyinit.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_d_mx_my.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_d_mx_my_copyinit.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_d_my_mx.yaml
+sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_chorder_pr_d_my_mx_copyinit.yaml
+```
+Each is an independent 8-tile, 18-epoch run; based on this pull's timings
+(~1200-1250s/epoch train + ~38s eval on the current eval-fix'd codebase),
+expect each job to take roughly **6.5-7h wall-clock** (18 epochs at the
+whole-structure baseline's own per-epoch rate). 13 jobs x ~7h is a
+substantial cluster-time commitment -- consider staggering submission if
+sng_pvc's queue/fair-share makes running all 13 concurrently impractical.
 
 ### Seed noise floor sweep (Open Question 1, configs written 2026-08-06)
 
@@ -1555,17 +1939,47 @@ video-VAE latents are 5D `[B, C, T, H, W]` -- the diffusers method would
 silently leave one spatial axis unreduced. `kl_divergence_loss` reduces
 over every non-batch dim instead, robust to the actual shape.
 
-**Not tested with a real run.** Verified so far: each loss function alone
+Verified so far (pre-2026-08-08): each loss function alone
 against hand-built tensors (sane values, correct edge cases -- e.g. `pcc_loss`
 is ~0 for a signal against itself, `kl_divergence_loss` is exactly 0 for
 mean=0/logvar=0); `reconstruction_losses()` returns the right key set with
 and without `latent_mean`/`latent_logvar`; every one of the 28 real
 `configs/finetune_vae/*.yaml` files still loads through `VaeTrainerConfig`
-unchanged. **Not yet run through an actual training step** (needs the full
-pretrained VAE, not available in this environment) -- if a config
-opts into one of these, watch the first job's epoch 1 like any new
-component: does `train_loss` look sane, does the new `train_<name>`/
-`val_<name>` column in metrics.csv look sane, does it crash.
+unchanged.
+
+**Update (2026-08-09): this section was stale -- it has since been run,
+repeatedly.** `h2`/`pcc`/`vrms`/`kl` are logged unconditionally (weight or
+not, per the design above), so every one of the 9 whole-structure runs in
+this pull (`ep18`, the two LR grids, `logdensity`, `rmseonly`, plus
+`copyinit` on the frozen-trunk lineage) produced real `train_h2`/`val_h2`,
+`train_pcc`/`val_pcc`, `train_vrms`/`val_vrms`, `train_kl`/`val_kl`
+columns -- none of them have nonzero weight in any of these configs (only
+`rmse`/`h1`/`ssim`/`mlw` appear under `loss_weighting.weights`), so this
+is passive monitoring only, not yet a claim about their effect on
+training. Values are sane and stable across all runs (`train_h2` tracks
+`train_h1` at roughly 2x its magnitude throughout, as expected for a
+higher-order derivative penalty; `pcc`/`vrms` track `ssim`/`rmse` shape
+closely) -- **with one exception, `val_kl`:** it spikes 3-4 orders of
+magnitude (up to ~644M vs. a steady-state ~195,000-215,000) in epoch 1 of
+`copyinit` and `declr2x`, and epochs 1-2 of `adapterlr0p3x`; `ep18`'s
+epoch 2 also spikes once. Four of the eight whole-structure-lineage runs
+show no blip at all (`declr0p5x`, `adapterlr3x`, `logdensity`,
+`rmseonly`). Since `kl` carries weight 0 everywhere, this has **no effect
+on `train_total_loss`, gradients, or any reported `val_vrmse` result** --
+it reads as the freshly-inflated encoder's posterior starting far from
+`N(0,I)` before the first step or two of training pulls it back, and it
+being inconsistent across otherwise-similar runs (different only in LR/
+loss-weight config, not init) suggests it's sensitive to which specific
+random draw the inflated channel's fresh weights got, not to any of the
+swept variables. Not a bug to fix, just worth knowing before it's
+mistaken for a real problem the first time someone actually assigns `kl`
+a nonzero weight.
+
+Still true: watch the first job's epoch 1 for
+any *newly-weighted* component (does `train_loss` look sane, does the new
+`train_<name>`/`val_<name>` column look sane, does it crash) --
+this pull only exercised these four as passive monitors, none of them
+has been given nonzero weight in an actual training objective yet.
 
 **Everything else needed to change so an unlisted loss name doesn't
 crash a run:** `windinet/training/vae_trainer.py`'s `loss_sum`/
@@ -1619,7 +2033,21 @@ Verified with hand-built tensors (`vrms_per_channel` matches a manual
 per-channel `sqrt(mse/var)` computation exactly; returns all-zero for
 `pred == target`) and a dry-run of the `_evaluate` accumulation logic with
 a fake `channel_order` -- produces the expected `val_vrmse_<name>` keys.
-**Not yet run through an actual training step.**
+
+**Update (2026-08-09): also stale -- has run.** Four runs in this pull
+have the `val_vrmse_<channel>` columns: `copyinit`, `logdensity`,
+`rmseonly`, and the Q12 overfit diagnostic (all launched 2026-08-08
+12:54 CEST or later). The five earlier jobs from the same day (`ep18`,
+both LR-sweep grids, all launched 10:43 CEST) do **not** have these
+columns -- they were submitted before the commit that added this feature
+landed on the cluster, same kind of mid-pull cutover already documented
+for the eval-parallelization fix below. Concretely useful in this pull:
+the copy-init result above (Open Question 10) can report
+`val_vrmse_momentum_x` directly, though without a per-channel baseline to
+diff against (see that section's caveat); the log-density and RMSE-only
+results likewise get per-channel numbers with the same baseline-gap
+caveat, since job 521887 (the aggregate baseline) predates this feature
+too.
 
 ## Canonical normalization-stats file, `normalization_stats_file` (2026-08-08)
 
@@ -1677,6 +2105,42 @@ numbers exactly, both-set/neither-set both raise, loading a
 config across the whole repo still loads through `VaeTrainerConfig`
 (same one pre-existing, unrelated failure as before -- a template
 fragment that was never a valid trainer config to begin with).
+
+**Full-dataset confirmation run, job 523501 (`wh_channel_stats`), launched
+2026-08-08 13:44 CEST, wall-clock 1h08m** (this was missed in the first
+write-up of this pull -- added 2026-08-09): `compute_channel_stats.py`
+run against the **entire** `128x128_ds/train.h5` (4500 simulations,
+7,446,528,000 values/channel, not a sample) with `--compare-to
+configs/finetune_vae/euler_mq_128_only_train.yaml`.
+
+**Result: every stat (mean/std/min/max) for all 4 physical channels plus
+`log_density` matches the hand-computed reference to floating-point noise
+(abs diff 1e-16 to 1e-18, 0.00% relative)** -- `euler_mq_128_only_train.
+yaml`'s original hand computation was already exactly right, not an
+approximation. This is a real confirmation, not a null result by default:
+it retires the implicit risk flagged in "THE PROBLEM" above (that the
+hand-computed numbers might silently differ from the true full-dataset
+values) for the 128x128 dataset specifically.
+
+**One gap surfaced by the diff table: `log_pressure` is computed by the
+scan (mean -0.347238, std 0.692862, min -6.883690, max 3.208804) but is
+`MISSING` from `euler_mq_128_only_train.yaml`.** `VaeDataConfig.
+log_transform_channels` already validates `density`/`pressure` as the two
+allowed entries (see "Log-density experiment" above), but only
+`log_density`'s stats actually exist in the reference file today -- a
+`log_transform_channels: ["pressure"]` or `["density", "pressure"]` run
+would currently fail at config-load time (missing `log_pressure` key in
+`normalization_stats_file`) rather than at training time. Not blocking
+anything run so far (only `density` has been log-transformed, Open
+Question 11), but worth noting for whoever extends that experiment to
+pressure -- `euler_mq_128_only_train.yaml` needs the `log_pressure` block
+added first (the scan's own output above has the numbers ready to copy
+in).
+
+**Not yet run against `256x256_ds/train.h5`** -- the "sets up 256x256_ds
+support for free" note above is still aspirational; this run only
+confirms the existing 128x128 stats, it doesn't produce the 256-resolution
+file Open Question 4 would need.
 
 ## Where things live
 
