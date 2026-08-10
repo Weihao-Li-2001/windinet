@@ -47,9 +47,36 @@ CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml}
 CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
 NUM_SAMPLES=${3:-32}
 OUTPUT_JSON="log_finetuning_vae/sng_pvc/${SLURM_JOB_ID}-latent_stats.json"
-echo "config=${CONFIG} checkpoint=${CHECKPOINT} num_samples=${NUM_SAMPLES} output=${OUTPUT_JSON}"
 
-python scripts/latent_stats.py "${CONFIG}" \
+# latent_stats.py reads data.data_root straight from the config file with no
+# cluster patching of its own -- every checked-in config's data_root is a
+# lundquist-style literal path (/local/disk/hramachandran/...) that doesn't
+# exist on sng_pvc, so without this it fails immediately (job 523692:
+# FileNotFoundError). Same fix jobs/sng_pvc/finetune_vae.sbatch already
+# applies for training runs -- patch a temp copy via patch_config_for_cluster
+# rather than editing the checked-in config.
+RUN_CONFIG=$(mktemp /tmp/latent_stats_sng_pvc_XXXX.yaml)
+trap 'rm -f "${RUN_CONFIG}"' EXIT
+python - "${CONFIG}" "${RUN_CONFIG}" <<'PY'
+import sys
+
+import yaml
+
+from windinet.cluster_config import patch_config_for_cluster
+
+src, dst = sys.argv[1], sys.argv[2]
+cfg = yaml.safe_load(open(src))
+# num_processes=1/output_suffix="": this isn't a training launch, so the
+# gradient_accumulation_steps and output_dir side effects of the patch are
+# irrelevant -- only data.data_root and data.num_dataloader_workers matter
+# to latent_stats.py.
+patch_config_for_cluster(cfg, cluster="sng_pvc", num_processes=1, output_suffix="")
+yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
+PY
+
+echo "config=${CONFIG} (patched -> ${RUN_CONFIG}) checkpoint=${CHECKPOINT} num_samples=${NUM_SAMPLES} output=${OUTPUT_JSON}"
+
+python scripts/latent_stats.py "${RUN_CONFIG}" \
     --checkpoint "${CHECKPOINT}" \
     --num-samples "${NUM_SAMPLES}" \
     --output "${OUTPUT_JSON}"
