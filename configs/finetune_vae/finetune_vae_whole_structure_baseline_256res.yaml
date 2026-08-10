@@ -1,0 +1,118 @@
+# VAE finetuning config -- Open Question 4 (latent bandwidth / input
+# resolution), EXPERIMENTS.md: does more latent bandwidth help? 256x256_ds
+# gives an 8x8 latent grid instead of 128x128_ds's 4x4 (4x capacity),
+# independent of the whole-structure-trunk-unfreeze question already
+# answered.
+#
+# Single-variable follow-up to finetune_vae_whole_structure_baseline_ep18.yaml
+# (the most-validated current baseline, val_vrmse 0.08344, job 523486):
+# only `data.data_root` and `data.normalization_stats_file` change, to point
+# at 256x256_ds and its own channel stats instead of 128x128_ds's. Everything
+# else (LR, schedule, loss weights, epochs) held fixed so any val_vrmse
+# delta is attributable to resolution, not a confound.
+#
+# normalization_stats_file points at euler_mq_256_only_train.yaml, a
+# hand-supplied stats file (data_normalization_stats: density/momentum_x/
+# momentum_y/pressure/log_density -- no log_pressure, same gap as the
+# 128-resolution reference file) in the same shape VaeDataConfig expects.
+# Unlike the 128x128_ds numbers (cross-checked against a full-dataset
+# scripts/compute_channel_stats.py run, see EXPERIMENTS.md), these have NOT
+# been independently verified against 256x256_ds/train.h5 -- if val_vrmse
+# looks off, sanity-check by running compute_channel_stats.sbatch and
+# diffing against this file before assuming it's a modeling problem.
+#
+# data_root here is a placeholder (cluster_config.CLUSTER_DEFAULTS still
+# points sng_pvc at 128x128_ds by default) -- the sng_pvc launcher REQUIRES
+# an explicit override for this config, see Usage below.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_256res.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by jobs/sng_pvc/finetune_vae.sbatch's
+  # $2 (see Usage above). Only meaningful if this config is ever run through
+  # a launcher that does NOT override data_root.
+  data_root: "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_256res"
+clean_output_dir: true

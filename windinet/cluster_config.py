@@ -46,6 +46,7 @@ def patch_config_for_cluster(
     num_processes: int,
     output_suffix: str,
     effective_batch: int | None = None,
+    data_root: str | None = None,
 ) -> dict:
     """Patch a loaded VAE trainer config dict in place for `cluster`.
 
@@ -62,11 +63,16 @@ def patch_config_for_cluster(
     2/4/6-GPU variants all overwrite the same run on purpose -- see
     CLUSTER_DEFAULTS); pass a real suffix only when two scripts sharing a
     cluster must NOT overwrite each other's output.
+
+    data_root overrides CLUSTER_DEFAULTS[cluster]["data_root"] verbatim (no
+    {scratch} formatting -- pass an already-expanded path) for runs against a
+    dataset other than the cluster's default resolution, e.g. 256x256_ds
+    instead of the default 128x128_ds. Leave unset to keep prior behavior.
     """
     defaults = CLUSTER_DEFAULTS[cluster]
     scratch = os.environ.get("SCRATCH", "")
 
-    cfg["data"]["data_root"] = defaults["data_root"].format(scratch=scratch)
+    cfg["data"]["data_root"] = data_root if data_root is not None else defaults["data_root"].format(scratch=scratch)
     cfg["data"]["num_dataloader_workers"] = defaults["num_dataloader_workers"]
 
     batch_size = cfg["optimization"]["batch_size"]

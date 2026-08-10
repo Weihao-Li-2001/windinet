@@ -18,6 +18,11 @@
 # jobs/lundquist/finetune_vae_4gpu.sbatch. Pass any other config as $1:
 #   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/<your-config>.yaml
 #
+# $2 (optional) overrides data_root, e.g. to train against a resolution
+# other than CLUSTER_DEFAULTS['sng_pvc']'s default 128x128_ds:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/<your-config>.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+#
 # Submit with:   sbatch jobs/sng_pvc/finetune_vae.sbatch
 # Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_finetune_vae.out
 # Cancel with:   scancel <jobid>
@@ -84,19 +89,26 @@ export TOKENIZERS_PARALLELISM=false
 export HDF5_USE_FILE_LOCKING=FALSE
 
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+DATA_ROOT_OVERRIDE=${2:-}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
-python - "${BASE_CONFIG}" "${RUN_CONFIG}" "$((NUM_XPUS * SLURM_JOB_NUM_NODES))" <<'PY'
+python - "${BASE_CONFIG}" "${RUN_CONFIG}" "$((NUM_XPUS * SLURM_JOB_NUM_NODES))" "${DATA_ROOT_OVERRIDE}" <<'PY'
 import sys
 
 import yaml
 
 from windinet.cluster_config import patch_config_for_cluster
 
-src, dst, num_processes = sys.argv[1], sys.argv[2], int(sys.argv[3])
+src, dst, num_processes, data_root_override = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
 cfg = yaml.safe_load(open(src))
-patch_config_for_cluster(cfg, cluster="sng_pvc", num_processes=num_processes, output_suffix="")
+patch_config_for_cluster(
+    cfg,
+    cluster="sng_pvc",
+    num_processes=num_processes,
+    output_suffix="",
+    data_root=data_root_override or None,
+)
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(
     f"{num_processes} XPU tiles x accum {cfg['optimization']['gradient_accumulation_steps']} "
