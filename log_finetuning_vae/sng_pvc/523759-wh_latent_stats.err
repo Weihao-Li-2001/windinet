@@ -1,0 +1,30 @@
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/latent_stats.py", line 294, in <module>
+    app()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+    raise e
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+    return get_command(self)(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+    return self.main(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+    return _main(
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+    rv = self.invoke(ctx)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+    return callback(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+    return callback(**use_params)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/latent_stats.py", line 222, in main
+    pretrained_result = _encode_stats(vae_pretrained, loader, cfg, device, raw_stats=raw_stats)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/latent_stats.py", line 153, in _encode_stats
+    raw_stats.update(raw_fields, channel_dim=1)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/latent_stats.py", line 91, in update
+    self.sum += x.sum(dim=1)
+RuntimeError: Expected all tensors to be on the same device, but found at least two devices, xpu:0 and cpu!
