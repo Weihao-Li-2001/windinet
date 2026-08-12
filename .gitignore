@@ -37,11 +37,13 @@ euler_mq_dataset/*
 !euler_mq_dataset/sng_pvc/
 !euler_mq_dataset/sng_pvc/download_from_hf.py
 
-# SLURM job logs -- tracked only under log_finetuning_vae/sng_pvc/
+# SLURM job logs -- tracked only under log_finetuning_vae/{sng_pvc,lrz_ai}/
 *.err
 *.out
 !log_finetuning_vae/sng_pvc/*.err
 !log_finetuning_vae/sng_pvc/*.out
+!log_finetuning_vae/lrz_ai/*.err
+!log_finetuning_vae/lrz_ai/*.out
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -233,4 +235,6 @@ finetune_vae_outputs/lundquist/**/visualizations/
 finetune_vae_outputs/lundquist/**/metrics/loss_curves.png
 finetune_vae_outputs/sng_pvc/**/visualizations/
 finetune_vae_outputs/sng_pvc/**/metrics/loss_curves.png
+finetune_vae_outputs/lrz_ai/**/visualizations/
+finetune_vae_outputs/lrz_ai/**/metrics/loss_curves.png
 checkpoints/
