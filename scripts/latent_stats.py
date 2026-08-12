@@ -79,10 +79,10 @@ RAW_CHANNELS = ["density", "momentum_x", "momentum_y", "pressure"]
 class ChannelStats:
     """Streaming per-channel mean/std over an arbitrary-rank tensor's channel axis."""
 
-    def __init__(self, num_channels: int) -> None:
+    def __init__(self, num_channels: int, device: torch.device | str = "cpu") -> None:
         self.count = 0
-        self.sum = torch.zeros(num_channels, dtype=torch.float64)
-        self.sumsq = torch.zeros(num_channels, dtype=torch.float64)
+        self.sum = torch.zeros(num_channels, dtype=torch.float64, device=device)
+        self.sumsq = torch.zeros(num_channels, dtype=torch.float64, device=device)
 
     def update(self, x: torch.Tensor, channel_dim: int) -> None:
         """x: any shape with `num_channels` at `channel_dim`."""
@@ -130,9 +130,9 @@ def _encode_stats(
     latents_std = vae.latents_std.view(1, -1, 1, 1, 1).to(device, torch.float32)
     num_latent_channels = vae.latents_mean.numel()
 
-    posterior_mean_stats = ChannelStats(num_latent_channels)
-    posterior_std_stats = ChannelStats(num_latent_channels)
-    rescaled_stats = ChannelStats(num_latent_channels)
+    posterior_mean_stats = ChannelStats(num_latent_channels, device=device)
+    posterior_std_stats = ChannelStats(num_latent_channels, device=device)
+    rescaled_stats = ChannelStats(num_latent_channels, device=device)
 
     for batch in loader:
         video = build_shockwave_video(
@@ -218,7 +218,7 @@ def main(
 
     console.print("\n[bold]Pretrained (freshly-inflated, no finetuning)[/bold]")
     vae_pretrained = _build_vae(cfg, checkpoint=None, device=device)
-    raw_stats = ChannelStats(len(RAW_CHANNELS))
+    raw_stats = ChannelStats(len(RAW_CHANNELS), device=device)
     pretrained_result = _encode_stats(vae_pretrained, loader, cfg, device, raw_stats=raw_stats)
     raw_result = raw_stats.finalize()
     reference_mean = vae_pretrained.latents_mean.tolist()
