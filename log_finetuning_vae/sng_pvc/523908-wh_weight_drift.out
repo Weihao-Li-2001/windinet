@@ -1,0 +1,40 @@
+START TIME: Wed 12 Aug 2026 05:47:23 AM CEST
+job=523908 node=i20r04c06s02
+config=configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml checkpoint=/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors output=log_finetuning_vae/sng_pvc/523908-weight_drift.json
+channels=['density', 'momentum_x', 'momentum_y', 'pressure'] (fresh slot(s): 
+['pressure']) inflate_init='mean'
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors (epoch=18, step=2160)
+
+Full per-channel report written to 
+log_finetuning_vae/sng_pvc/523908-weight_drift.json
+encoder.conv_in -- own weight drift (init -> finetuned) 
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ channel    ┃ cosine sim to init ┃ relative L2 change ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ density    │             0.9972 │             0.0774 │
+│ momentum_x │             0.9988 │             0.0482 │
+│ momentum_y │             0.9985 │             0.0559 │
+│ pressure   │             0.9929 │             0.1201 │
+└────────────┴────────────────────┴────────────────────┘
+     encoder.conv_in -- fresh channel vs mean(original 3)      
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ channel  ┃ cosine sim at init ┃ cosine sim after finetuning ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ pressure │             1.0000 │                      0.9887 │
+└──────────┴────────────────────┴─────────────────────────────┘
+decoder.conv_out -- own weight drift (init -> finetuned)
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ channel    ┃ cosine sim to init ┃ relative L2 change ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ density    │             0.9909 │             0.1355 │
+│ momentum_x │             0.9909 │             0.1360 │
+│ momentum_y │             0.9928 │             0.1203 │
+│ pressure   │             0.9320 │             0.3668 │
+└────────────┴────────────────────┴────────────────────┘
+     decoder.conv_out -- fresh channel vs mean(original 3)     
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ channel  ┃ cosine sim at init ┃ cosine sim after finetuning ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ pressure │             1.0000 │                      0.8905 │
+└──────────┴────────────────────┴─────────────────────────────┘
+END TIME: Wed 12 Aug 2026 06:04:32 AM CEST

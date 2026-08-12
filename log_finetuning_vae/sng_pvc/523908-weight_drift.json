@@ -1,0 +1,65 @@
+{
+  "config": "configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml",
+  "checkpoint": "/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors",
+  "channels": [
+    "density",
+    "momentum_x",
+    "momentum_y",
+    "pressure"
+  ],
+  "inflate_init": "mean",
+  "encoder_conv_in": {
+    "layer": "encoder.conv_in",
+    "own_drift": {
+      "density": {
+        "cosine_sim_to_init": 0.9972176215684309,
+        "relative_l2_change": 0.07735497012002922
+      },
+      "momentum_x": {
+        "cosine_sim_to_init": 0.9988400641558883,
+        "relative_l2_change": 0.04815163856492463
+      },
+      "momentum_y": {
+        "cosine_sim_to_init": 0.9984717960638694,
+        "relative_l2_change": 0.05592917014058078
+      },
+      "pressure": {
+        "cosine_sim_to_init": 0.9928859233704946,
+        "relative_l2_change": 0.12014593489001527
+      }
+    },
+    "fresh_vs_mean_of_others": {
+      "pressure": {
+        "at_init": 1.0000000000000107,
+        "after_finetuning": 0.9886872513894825
+      }
+    }
+  },
+  "decoder_conv_out": {
+    "layer": "decoder.conv_out",
+    "own_drift": {
+      "density": {
+        "cosine_sim_to_init": 0.990864224133466,
+        "relative_l2_change": 0.1355348722596176
+      },
+      "momentum_x": {
+        "cosine_sim_to_init": 0.9908577518261901,
+        "relative_l2_change": 0.13603920929282282
+      },
+      "momentum_y": {
+        "cosine_sim_to_init": 0.9927618145687624,
+        "relative_l2_change": 0.1202847055154842
+      },
+      "pressure": {
+        "cosine_sim_to_init": 0.9319849372825676,
+        "relative_l2_change": 0.3667508875598953
+      }
+    },
+    "fresh_vs_mean_of_others": {
+      "pressure": {
+        "at_init": 0.9999999999999993,
+        "after_finetuning": 0.8905019200362284
+      }
+    }
+  }
+}
