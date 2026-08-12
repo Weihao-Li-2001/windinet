@@ -42,7 +42,7 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
 CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml}
-CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs/sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
+CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
 OUTPUT_JSON="log_finetuning_vae/sng_pvc/${SLURM_JOB_ID}-weight_drift.json"
 
 echo "config=${CONFIG} checkpoint=${CHECKPOINT} output=${OUTPUT_JSON}"

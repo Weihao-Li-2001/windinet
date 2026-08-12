@@ -25,7 +25,14 @@ CLUSTER_DEFAULTS = {
     },
     "sng_pvc": {
         "data_root": "{scratch}/windinet/euler_mq_dataset/128x128_ds/train.h5",
-        "output_root": "{scratch}/windinet/finetune_vae_outputs/sng_pvc",
+        # Deliberately still the old (pre-rename) name, unlike the git-tracked
+        # mirror under finetune_vae_outputs/sng_pvc/ -- every run before and
+        # after the 2026-08-12 directory rename lives here on $SCRATCH, so
+        # keeping this constant avoids splitting checkpoints across two
+        # differently-named scratch trees. jobs/sng_pvc/finetune_vae*.sbatch's
+        # LOCAL_DIR mirror target is a separate hardcoded string, not derived
+        # from this value, so it can (and does) use the new name regardless.
+        "output_root": "{scratch}/windinet/finetune_vae_outputs_sng_pvc",
         # workers=0 -> 2 cuts wall-clock/epoch ~21% (confirmed safe at 8 ranks,
         # jobs 520301 vs 520300, see EXPERIMENTS.md "sng_pvc throughput
         # diagnostic"). workers=2 -> 4 cuts a further ~6.6% (jobs 520456 vs
