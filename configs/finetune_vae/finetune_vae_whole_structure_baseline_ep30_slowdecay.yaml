@@ -1,0 +1,140 @@
+# VAE finetuning config -- epoch budget 18 -> 30 AND slower LR decay
+# (Open Question 20b, EXPERIMENTS.md). PhD-advisor-requested alongside
+# `_ep30.yaml` and `_ep30_lowfloor.yaml` -- see that config's header for
+# the epoch-budget rationale (Open Question 7's still-improving epoch-18
+# trend). This one additionally stretches the decay phase's *share* of
+# the schedule, not just the total step count.
+#
+# CAUTION, READ BEFORE TRUSTING A NULL RESULT HERE: a near-identical
+# change was already tried twice and did NOT help:
+#   - Open Question 5 (full data, OLD frozen-trunk baseline,
+#     `finetune_vae_baseline_slowdecay.yaml`, job 21689): `stable_fraction
+#     0.7 -> 0.35` landed 0.09664, ~1.3% *worse* than the 0.095396
+#     baseline (within the then-uncalibrated noise band, but directionally
+#     not an improvement).
+#   - "Attempt 6" (8-sim overfit diagnostic, tail-unfreeze-only,
+#     `finetune_vae_overfit_lr5e5_wsd_tail_slowdecay.yaml`, job 21690):
+#     same `0.7 -> 0.35` change, landed 0.0608 vs attempt 5's 0.0588 --
+#     not materially better, read as "schedule was not the limiting
+#     factor" for that setup.
+# BOTH of those predate Open Question 3 (unfreezing the whole encoder
+# trunk, not just the tail) and Open Question 7 (the epoch-18 result,
+# which DID find real schedule-budget-limited gains post-unfreeze -- the
+# first time in this ledger a schedule-length change has clearly helped).
+# Whether slower decay specifically (as opposed to just more total steps,
+# which `_ep30.yaml` isolates on its own) helps now that the trunk is
+# trainable and the model is demonstrably not yet converged at epoch 18
+# is exactly what this run is for -- the prior two negative results are
+# reason for skepticism, not a reason to skip the test.
+#
+# SINGLE VARIABLE (chained, 2 tags per protocol point 4) vs
+# `finetune_vae_whole_structure_baseline_ep30.yaml`:
+#   optimization.stable_fraction: 0.7 -> 0.5
+# vs the 18-epoch baseline (0.08360, job 523577), TWO variables move
+# together (epochs + stable_fraction) -- this run cannot by itself
+# attribute a change to slower decay specifically; compare against
+# `_ep30.yaml`'s own result (which isolates epoch count alone) to get
+# that attribution.
+# Everything else UNCHANGED. Resolved schedule: 3600 total opt steps, 200
+# warmup, stable_fraction 0.5 -> 1700 stable + 1700 anneal (vs `_ep30.
+# yaml`'s 2380 stable + 1020 anneal -- the decay phase is ~67% longer in
+# absolute steps). Floor still 1e-6 (2% of peak).
+#
+# READ-OUT: compare epoch-30 val_vrmse against BOTH the 18-epoch baseline
+# (0.08360) and `_ep30.yaml`'s own result. Beating the baseline but not
+# `_ep30.yaml` means the gain is from more epochs, not slower decay --
+# consistent with the two prior negative results above. Beating `_ep30.
+# yaml` itself (by >2.2%, 2x the ~1.1% seed noise floor per protocol
+# point 3) would be the first evidence in this ledger that decay-share
+# specifically matters, not just total budget.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's). Same
+# wall-clock cost as `_ep30.yaml` (~11h estimated) -- no stricter
+# criterion needed.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_slowdecay.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.5
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget", "slowdecay"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_slowdecay"
+clean_output_dir: true

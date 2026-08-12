@@ -1,0 +1,137 @@
+# VAE finetuning config -- epoch budget 18 -> 30, slower decay, AND a
+# lower LR floor, ALL THREE AT ONCE (Open Question 20d, EXPERIMENTS.md).
+#
+# PROTOCOL EXCEPTION, NOTED EXPLICITLY: protocol point 4 caps chained
+# config-name tags at two ("if the name needs a third, the run is no
+# longer a single-variable experiment") -- this file has three
+# (`ep30`+`slowdecay`+`lowfloor`) and is not a single-variable experiment.
+# It exists because this is the PhD advisor's literal combined ask (more
+# epochs, slower decay, lower floor, together, as one proposal), not
+# because it substitutes for the isolated runs. Do NOT read this run's
+# result on its own as attributing an effect to any one of the three
+# changes -- use `_ep30.yaml`, `_ep30_slowdecay.yaml`, and `_ep30_
+# lowfloor.yaml` for that. This config answers "does the PhD advisor's
+# specific combined proposal beat the baseline," nothing more granular.
+# Recommended sequencing: launch this alongside the three isolated runs
+# rather than waiting on them (all four are independent jobs, ~11h each on
+# sng_pvc) -- if the three isolated runs all land within noise of each
+# other while this one clears the noise floor, that is itself a finding
+# (a real interaction between epoch count/decay-share/floor that none of
+# the isolated changes captures alone).
+#
+# CAUTION: `_ep30_slowdecay.yaml`'s header documents two prior tests of
+# `stable_fraction 0.7 -> 0.35` (steeper version of this file's 0.5) that
+# both landed as null/negative results (Open Question 5, full data,
+# pre-encoder-unfreeze; "Attempt 6," 8-sim diagnostic). Both predate
+# Open Question 3 (whole-trunk unfreeze) and Open Question 7 (the
+# epoch-18 result that first showed real schedule-budget-limited gains
+# post-unfreeze) -- see that config's header for the full argument for
+# why they may not transfer here. Same caveat applies to this run.
+#
+# vs `finetune_vae_whole_structure_baseline.yaml` (18 epochs, 0.3x
+# encoder LR, stable_fraction 0.7, min_learning_rate 1e-6, confirmed
+# val_vrmse 0.08360, job 523577), THREE variables move together:
+#   optimization.epochs:            18   -> 30
+#   optimization.stable_fraction:   0.7  -> 0.5
+#   optimization.min_learning_rate: 1e-6 -> 1e-7
+# Everything else UNCHANGED. Resolved schedule: 3600 total opt steps, 200
+# warmup, stable_fraction 0.5 -> 1700 stable + 1700 anneal, floor 1e-7
+# (0.2% of peak).
+#
+# READ-OUT: compare epoch-30 val_vrmse against the 18-epoch baseline
+# (0.08360) AND against whichever of `_ep30.yaml` / `_ep30_slowdecay.
+# yaml` / `_ep30_lowfloor.yaml` reads out best. Beating the baseline by
+# >2.2% (2x the ~1.1% seed noise floor, protocol point 3) is the minimum
+# bar; beating the best isolated single-variable run is what would justify
+# adopting all three changes together going forward instead of just the
+# best individual one.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's). Same
+# wall-clock cost as the other three (~11h estimated).
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_slowdecay_lowfloor.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-7
+  scheduler_type: "wsd"
+  stable_fraction: 0.5
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget", "slowdecay", "lowfloor"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_slowdecay_lowfloor"
+clean_output_dir: true

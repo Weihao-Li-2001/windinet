@@ -857,6 +857,100 @@ discontinuities. 5x spread, same model, same epoch.
     divergence weight" below for the full diagnosis, the weight-choice
     math, and why `max_grad_norm` clipping caps the practical risk.
     Config: `finetune_vae_whole_structure_baseline_kl.yaml`.
+20. **PLANNED, configs written, not yet submitted: is training time still
+    the bottleneck? Epoch budget 18 -> 30, plus slower decay and a lower
+    LR floor, PhD-advisor-requested (2026-08-12).** Direct continuation
+    of Open Question 7 (15->18 epochs, -2.02%, still improving not
+    plateaued at epoch 18: -1.6% ep16->17, -0.4% ep17->18). Four configs,
+    one variable each except (d):
+    - (a) `finetune_vae_whole_structure_baseline_ep30.yaml`: epochs only,
+      18 -> 30. Isolates "does more schedule room alone still help."
+    - (b) `finetune_vae_whole_structure_baseline_ep30_slowdecay.yaml`:
+      epochs 30 + `stable_fraction: 0.7 -> 0.5` (decay phase ~67% longer
+      in absolute steps at the same total budget).
+    - (c) `finetune_vae_whole_structure_baseline_ep30_lowfloor.yaml`:
+      epochs 30 + `min_learning_rate: 1e-6 -> 1e-7` (floor 2% -> 0.2% of
+      peak).
+    - (d) `finetune_vae_whole_structure_baseline_ep30_slowdecay_lowfloor.yaml`:
+      all three changes together -- the PhD advisor's literal combined
+      ask. THREE variables move at once (protocol point 4 exception,
+      explicitly noted in the config's own header) -- not a substitute
+      for (a)/(b)/(c), answers "does the combined proposal beat the
+      baseline," not which lever did it.
+    **Caution on (b) specifically:** `stable_fraction 0.7 -> 0.35` (a
+    steeper version of this same change) was already tried twice and did
+    NOT help -- Open Question 5 (full data, old frozen-trunk baseline,
+    job 21689, 0.09664 vs 0.095396 baseline, ~1.3% worse) and "Attempt 6"
+    (8-sim overfit diagnostic, job 21690, 0.0608 vs attempt 5's 0.0588,
+    not materially better). Both predate Open Question 3 (whole-trunk
+    unfreeze) and Open Question 7 (the first schedule-budget-limited win
+    in this ledger, post-unfreeze) -- reason for skepticism on (b), not a
+    reason to skip it, since the regime has changed since both prior
+    tests.
+    **Read-out:** all four vs the 18-epoch baseline's confirmed 0.08360
+    (job 523577), bar >2.2% (2x the ~1.1% seed noise floor, protocol
+    point 3). (b)/(c)/(d) additionally read against (a)'s own result for
+    attribution -- beating the baseline but not (a) means the gain is
+    from epoch count alone, not the schedule-shape change.
+    **Kill criterion:** usual (epoch 2 train_loss above epoch 1's) for
+    all four; ~11h estimated wall-clock each (vs ~6.6h for the 18-epoch
+    baseline), cheap enough not to need a stricter one.
+21. **PLANNED, config written, not yet submitted: does the fresh channel's
+    `mean` init leave a visible "superposition of the other 3 channels"
+    artifact, and does `zeros` init remove it? PhD-advisor-motivated
+    (2026-08-12).** Observed qualitatively on the whole-structure
+    baseline's pressure channel (the fresh, index-3 slot under the
+    default channel order): low val_vrmse but reconstructions visually
+    resemble a blend of density/momentum_x/momentum_y rather than an
+    independent prediction. Revisits the "NOT established" gap flagged
+    above ("mean vs zeros init has never been cleanly isolated") with a
+    clean single-variable run instead of the old confounded #5-vs-#6
+    pair, and is a different question from Open Question 10's copy-init
+    (which swapped *which* pretrained slot the fresh channel averages/
+    copies from, not whether averaging happens at all -- copy-init came
+    back null on val_vrmse but was never checked qualitatively either).
+    (a) Config: `finetune_vae_whole_structure_baseline_zerosinit.yaml`,
+    single variable vs the confirmed baseline (0.08360, job 523577):
+    `adapter.inflate_init: "mean" -> "zeros"`.
+    **Complementary no-training diagnostic:** `scripts/
+    inflate_weight_drift.py` (new, CPU-only, no data loading) measures
+    directly, on the *existing* mean-init checkpoint, whether the fresh
+    channel's `decoder.conv_out`/`encoder.conv_in` weights have moved
+    away from their `mean`-of-the-other-3 starting point (own-drift:
+    cosine sim + relative L2 change vs init) and whether they still
+    resemble the average of the other 3 channels' *current* weights
+    (fresh-vs-mean-of-others, computed both at init and after
+    finetuning). Low own-drift points at "insufficient training" (or too
+    low an LR on that slot -- note `encoder_tail_lr_multiplier` does NOT
+    scale `decoder.conv_out`, which trains at the full decoder LR); high
+    own-drift with fresh-vs-mean-of-others still high after finetuning
+    points at a loss/init-landscape effect that more epochs alone won't
+    fix. Run this before/alongside the zeros-init training run -- it's
+    minutes on a CPU, not a GPU job.
+    **Read-out:** two-part (val_vrmse against baseline's 0.08360 /
+    per-channel `val_vrmse_pressure` 0.09733, AND a qualitative
+    reconstruction-panel comparison of the pressure channel against the
+    mean-init baseline's) -- val_vrmse alone cannot answer the motivating
+    question, see the config's own header.
+    **Kill criterion:** usual, but expect a rougher epoch 1-2 than `mean`
+    on the fresh channel specifically (no pretrained-derived starting
+    point there) -- don't treat that alone as a kill signal, same caveat
+    as every other init-change run in this ledger.
+    (b) **Config: `finetune_vae_whole_structure_baseline_ep30_zerosinit.yaml`
+    (new, 2026-08-12), epochs 18 -> 30 stacked on top of (a)'s zeros
+    init.** Motivation: `zeros` starts the fresh channel colder than
+    `mean` (no pretrained-derived prior at all, same qualitative risk
+    `inflate_init: random` demonstrates at the extreme) -- 18 epochs may
+    not be enough time for it to catch up, which would confound "does
+    zeros fix the artifact" with "zeros just needs more steps." Gives
+    zeros the same extended schedule Open Question 20 is already testing
+    for `mean`, so a zeros-vs-mean read at matched epoch count is
+    possible. Two variables move vs the original 18-epoch/mean baseline
+    (epochs + init) -- read against (a)'s own epoch-18 zeros result and
+    Open Question 20(a)'s epoch-30 mean result for attribution. Same
+    two-part (quantitative + qualitative-panel) read-out and kill
+    criterion as (a); ~11h estimated wall-clock, same as the other
+    `_ep30*` runs.
 
 ### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
 

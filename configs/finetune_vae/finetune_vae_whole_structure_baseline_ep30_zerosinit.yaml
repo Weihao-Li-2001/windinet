@@ -1,0 +1,130 @@
+# VAE finetuning config -- epoch budget 18 -> 30 AND fresh-channel init
+# `mean` -> `zeros`, together (Open Question 21b, EXPERIMENTS.md).
+#
+# WHY COMBINED, NOT JUST STACKING THE TWO ISOLATED RUNS: `zeros` init
+# (Open Question 21a, `_zerosinit.yaml`) removes the `mean`-of-the-other-3
+# starting point for the fresh channel entirely -- it starts at literal 0
+# output/0 input weight, with no pretrained-derived prior to lean on
+# (same qualitative risk `inflate_init: random` demonstrates at the
+# extreme, "Established" above: no prior -> much rougher early training).
+# 18 epochs may not be enough time for that channel to reach a good
+# solution from a colder start, confounding "does zeros fix the
+# superposition artifact" with "zeros just needs more steps to catch up."
+# This run gives zeros the same extended schedule the epoch-budget check
+# (Open Question 20) is already testing for `mean`, so a zeros-vs-mean
+# comparison at 30 epochs isn't handicapped by an insufficient-training
+# artifact specific to the colder init.
+#
+# SINGLE VARIABLE (chained, 2 tags per protocol point 4) vs
+# `finetune_vae_whole_structure_baseline_zerosinit.yaml` (18 epochs,
+# zeros init): `optimization.epochs: 18 -> 30`. Equivalently, vs
+# `finetune_vae_whole_structure_baseline_ep30.yaml` (18->30 epochs, mean
+# init): `adapter.inflate_init: "mean" -> "zeros"`. Two variables move vs
+# the original 18-epoch/mean baseline (0.08360, job 523577) -- use
+# `_ep30.yaml` and `_zerosinit.yaml`'s own results for attribution to
+# epoch count vs init specifically.
+# Everything else UNCHANGED (stable_fraction 0.7, min_learning_rate 1e-6
+# -- same schedule shape as `_ep30.yaml`, only epochs+init move here).
+#
+# READ-OUT: same two-part criterion as `_zerosinit.yaml` -- quantitative
+# (epoch-30 val_vrmse / per-channel val_vrmse_pressure vs `_ep30.yaml`'s
+# own epoch-30 result and the original 18-epoch baseline's 0.08360,
+# against the ~1.1% seed-noise floor) AND qualitative (pull epoch-30
+# reconstruction panels, compare the pressure channel's residual/shape
+# against both `_zerosinit.yaml`'s epoch-18 panels and the mean-init
+# baseline's -- does more training let zeros close the gap, or does the
+# qualitative artifact question turn out to be orthogonal to epoch count
+# either way).
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) -- expect a
+# rougher early stretch than any `mean`-init run (no pretrained-derived
+# prior on the fresh channel), same caveat as `_zerosinit.yaml`; give it
+# more than 1-2 epochs before reading a rough start as a real problem.
+# ~11h estimated wall-clock (same as the other `_ep30*` runs).
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_zerosinit.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget", "init-ablation"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_zerosinit"
+clean_output_dir: true

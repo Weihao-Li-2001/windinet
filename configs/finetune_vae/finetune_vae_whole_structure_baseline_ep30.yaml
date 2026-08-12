@@ -1,0 +1,131 @@
+# VAE finetuning config -- epoch budget extended 18 -> 30 (Open Question
+# 20a, EXPERIMENTS.md). PhD-advisor-requested: training time is still the
+# suspected bottleneck, not the objective/schedule shape.
+#
+# WHY THIS IS PLAUSIBLE: Open Question 7 already found 15 epochs wasn't
+# enough (0.08516 -> 0.08344, -2.02%, clearing the ~1.1% noise floor) and
+# was still improving, not plateaued, at epoch 18 (-1.6% ep16->17, -0.4%
+# ep17->18 -- shrinking but nonzero). This config is the direct
+# continuation of that trend: same mechanism as the 15->18 push (`warmup_
+# steps` stays absolute at 200, `stable_fraction` is a fraction of the
+# post-warmup budget so both the stable and decay phases stretch
+# proportionally to the larger total) -- give the schedule more room, no
+# code change needed.
+#
+# THIS RUN ISOLATES EPOCH COUNT ALONE. `stable_fraction` (0.7) and
+# `min_learning_rate` (1e-6) are UNCHANGED here on purpose -- see the
+# sibling configs `_ep30_slowdecay.yaml` and `_ep30_lowfloor.yaml` for the
+# other two schedule-shape changes the PhD advisor also asked for, kept in
+# separate single-variable runs per protocol point 1/4 rather than
+# chained into this one.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline.yaml (18
+# epochs, 0.3x encoder LR, whole-structure unfreeze, confirmed
+# val_vrmse 0.08360, job 523577):
+#   optimization.epochs: 18 -> 30
+# Everything else UNCHANGED. Resolved schedule: 3600 total opt steps (120/
+# epoch x 30), 200 warmup, stable_fraction 0.7 -> 2380 stable + 1020
+# anneal (vs the 18-epoch run's 1372 stable + 588 anneal), floor still
+# 1e-6 (2% of peak).
+#
+# READ-OUT: compare epoch-30 val_vrmse to the 18-epoch baseline's 0.08360.
+# Per protocol point 3, only a delta clearing ~2.2% (2x the ~1.1% seed
+# noise floor) counts as a real effect. Also worth reading the epoch-18
+# row of *this* run against the baseline's converged epoch-18 (0.08360):
+# if this run's own epoch 18 is worse than the original epoch-18 baseline
+# (schedule not yet near the floor since decay is now stretched over 30
+# epochs), that is direct within-run evidence the longer schedule is using
+# the extra epochs rather than just re-deriving the same answer slower --
+# same logic Open Question 7 used against the 15-epoch baseline.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) -- 12 extra
+# epochs is ~67% more wall-clock than the baseline (~11h vs ~6.6h
+# estimated from the 18-epoch run's per-epoch timing), cheap enough not to
+# need a stricter one.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30"
+clean_output_dir: true
