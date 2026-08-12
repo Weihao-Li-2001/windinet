@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=wh_latent_stats
-#SBATCH --time=01:00:00
+#SBATCH --time=03:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general
@@ -17,6 +17,16 @@
 # Single tile, plain python (not accelerate launch) -- this is a forward
 # pass through vae.encode() only, no distributed training machinery
 # needed, same reasoning as jobs/sng_pvc/compute_channel_stats.sbatch.
+#
+# TIME LIMIT 03:00:00 (raised from the original 01:00:00, 2026-08-12):
+# job 523900/523901's own default (--num-samples 32) finished in ~20min
+# including two full LTX-2B model loads, but that 32 was later found to be
+# an unrepresentative slice of the 675-sim eval split (see EXPERIMENTS.md)
+# -- the recommended invocation now passes the full eval_sims count
+# (675), ~21x more encode() calls than the run this file's original limit
+# was sized for. No checkpointing / partial output (same caveat as
+# compute_channel_stats.sbatch) -- getting killed mid-run wastes the
+# whole thing, so this errs generous rather than tight.
 #
 # Usage (all args optional):
 #   sbatch jobs/sng_pvc/latent_stats.sbatch [config_yaml] [checkpoint] [num_samples]
