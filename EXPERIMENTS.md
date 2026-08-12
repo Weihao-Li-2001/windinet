@@ -943,6 +943,58 @@ discontinuities. 5x spread, same model, same epoch.
     two-part (quantitative + qualitative-panel) read-out and kill
     criterion as (a); ~11h estimated wall-clock, same as the other
     `_ep30*` runs.
+22. **PLANNED, configs written, not yet submitted: KL divergence weight
+    sweep -- where does regularization saturate below 1e-7, and where does
+    reconstruction cost actually appear above it?** Direct follow-up to
+    Open Question 19, which tested a single point (1e-7: -0.30% val_vrmse,
+    ~359x more regularized `val_kl`, 196385 -> 547 by epoch 18) and closed
+    with "promoted candidate, not yet adopted as baseline" -- one point is
+    not a curve. Four single-variable configs vs
+    `finetune_vae_whole_structure_baseline.yaml` (18ep, confirmed 0.08360,
+    job 523577), same baseline Q19 swept against (not the still-in-flight
+    epoch-30 baseline from Open Question 20):
+    - `finetune_vae_whole_structure_baseline_kl1e8.yaml`: `kl` 1e-8 (10x
+      below 1e-7). Does regularization basically vanish this far down?
+    - `finetune_vae_whole_structure_baseline_kl3e7.yaml`: `kl` 3e-7 (3x
+      above 1e-7). First point past the tested one -- does "no cost" hold
+      a bit further before jumping an order of magnitude?
+    - `finetune_vae_whole_structure_baseline_kl1e6.yaml`: `kl` 1e-6 (10x
+      above 1e-7, steady-state contribution ~0.2). First arm expected to
+      plausibly cost real val_vrmse -- kl now competes with reconstruction
+      terms for gradient budget rather than being a minor add-on.
+    - `finetune_vae_whole_structure_baseline_kl1e5.yaml`: `kl` 1e-5 (100x
+      above 1e-7, steady-state contribution ~2.0, larger than the rest of
+      the weighted objective combined). Deliberate failure-end bracket, not
+      expected to work -- gives the sweep two real endpoints instead of one
+      working point and unbounded extrapolation past it.
+    All four verified loading through `VaeTrainerConfig`.
+    **Gap carried over from Open Question 19, still open:** no per-epoch
+    latent mean/std/logvar summary-statistic diagnostic exists (pure
+    monitoring, no loss/training change) -- would let this sweep read out
+    "how regularized" each arm actually is directly, instead of inferring
+    it from `train_kl`/`val_kl`'s raw (unnormalized, sum-not-mean) scale.
+    Not implemented as part of this sweep; deferred until after these four
+    results come back.
+    **Read-out:** each arm's val_vrmse vs baseline's 0.08360, bar >2.2%
+    (2x the ~1.1% seed-noise floor, protocol point 3), plus epoch-18
+    `val_kl` vs baseline's ~196-201k (unweighted, flat) and the 1e-7 arm's
+    547, to place all points on one regularization-vs-cost curve.
+    **Kill criterion:** usual (epoch 2 `train_loss` above epoch 1's) for
+    `kl1e8`/`kl3e7`; relaxed to epoch 3 for `kl1e6` and epoch 4 for `kl1e5`
+    per each config's own header -- higher weights amplify the same
+    epoch-1-2 blip Q19 diagnosed (diffusers' logvar clamp on the
+    freshly-inflated conv_in's uncalibrated posterior, bounded by
+    `max_grad_norm: 5.0`, not a bug), so a rough start alone is not a kill
+    signal at these weights. Genuine kill: `train_kl` still 1e8+ several
+    epochs in, or `train_total_loss` diverging upward across multiple
+    consecutive epochs with no recovery.
+    Launch (one job per arm):
+    ```
+    sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl1e8.yaml
+    sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl3e7.yaml
+    sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl1e6.yaml
+    sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl1e5.yaml
+    ```
 
 ### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
 

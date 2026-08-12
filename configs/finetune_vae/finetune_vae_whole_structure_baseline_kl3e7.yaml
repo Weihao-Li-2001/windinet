@@ -1,0 +1,119 @@
+# VAE finetuning config -- KL DIVERGENCE WEIGHT SWEEP, arm 2/4 (Open
+# Question 22). Single variable vs finetune_vae_whole_structure_baseline.yaml
+# (18ep, 0.3x encoder LR, confirmed val_vrmse 0.08360, job 523577):
+#   loss_weighting.weights.kl:  (unset, 0.0) -> 3e-7
+#
+# THE QUESTION: see finetune_vae_whole_structure_baseline_kl1e8.yaml for the
+# full sweep framing (siblings: kl1e8/kl1e6/kl1e5.yaml) bracketing the
+# single point Open Question 19 already tested (1e-7 -> -0.30% val_vrmse,
+# 359x more regularized). This arm, 3e-7 (3x above 1e-7, steady-state
+# contribution ~2e5*3e-7=0.06 -- already ~5x rmse's own raw ~0.011-0.013
+# contribution to total_loss, a non-negligible fraction of the objective):
+# first point past 1e-7 to check whether the "no cost" result holds a bit
+# further out before jumping an order of magnitude to 1e-6.
+#
+# Same blip caveat as Q19: train_kl/val_kl may spike to 1e5-1e9 in epoch
+# 1-2 (diffusers' logvar clamp on the freshly-inflated conv_in's
+# uncalibrated posterior, not a bug -- see EXPERIMENTS.md "KL divergence
+# weight" for the full diagnosis) and should self-correct by epoch 2-3.
+#
+# READ-OUT: val_vrmse vs baseline's 0.08360 (bar: >2.2%, 2x the seed-noise
+# floor, protocol point 3), plus epoch-18 val_kl vs baseline's ~196-201k
+# (unweighted, flat) and the 1e-7 arm's 547, to place this weight on the
+# regularization curve. No per-epoch latent mean/std/logvar diagnostic
+# exists yet (same gap Q19 flagged) -- read-out is val_vrmse + raw
+# train_kl/val_kl only, same as Q19 had.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) -- but expect
+# a rough epoch 1 per the blip diagnosis; watch train_kl directly instead.
+# Genuine kill: train_kl still 1e8+ by epoch 3-4, or train_total_loss
+# diverging upward across multiple consecutive epochs.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl3e7.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable: unset (0.0) -> 3e-7. Sweep arm 2/4, see header.
+    kl: 3.0e-7
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "kl-divergence", "kl-sweep"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_kl3e7"
+clean_output_dir: true
