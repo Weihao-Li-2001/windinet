@@ -141,7 +141,7 @@ import os
 print(CLUSTER_DEFAULTS['sng_pvc']['output_root'].format(scratch=os.environ.get('SCRATCH', '')))
 ")
 RUN_NAME=${OUT_DIR#"${OUTPUT_ROOT}/"}
-LOCAL_DIR="finetune_vae_outputs_sng_pvc/${RUN_NAME}"
+LOCAL_DIR="finetune_vae_outputs/sng_pvc/${RUN_NAME}"
 mkdir -p "${LOCAL_DIR}"
 rsync -a --exclude='checkpoints/' "${OUT_DIR}/" "${LOCAL_DIR}/"
 echo "Mirrored (excl. checkpoints/) to ${LOCAL_DIR}"

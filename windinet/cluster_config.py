@@ -19,13 +19,13 @@ CLUSTER_DEFAULTS = {
         # purpose: there's one lundquist result at a time, not one per GPU
         # count, so the 2/4/6-GPU scripts all land here regardless of
         # output_suffix. clean_output_dir wipes it at the start of each run.
-        "output_root": "finetune_vae_outputs_lundquist",
+        "output_root": "finetune_vae_outputs/lundquist",
         "num_dataloader_workers": 4,
         "effective_batch": 32,
     },
     "sng_pvc": {
         "data_root": "{scratch}/windinet/euler_mq_dataset/128x128_ds/train.h5",
-        "output_root": "{scratch}/windinet/finetune_vae_outputs_sng_pvc",
+        "output_root": "{scratch}/windinet/finetune_vae_outputs/sng_pvc",
         # workers=0 -> 2 cuts wall-clock/epoch ~21% (confirmed safe at 8 ranks,
         # jobs 520301 vs 520300, see EXPERIMENTS.md "sng_pvc throughput
         # diagnostic"). workers=2 -> 4 cuts a further ~6.6% (jobs 520456 vs

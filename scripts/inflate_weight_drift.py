@@ -47,7 +47,7 @@ directly produces the visually-inspected reconstruction).
 Usage:
     python scripts/inflate_weight_drift.py \\
         configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml \\
-        --checkpoint $SCRATCH/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors \\
+        --checkpoint $SCRATCH/windinet/finetune_vae_outputs/sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors \\
         --output weight_drift_whole_structure_baseline.json
 
 Runs on CPU by default -- this is a handful of small conv weight tensors,

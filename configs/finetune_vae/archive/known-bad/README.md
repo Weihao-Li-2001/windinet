@@ -1,8 +1,8 @@
 # Known-bad -- do not reuse these numbers
 
 Configs (and their output data, under
-`finetune_vae_outputs_sng_pvc/archive/known-bad/` and
-`finetune_vae_outputs_lundquist/archive/known-bad/`) in this folder produced
+`finetune_vae_outputs/sng_pvc/archive/known-bad/` and
+`finetune_vae_outputs/lundquist/archive/known-bad/`) in this folder produced
 results `EXPERIMENTS.md` explicitly flags as uninterpretable. They are kept
 for provenance, not as a source of numbers to cite or compare against.
 
@@ -28,3 +28,20 @@ Capacity-diagnostic attempt 2: constant LR (no decay), oscillated between
 criterion. See "Capacity diagnostic (Open Question 2)" attempt 2 in
 `EXPERIMENTS.md`. Kept only because the metrics happen to survive on disk;
 there is no config to relaunch.
+
+## `finetune_vae_whole_structure_baseline_gradnorm.yaml` (Open Question 15)
+
+GradNorm adaptive loss weighting, job 523590. Killed by the 24h time limit
+at epoch 14/18 (confirmed ~5x the per-batch cost of every fixed-weight
+arm, as predicted before launch), but the real problem is upstream of the
+timeout: `val_VRMSE` oscillated between ~0.17-0.23 and ~0.56-1.13 every
+other epoch for all 14 completed epochs, never converging, in lockstep
+with `mlw`'s adapted weight swinging between ~0.0 and ~3.8-4.0 each epoch.
+No output dir here -- the run never reached a committed `metrics.csv`
+(only the raw `.out`/`.err` logs, under
+`log_finetuning_vae/sng_pvc/523590-*`, survive). See "GradNorm loss
+weighting" in `EXPERIMENTS.md` for the full per-epoch trace. Do not
+relaunch with the current `alpha`/`weight_lr` defaults -- a real retry
+would need a smaller `weight_lr` (or a different re-weighting cadence) to
+even have a chance at damping the oscillation, and would still carry the
+~5x cost.

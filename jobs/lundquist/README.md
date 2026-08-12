@@ -52,7 +52,7 @@ explicitly rather than taking the cluster default of 32, and its `val_vrmse`
 is not comparable to the ledger at all -- see `EXPERIMENTS.md` Open
 Questions #2.
 
-**All three write to the same `output_dir`** (`finetune_vae_outputs_lundquist/<run>`,
+**All three write to the same `output_dir`** (`finetune_vae_outputs/lundquist/<run>`,
 no per-GPU-count suffix -- see `windinet/cluster_config.py`), on purpose:
 there's one current lundquist result, not one per GPU count. `clean_output_dir:
 true` wipes that directory at the start of every run, so submitting a

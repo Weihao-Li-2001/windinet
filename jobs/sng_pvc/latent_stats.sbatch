@@ -60,7 +60,7 @@ export TRANSFORMERS_OFFLINE=1
 export HDF5_USE_FILE_LOCKING=FALSE
 
 CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml}
-CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
+CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs/sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
 NUM_SAMPLES=${3:-32}
 OUTPUT_JSON="log_finetuning_vae/sng_pvc/${SLURM_JOB_ID}-latent_stats.json"
 

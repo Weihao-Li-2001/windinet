@@ -6,8 +6,8 @@ They stay here (rather than getting deleted) because they are the record a
 ledger entry points back to, not because anyone expects to relaunch them.
 
 Corresponding outputs (metrics, resolved config) live under
-`finetune_vae_outputs_sng_pvc/archive/done/<run>/` and
-`finetune_vae_outputs_lundquist/archive/done/<run>/`.
+`finetune_vae_outputs/sng_pvc/archive/done/<run>/` and
+`finetune_vae_outputs/lundquist/archive/done/<run>/`.
 
 What's here:
 
@@ -48,6 +48,60 @@ What's here:
   floor at ~1.1% (val_vrmse 0.09513/0.09519/0.09411 across seeds 42/1/2);
   no config change results from this, it's a calibration number used to
   judge every other sweep in the ledger.
+- **Capacity diagnostic re-run under whole-structure unfreeze** (Open
+  Question 12) (`finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml`) -- see
+  "Capacity diagnostic re-run under whole-structure unfreeze" in
+  `EXPERIMENTS.md`. 50-epoch 8-sim overfit ceiling stayed at 0.05867,
+  unfreezing the whole trunk did not raise it above the tail-only ceiling.
+- **Decoder LR / adapter LR multiplier sweep** (Open Question 9), all 4
+  arms (`finetune_vae_whole_structure_baseline_{declr0p5x,declr2x,
+  adapterlr0p3x,adapterlr3x}.yaml`) -- see "Decoder LR / adapter LR
+  multiplier sweep" in `EXPERIMENTS.md`. Both axes' existing values
+  (decoder LR 5e-5, adapter_lr_multiplier 1.0x) confirmed at/near optimum;
+  no config change.
+- **Copy-init for a physically-paired momentum channel, original arm**
+  (Open Question 10) (`finetune_vae_baseline_chorder_pr_my_mx_copyinit.yaml`,
+  frozen-trunk lineage) -- see "Copy-init for a physically-paired momentum
+  channel" in `EXPERIMENTS.md`. Null result vs mean-init (0.09831 vs
+  0.09841). Its mean-init sibling
+  (`finetune_vae_baseline_chorder_pr_my_mx.yaml`) was already archived
+  above under the channel-order sweep.
+- **Log-density experiment** (Open Question 11)
+  (`finetune_vae_whole_structure_baseline_logdensity.yaml`) -- see
+  "Log-density experiment" in `EXPERIMENTS.md`. Borderline improvement
+  (-0.97%), just under the ~1.1% noise floor; no config change.
+- **RMSE-only loss ablation** (Open Question 13)
+  (`finetune_vae_whole_structure_baseline_rmseonly.yaml`) -- see
+  "RMSE-only loss ablation" in `EXPERIMENTS.md`. Zeroing h1/ssim made
+  val_vrmse +1.97% worse, a real effect -- confirms both terms are
+  net-positive regularizers, not just gradient dilution.
+- **18-epoch budget confirmation** (Open Question 7)
+  (`finetune_vae_whole_structure_baseline_ep18.yaml`) -- see "Was 15
+  epochs actually enough" in `EXPERIMENTS.md`. Confirmed the epoch-18 gain
+  (0.08344); its `optimization.epochs: 18` setting was then promoted into
+  `finetune_vae_whole_structure_baseline.yaml` itself (2026-08-09), same
+  treatment as the encoder-LR sweep's winner above, so this config is now
+  redundant with the active baseline.
+- **Channel-order sweep v2 + copy-init extension** (Open Questions 8/10
+  revisited), all 12 arms (`finetune_vae_whole_structure_baseline_chorder_
+  {pr_my_mx,pr_mx_my,mx_pr_my,my_pr_mx,pr_d_mx_my,pr_d_my_mx}.yaml` and
+  their `_copyinit` siblings) -- see "Channel-order sweep v2 + copy-init
+  extension" in `EXPERIMENTS.md`. Baseline reconfirmed (0.08360, job
+  523577); pressure-last mechanism persists under whole-structure unfreeze
+  (no arm beats the default); copy-init stays null on 5/6 arms, one
+  exception (`pr_d_my_mx`, -2.00%) flagged for a closer look, not enough
+  to overturn the null verdict; density's index-0 position confirmed to
+  have no special status.
+- **Loss-function retest batch** (Open Questions 14/16/17/18/19)
+  (`finetune_vae_whole_structure_baseline_{h2,h1x2,ssimx2,mlw,kl}.yaml`)
+  -- see "H2 loss term", "Existing-loss weight retests", and "KL
+  divergence weight" in `EXPERIMENTS.md`. h1x2/ssimx2/kl land inside the
+  ~1.1% noise floor (no effect on val_vrmse; kl additionally confirmed to
+  cut the latent space's own KL divergence ~359x, a real regularization
+  win worth carrying into the DiT stage). h2 and mlw both land outside the
+  floor as real regressions -- neither adopted, both stay at weight 0.
+  (GradNorm, the sixth arm of this batch, is filed under `known-bad/`
+  instead -- it never converged, see that folder's README.)
 
 If you want to relaunch one of these as a sanity check, the config still
 works as-is (`sbatch <job script> configs/finetune_vae/archive/done/<name>.yaml`)

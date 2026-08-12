@@ -26,7 +26,7 @@
 # siblings: head0/head01/head012/head01tail/tail2/tail3) shows
 # `overfit_repeat: 5` from the first commit, unchanged. The actual
 # resolved `training_config.yaml` under
-# finetune_vae_outputs_sng_pvc/archive/known-bad/.../training_config.yaml
+# finetune_vae_outputs/sng_pvc/archive/known-bad/.../training_config.yaml
 # shows `gradient_accumulation_steps: 4` (source config says 1) with 8
 # processes -- i.e. those 7 diagnostic runs went through
 # jobs/sng_pvc/finetune_vae.sbatch, whose patch_config_for_cluster() call

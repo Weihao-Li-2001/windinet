@@ -98,7 +98,7 @@
 #
 # Weights from these runs are throwaway -- output_dir is suffixed
 # "_diag_<tag>" so nothing collides with or wipes the real baseline in
-# finetune_vae_outputs_sng_pvc/finetune_vae_baseline/.
+# finetune_vae_outputs/sng_pvc/finetune_vae_baseline/.
 
 set -eo pipefail
 

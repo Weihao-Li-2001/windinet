@@ -440,9 +440,18 @@ discontinuities. 5x spread, same model, same epoch.
    baseline**, `finetune_vae_whole_structure_baseline.yaml` -- see "New
    reference baseline" note at the top of this file and the LR-sweep plan
    below (Open Question 6).
-4. **Does more latent bandwidth help?** Feed 256x256 so the latent grid becomes
-   8x8 (4x capacity). Independent of (3) -- unfreezing does not change the
-   compression ratio. Still open.
+4. ~~Does more latent bandwidth help?~~ **ANSWERED (2026-08-11): yes, by a
+   wide margin -- the largest single-variable gain in this ledger.**
+   `finetune_vae_whole_structure_baseline_256res.yaml` (8x8 latent grid, 4x
+   capacity vs 128x128's 4x4) landed epoch-18 val_vrmse **0.05771** vs the
+   128-resolution 18-epoch baseline's 0.08360 (job 523577) -- **-30.9%**, far
+   past the ~1.1% seed-noise floor and past the 64x64-cutoff bandwidth
+   ceiling (0.089, "The bandwidth ceiling" section) that section's own text
+   already flagged as stale once the encoder unfroze. Gains are even across
+   all 4 channels, not concentrated in one. See "256x256 resolution (Open
+   Question 4)" below for the full result, the per-channel breakdown, and an
+   open caveat on the normalization-stats file plus an unresolved promotion
+   question.
 5. **Was `stable_fraction 0.7`'s decay length actually right for full data?**
    **ANSWERED: yes.** `finetune_vae_baseline_slowdecay` (job 21689,
    `stable_fraction 0.35`) landed 0.09664, ~1.3% *worse* than the 0.095396
@@ -792,70 +801,53 @@ discontinuities. 5x spread, same model, same epoch.
     *magnitude* -- h1 (weight 50, by far the largest coefficient) and ssim
     (0.15) have never both been zeroed. See "RMSE-only loss ablation"
     below for the single-variable config and the read-out/kill criteria.
-14. **PLANNED, config written, not yet submitted (as of 2026-08-09): does
-    adding `h2` (curvature loss, coded since the H2/PCC/VRMS/KL addition
-    but never given nonzero weight) reduce val_vrmse further on top of
-    `h1`?** Motivated by a reconstruction panel shared 2026-08-09 (epoch
-    15, sample 2507_gamma1.4, frame 50): residuals are broadband speckle
-    across every channel, not just concentrated at shock edges -- the
-    same high-wavenumber-loss pattern "The bandwidth ceiling" section
-    already diagnosed quantitatively, now visible directly. `h1` is
-    confirmed load-bearing (Open Question 13 above); `h2` is one order
-    further (curvature, not just gradient) and could catch over-smoothed
-    peaks a first-derivative penalty alone misses. See "H2 loss term"
-    below for the weight-choice rationale (25.0, picked to match h1's
-    weighted contribution) and the read-out/kill criteria.
-15. **PLANNED, config written, not yet submitted: does GradNorm
-    (adaptive gradient-magnitude-based loss weighting, coded but never
-    used) match or beat the hand-tuned fixed weights, without the manual
-    sweep cost?** Deliberately scoped down from a broader loss-function
-    exploration (KL divergence for latent regularization -- motivated by
-    the not-yet-run DiT stage needing a reasonably well-behaved latent
-    space to sample from, per a PhD-advisor request -- plus PCC and
-    further h1/ssim/mlw weight retuning under the current baseline) --
-    those are deferred; this question is scoped to GradNorm on/off only
-    for now. **Real cost risk found while writing this config, not yet
-    measured:** GradNorm's gradient-norm bookkeeping does one full extra
-    backward pass per loss component per batch (4 here: rmse/h1/ssim/mlw)
-    on top of the normal combined backward -- roughly 5x the backward-pass
-    work of every fixed-weight arm in this ledger, which could plausibly
-    blow past the sbatch script's 12h time limit before 18 epochs finish.
-    **DECISION: launch directly at full 8-tile scale anyway**, with
-    `sbatch --time=24:00:00` (the partition ceiling) to absorb the
-    unmeasured overhead rather than probing first. See "GradNorm loss
-    weighting" below for the full cost analysis.
-16. **PLANNED, config written, not yet submitted: h1 weight 50 -> 100,
-    first retest under the whole-structure + 18-epoch baseline.** h1 was
-    last tuned (25 -> 50) on the old frozen-trunk baseline, before Open
-    Questions 3/7 changed the trainable-parameter count and epoch budget.
-    Untested direction: does doubling again help, hurt, or land in the
-    same ~2% noise band as every prior h1/mlw magnitude perturbation?
-    Config: `finetune_vae_whole_structure_baseline_h1x2.yaml`.
-17. **PLANNED, config written, not yet submitted: ssim weight 0.15 ->
-    0.3 -- the first time ssim's own weight has ever been independently
-    swept.** Unlike h1 and mlw, ssim's weight was set once at the very
-    first baseline and never varied on its own (Open Question 13 only
-    ever zeroed it as part of a compound h1+ssim ablation). Config:
-    `finetune_vae_whole_structure_baseline_ssimx2.yaml`.
-18. **PLANNED, config written, not yet submitted: mlw weight 0.0 ->
-    1e-4, RETEST under the whole-structure + 18-epoch baseline.** "mlw at
-    1e-4 is net-negative" ("Established" above) is an old-frozen-trunk-
-    baseline finding, never re-checked after Open Questions 3/7. Same
-    weight as the original finding, so this is a clean retest, not a new
-    value. Config: `finetune_vae_whole_structure_baseline_mlw.yaml`.
-19. **PLANNED, config written, not yet submitted: KL divergence weight
-    0.0 -> 1e-7 (on) vs the reconfirmed baseline (off).** PhD-advisor-
-    requested, motivated by the not-yet-run DiT stage needing a
-    reasonably regularized latent space to sample from -- a win here is
-    "latent space more regularized without costing much val_vrmse," not
-    necessarily "val_vrmse improves." Required diagnosing the `val_kl`/
-    `train_kl` blip (up to 6.4e8 in epoch 1-2 of some prior runs, vs.
-    ~2e5 steady state) before a weight could be chosen responsibly --
-    root cause confirmed as diffusers' own `logvar` clamp (`[-30, 20]`)
-    combined with the freshly-inflated conv_in's uncalibrated initial
-    posterior, self-correcting within 1-2 epochs; not a bug. See "KL
-    divergence weight" below for the full diagnosis, the weight-choice
-    math, and why `max_grad_norm` clipping caps the practical risk.
+14. ~~Does adding `h2` (curvature loss) reduce val_vrmse further on top of
+    `h1`?~~ **ANSWERED (2026-08-12): no -- slightly worse, and not the
+    targeted fix the motivating panel hoped for.** `h2` weight 25.0 landed
+    epoch-18 val_vrmse 0.08449 vs baseline 0.08360, **+1.06% worse**, right
+    at the edge of the ~1.1% noise floor. Per-channel breakdown shows the
+    regression concentrated in `pressure` (+5.2%), the channel the
+    motivating panel's speckle was worst on -- the opposite of the
+    read-out criterion's "real, targeted" signature. See "H2 loss term"
+    below for the full result.
+15. ~~Does GradNorm match or beat the hand-tuned fixed weights, without the
+    manual sweep cost?~~ **ANSWERED (2026-08-12): no -- unstable, and the
+    predicted 5x cost was confirmed too.** Killed by the 24h time limit at
+    epoch 14/18 (job 523590), but the real finding is that it was never
+    converging: `val_VRMSE` oscillated between ~0.17-0.23 (even epochs) and
+    ~0.56-1.13 (odd epochs) for all 14 completed epochs, in lockstep with
+    `mlw`'s adapted weight swinging between ~0.0 and ~3.8-4.0 every single
+    epoch -- exactly the "weight runaway" pattern the kill criterion said to
+    watch for, just oscillating instead of monotonically diverging. Measured
+    cost: ~6032s/epoch train time vs ~1220s for every fixed-weight arm,
+    confirming the ~5x prediction. See "GradNorm loss weighting" below for
+    the full per-epoch trace.
+16. ~~h1 weight 50 -> 100, first retest under the whole-structure +
+    18-epoch baseline?~~ **ANSWERED (2026-08-12): no effect.** val_vrmse
+    0.08342 vs baseline 0.08360, -0.21%, inside the ~1.1% noise floor.
+    Doubling h1 again does not help or hurt. See "Existing-loss weight
+    retests" below.
+17. ~~ssim weight 0.15 -> 0.3, first independent sweep of ssim's own
+    weight?~~ **ANSWERED (2026-08-12): no effect.** val_vrmse 0.08436 vs
+    baseline 0.08360, +0.91%, inside the ~1.1% noise floor. See
+    "Existing-loss weight retests" below.
+18. ~~mlw weight 0.0 -> 1e-4, RETEST under the whole-structure + 18-epoch
+    baseline?~~ **ANSWERED (2026-08-12): yes, still net-negative --
+    reconfirms the old frozen-trunk finding.** val_vrmse 0.08492 vs
+    baseline 0.08360, **+1.58%, clears the ~1.1% noise floor.** mlw stays
+    at weight 0.0. See "Existing-loss weight retests" below.
+19. ~~KL divergence weight 0.0 -> 1e-7 (on) vs the reconfirmed baseline
+    (off)?~~ **ANSWERED (2026-08-12): yes -- regularizes at effectively no
+    reconstruction cost.** val_vrmse 0.08335 vs baseline 0.08360, -0.30%,
+    inside the ~1.1% noise floor (i.e. indistinguishable from off) --
+    exactly the outcome the read-out criterion called a pass ("latent space
+    more regularized without costing much val_vrmse"). Root cause of the
+    `val_kl`/`train_kl` blip (up to 6.4e8 in epoch 1-2 of some prior runs,
+    vs. ~2e5 steady state) confirmed as diffusers' own `logvar` clamp
+    (`[-30, 20]`) combined with the freshly-inflated conv_in's uncalibrated
+    initial posterior, self-correcting within 1-2 epochs; not a bug. See
+    "KL divergence weight" below for the full diagnosis, the weight-choice
+    math, and the result.
     Config: `finetune_vae_whole_structure_baseline_kl.yaml`.
 20. **PLANNED, configs written, not yet submitted: is training time still
     the bottleneck? Epoch budget 18 -> 30, plus slower decay and a lower
@@ -1190,7 +1182,7 @@ what's actually checked in. `git log --follow -p` on that file and its 6
 siblings (head0/head01/head012/head01tail/tail2/tail3) shows
 `overfit_repeat: 5` from their first commit, never 1. What *does* differ:
 the resolved `training_config.yaml` under
-`finetune_vae_outputs_sng_pvc/archive/known-bad/.../training_config.yaml`
+`finetune_vae_outputs/sng_pvc/archive/known-bad/.../training_config.yaml`
 shows `gradient_accumulation_steps: 4` against 8 processes, even though
 the source config says `1` -- those 7 runs went through
 `jobs/sng_pvc/finetune_vae.sbatch`, whose `patch_config_for_cluster()`
@@ -1363,7 +1355,7 @@ directories in this pull have a local `visualizations/` folder** -- only
 `metrics/` and `training_config.yaml` were pulled/committed this round,
 unlike the "Where things live" table's own description of what should be
 tracked (`{metrics,visualizations,training_config.yaml}`). Closing this
-out needs either pulling `finetune_vae_outputs_sng_pvc/
+out needs either pulling `finetune_vae_outputs/sng_pvc/
 finetune_vae_whole_structure_baseline_rmseonly/visualizations/` from the
 cluster and committing it, or accepting the quantitative `val_vrmse`
 result alone. No config change adopted -- the current weighted objective
@@ -1372,13 +1364,14 @@ baseline job 521887's 2) caveat as Q7/Q9/Q11 also applies here -- doesn't
 change the verdict (+1.97% is a real gap regardless of dataloader
 parallelism).
 
-### H2 loss term (Open Question 14, new 2026-08-09)
+### H2 loss term (Open Question 14, resolved 2026-08-12)
 
-**PLANNED, not yet launched.** `h2` (`windinet/losses/h2_semi_norm.py`)
-has been computed and logged (`train_h2`/`val_h2`) in every whole-
-structure-lineage run since "New loss components (H2/PCC/VRMS/KL)" above,
-but always at implicit weight 0.0 -- this is the first run that actually
-trains against it.
+**ANSWERED: no -- slightly worse, and the regression lands exactly where the
+motivating panel's speckle was worst, not spread out generically.** `h2`
+(`windinet/losses/h2_semi_norm.py`) has been computed and logged
+(`train_h2`/`val_h2`) in every whole-structure-lineage run since "New loss
+components (H2/PCC/VRMS/KL)" above, but always at implicit weight 0.0 --
+this was the first run that actually trained against it.
 
 **THE QUESTION:** a reconstruction panel (epoch 15, sample
 2507_gamma1.4, frame 50, shared 2026-08-09) shows residuals as broadband
@@ -1414,6 +1407,28 @@ epochs, 0.3x encoder LR): `loss_weighting.weights.h2`: unset (0.0) ->
 Config: `finetune_vae_whole_structure_baseline_h2.yaml`. Verified: loads
 through `VaeTrainerConfig` (resolved `loss_weighting.weights` ==
 `{rmse: 1.0, h1: 50.0, ssim: 0.15, mlw: 0.0, h2: 25.0}`).
+
+**RESULT, job 523591 (sng_pvc), 18 epochs, LR decayed to floor:**
+
+| | val_vrmse | vs baseline (0.08360, job 523577) |
+|---|---|---|
+| baseline (h2 off) | 0.08360 | -- |
+| h2 = 25.0 | 0.08449 | **+1.06% worse** |
+
+Right at the edge of the ~1.1% seed-noise floor -- not confidently a real
+effect on the aggregate number alone. The per-channel breakdown is more
+informative than the read-out criterion expected, though: `val_vrmse_pressure`
+0.13360 vs baseline's 0.12699 (**+5.2%**), clearly worse than the other three
+channels (density -0.7%, momentum_x +1.0%, momentum_y +0.9%, all inside
+noise). Pressure is exactly the channel the motivating panel's speckle was
+worst on -- so `h2` did concentrate its effect where the hypothesis expected,
+but in the wrong direction: it made that channel's reconstruction worse, not
+better. Read against the read-out criterion's own framing, this is the
+"generic extra smoothing rather than targeted curvature correction" outcome
+flagged as the weaker result -- except even the smoothing didn't pay off net
+positive. `h2` stays at weight 0.0; no promotion. Qualitative panel
+re-check (does the speckle visually look different) not done as part of
+this pull.
 
 **Read-out criterion:** compare epoch-18 val_vrmse to the baseline's
 ~0.0834 (job 523486, pending reconfirmation under the promoted baseline's
@@ -1454,9 +1469,10 @@ Launch (once ready):
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_h2.yaml
 ```
 
-### GradNorm loss weighting (Open Question 15, new 2026-08-09)
+### GradNorm loss weighting (Open Question 15, resolved 2026-08-12)
 
-**PLANNED, config written, not yet submitted.** Scoped down from a wider
+**ANSWERED: no -- it never converges, oscillating instead, and the
+predicted 5x cost was also confirmed.** Scoped down from a wider
 loss-function discussion (2026-08-09): the fuller plan (KL divergence for
 latent regularization ahead of the not-yet-run DiT stage, PCC, and
 retuning h1/ssim/mlw's weights under the current 18-epoch whole-structure
@@ -1542,6 +1558,48 @@ Config: `finetune_vae_whole_structure_baseline_gradnorm.yaml`. Verified:
 loads through `VaeTrainerConfig` (`strategy=gradnorm`,
 `loss_names=['rmse','h1','ssim','mlw']`, `alpha=1.5`, `weight_lr=0.025`).
 
+**RESULT, job 523590 (sng_pvc), launched 2026-08-09 08:19 CEST -- did not
+finish, killed by the 24h time limit partway through epoch 15 (last
+completed epoch: 14/18):**
+
+Cost prediction confirmed first: measured train time **~6032-6034s/epoch**
+(epochs 13-14) vs ~1216-1250s/epoch for every fixed-weight whole-structure
+arm in this ledger -- **~4.9x**, matching the "~5x the backward-pass work"
+estimate almost exactly. At that rate 18 epochs would need ~30h, past even
+the extended 24h ceiling -- the kill was inevitable once launched, not a
+close call.
+
+**But the more important finding is that GradNorm was never converging in
+the first place.** `val_VRMSE` for all 14 completed epochs:
+
+| epoch | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| val_VRMSE | 0.557 | 0.341 | 1.128 | 0.228 | 0.972 | 0.208 | 0.882 | 0.179 | 0.862 | 0.170 | 0.841 | 0.172 | 0.830 | 0.182 |
+
+Odd epochs (~0.83-1.13) and even epochs (~0.17-0.34) never converge toward
+each other -- this is a stable 2-epoch oscillation, not noisy convergence,
+and every even-epoch value is already far worse than any fixed-weight arm's
+epoch-14 number (~0.09-0.11). The adapted weights explain why: `mlw` swings
+between **~0.0000 and ~3.7-4.0 every single epoch**, in lockstep and roughly
+anti-phase with `ssim` (~0.01-0.2 vs ~1.8-3.7) -- e.g. epoch 13: `rmse=0.297,
+h1=0.002, ssim=3.700, mlw=0.000`; epoch 14: `rmse=0.016, h1=0.0001,
+ssim=0.189, mlw=3.795`. This is precisely the kill criterion's own named
+failure mode ("if any single weight runs away... stop and inspect before
+trusting val_vrmse") -- it just oscillates back and forth instead of
+diverging monotonically in one direction, which the epoch-2-vs-epoch-1
+`train_loss` check alone would not have caught (each single-epoch
+`train_loss` looks locally reasonable; the loss *function itself* is what's
+swinging).
+
+**Verdict:** GradNorm does not match the hand-tuned fixed weights here --
+even ignoring the time-limit kill, the run gives no indication it would
+have stabilized given more epochs, since the oscillation shows no damping
+across all 14 observed cycles. Combined with the ~5x cost, not worth
+pursuing further with the current `alpha`/`weight_lr` defaults; a real
+retry would need either a much smaller `weight_lr` (slower adaptation, may
+damp the oscillation) or a different re-weighting cadence, and either way
+would still carry the ~5x per-batch cost. No config promoted.
+
 **Read-out criterion:** compare epoch-18 val_vrmse to the reconfirmed
 baseline's ~0.0834, against the ~1.1% seed-noise floor. Independent of
 whether val_vrmse improves, the 4 weights' trajectory over training is
@@ -1560,9 +1618,10 @@ inspect before trusting `val_vrmse` from that run.
 Launch: see "DECISION" above -- direct full-scale submission with an
 extended 24h time limit, not a timing probe first.
 
-### Existing-loss weight retests: h1x2, ssimx2, mlw (Open Questions 16/17/18, new 2026-08-10)
+### Existing-loss weight retests: h1x2, ssimx2, mlw (Open Questions 16/17/18, resolved 2026-08-12)
 
-**PLANNED, configs written, not yet submitted.** Three single-variable
+**ANSWERED: h1x2 and ssimx2 land inside the noise floor (no effect); mlw
+reconfirms its old net-negative finding.** Three single-variable
 retests of the currently-active fixed weights (`rmse: 1.0, h1: 50.0,
 ssim: 0.15, mlw: 0.0`), each vs `finetune_vae_whole_structure_baseline.
 yaml` (18 epochs, 0.3x encoder LR, whole-structure unfreeze) with exactly
@@ -1579,6 +1638,24 @@ Configs: `finetune_vae_whole_structure_baseline_h1x2.yaml`,
 `finetune_vae_whole_structure_baseline_mlw.yaml`. All three verified
 loading through `VaeTrainerConfig` with exactly the intended single
 changed weight.
+
+**RESULT, jobs 523592/523593/523594 (sng_pvc), 18 epochs each, LR decayed
+to floor:**
+
+| # | arm | val_vrmse | vs baseline (0.08360, job 523577) | verdict |
+|---|---|---|---|---|
+| 16 | h1x2 (`h1: 100.0`) | 0.08342 | -0.21% | inside noise floor, no effect |
+| 17 | ssimx2 (`ssim: 0.3`) | 0.08436 | +0.91% | inside noise floor, no effect |
+| 18 | mlw (`mlw: 1e-4`) | 0.08492 | **+1.58%** | **clears noise floor, real regression** |
+
+h1x2 and ssimx2: neither doubling helps or hurts on the aggregate metric --
+both `h1` (50.0) and `ssim` (0.15) stay at their current weights, already
+at/near whatever local optimum this axis has (consistent with "the
+loss-weight axis is exhausted," see "Established" above). mlw: the old
+frozen-trunk-baseline finding ("mlw at 1e-4 is net-negative") reconfirms
+cleanly on the whole-structure + 18-epoch lineage, a real effect this time
+(+1.58% vs the frozen-trunk retest's own smaller, noise-adjacent gap) --
+mlw stays at weight 0.0, no promotion for any of the three arms.
 
 **Read-out:** each vs the reconfirmed baseline's ~0.0834, against the
 ~1.1% seed-noise floor. Independent single-variable comparisons -- don't
@@ -1597,9 +1674,10 @@ sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_mlw.yaml
 ```
 
-### KL divergence weight (Open Question 19, new 2026-08-10)
+### KL divergence weight (Open Question 19, resolved 2026-08-12)
 
-**PLANNED, config written, not yet submitted.** PhD-advisor-requested,
+**ANSWERED: yes -- the latent space is measurably (~359x) more regularized,
+at no reconstruction cost distinguishable from noise.** PhD-advisor-requested,
 motivated by the not-yet-run DiT stage ("DiT (stage 2, not yet run)"
 above) training on this VAE's precomputed latents -- a latent space
 finetuned with zero KL regularization is free to drift into whatever
@@ -1663,6 +1741,36 @@ observed count of saturated elements, not change the diagnosis.
 unchanged. Config: `finetune_vae_whole_structure_baseline_kl.yaml`.
 Verified loading through `VaeTrainerConfig`.
 
+**RESULT, job 523595 (sng_pvc), 18 epochs, LR decayed to floor:**
+
+| | val_vrmse | vs baseline (0.08360, job 523577) |
+|---|---|---|
+| kl off (baseline) | 0.08360 | -- |
+| kl = 1e-7 | 0.08335 | -0.30% (inside noise floor) |
+
+**val_vrmse is indistinguishable from off** -- exactly the framing's own
+definition of a pass. The regularization half of the question, flagged as
+an unclosed gap when this section was written ("no existing diagnostic
+reports per-epoch latent... so this can't be read out yet"), turns out to
+be answerable from `train_kl`/`val_kl` themselves, already logged every
+epoch regardless of weight:
+
+| | epoch 1 val_kl | epoch 18 val_kl |
+|---|---|---|
+| baseline (kl off, unweighted passive monitor) | 200145 | 196385 |
+| **kl = 1e-7** | 2236 | **547** |
+
+With the weight on, `val_kl` drops from the outset and keeps falling --
+**epoch-18 value is ~359x lower than the unweighted baseline's**, which
+stays flat around ~196-201k for the entire run (nothing is pulling it down
+when its weight is 0). This closes the previously-flagged gap directly: the
+latent space is genuinely, substantially more regularized, not just
+theoretically so. **Promoted candidate for the DiT-stage motivation** --
+`kl: 1e-7` is a clean win against its own stated goal, though not yet
+adopted as the new baseline default (that decision affects every future
+sweep's comparison point, left for the same kind of explicit call as the
+256-resolution promotion question above, not made unilaterally here).
+
 **Read-out:** compare epoch-18 val_vrmse to the reconfirmed baseline's
 ~0.0834, against the ~1.1% seed-noise floor -- but per the framing above,
 val_vrmse holding steady while the latent space regularizes is itself a
@@ -1683,6 +1791,84 @@ consecutive epochs (not just one rough epoch 1).
 Launch:
 ```
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl.yaml
+```
+
+### 256x256 resolution (Open Question 4, resolved 2026-08-11)
+
+**ANSWERED: yes, and by a wide margin -- the largest single-variable gain in
+this ledger.**
+
+**THE QUESTION:** every whole-structure-lineage run (Open Questions 3/6/7)
+operates at a fixed 128x128 input resolution, giving a 4x4 latent grid (each
+cell covers 32x32px, ~250:1 compression). Feeding the model 256x256 input
+instead grows the latent grid to 8x8 -- 4x more latent cells, independent of
+which weights are trainable or how they're optimized. Does the extra latent
+bandwidth translate into a real val_vrmse win, or is the loss/schedule axis
+(assumed ~exhausted, see "The bandwidth ceiling") the actual bottleneck
+regardless of latent capacity?
+
+**Single variable vs `finetune_vae_whole_structure_baseline_ep18.yaml`** (18
+epochs, 0.3x encoder LR, whole-structure unfreeze -- the most-validated
+baseline at the time this config was written): only `data.data_root` and
+`data.normalization_stats_file` change, to point at `256x256_ds/train.h5`
+and its own channel-stats file (`euler_mq_256_only_train.yaml`) instead of
+the 128-resolution dataset/stats. Everything else (LR, schedule, loss
+weights, epochs) held fixed. Config:
+`finetune_vae_whole_structure_baseline_256res.yaml`.
+
+**RESULT, job 523757 (sng_pvc), launched 2026-08-10 14:08 CEST, wall-clock
+~13h55m, full 18 epochs, LR decayed to floor (1e-6):**
+
+| resolution | latent grid | val_vrmse | vs 128-res baseline (0.08360, job 523577) |
+|---|---|---|---|
+| 128x128 | 4x4 | 0.08360 | -- |
+| **256x256** | **8x8** | **0.05771** | **-30.9%** |
+
+Per-channel (`val_vrmse_<channel>`, epoch 18): density 0.0718, momentum_x
+0.0727, momentum_y 0.0722, pressure 0.0973 -- pressure (the fresh, mean-init
+channel) stays the worst of the four, same ranking as every 128-resolution
+run in this ledger, just uniformly lower across all four. The gain isn't
+concentrated in (or absent from) any one physical field.
+
+**Far past both the seed-noise floor and the old bandwidth ceiling.** "The
+bandwidth ceiling" section's 0.089 floor for a 64x64-cutoff reconstruction
+was measured with the encoder frozen at 128 resolution -- that section's own
+text already flagged its assumptions as stale once the encoder unfroze (see
+the note under Open Question 7). This result confirms it decisively:
+0.05771 sits well below that number, so resolution -- not the loss/schedule
+axis -- was still the dominant lever available, consistent with "The
+bandwidth ceiling"'s own "anything beyond [64x64] requires more latent
+bandwidth, not a better objective."
+
+**Cost:** measured per-epoch train=2614-2628s + eval=105s (~45.4 min/epoch)
+vs the 128-resolution baseline's ~1220s + 38s (~21 min/epoch) -- roughly
+2.2x the per-epoch wall-clock, not a naive 4x.
+
+**Open caveat, carried from the config's own header:** the 256-resolution
+`channel_mean`/`channel_std` (`euler_mq_256_only_train.yaml`) have **not**
+been independently cross-checked against a full `compute_channel_stats.py`
+scan of `256x256_ds/train.h5`, unlike the 128-resolution numbers (see
+"Canonical normalization-stats file" above, confirmed to 1e-16 relative
+error). Nothing in this run's metrics looks off (smooth monotonic
+convergence, no NaN/blowup, sane per-channel spread), so this is not a
+reason to distrust the 0.05771 number -- just an unclosed loose end before
+leaning on it for a follow-up sweep at this resolution.
+
+**Not yet decided: promote 256x256 to the new default baseline resolution?**
+A -30.9% single-variable win this far past the noise floor is a strong
+candidate, but every open question answered so far (channel order,
+copy-init, decoder/adapter LR, loss weights, KL) was tuned *at 128
+resolution* against the 128-resolution baseline -- none of those tunings
+have been re-validated at 256. Promoting now would mean either re-running
+the already-closed sweeps at 256 (expensive) or carrying 128-tuned
+hyperparameters forward on faith. Flagging for a PhD-advisor decision rather
+than promoting unilaterally.
+
+Launch (already run, kept for reference):
+```
+sbatch jobs/sng_pvc/finetune_vae.sbatch \
+    configs/finetune_vae/finetune_vae_whole_structure_baseline_256res.yaml \
+    "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
 ```
 
 ### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)
@@ -1911,9 +2097,12 @@ sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseli
 sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_baseline_chorder_pr_my_mx.yaml
 ```
 
-### Channel-order sweep v2 + copy-init extension (Open Questions 8/10 revisited, configs written 2026-08-09)
+### Channel-order sweep v2 + copy-init extension (Open Questions 8/10 revisited, resolved 2026-08-12)
 
-**PLANNED, not yet launched.** Follow-up to promoting ep18 into
+**ANSWERED: baseline reconfirmed; the pressure-last mechanism (Q8) persists
+under whole-structure unfreeze; copy-init (Q10) stays null on 5 of 6 arms
+but flips to a real win on the 6th; density's index-0 position still has no
+special status.** Follow-up to promoting ep18 into
 `finetune_vae_whole_structure_baseline.yaml` (Open Question 7, above):
 the channel-order sweep (Q8) and copy-init question (Q10) were both
 originally answered on older baselines (Q8 on the frozen-trunk baseline,
@@ -1987,6 +2176,58 @@ every arm -- given this pull's own finding that isolated epoch-to-epoch
 `train_loss` bumps are common and usually benign (declr2x, adapterlr0.3x,
 the Q12 overfit diagnostic, all above), don't kill on a single bump alone;
 check whether `val_vrmse` also regresses before treating one as real.
+
+**RESULT, jobs 523577-523589 (sng_pvc), launched 2026-08-09 07:22 CEST, all
+13 runs complete, 18 epochs, LR decayed to floor:**
+
+**1. Baseline reconfirmed.** Job 523577 (`finetune_vae_whole_structure_
+baseline.yaml` under its own name): val_vrmse **0.08360**, vs the original
+ep18 promotion's 0.08344 (job 523486) -- +0.19%, inside the ~1.1% noise
+floor. Reproduces as expected; this is the `0.08360` cited as "the
+baseline" throughout every other result in this pull (256x256, h2,
+GradNorm, h1x2/ssimx2/mlw, KL, above).
+
+**2. All 12 new arms, mean-init vs copy-init:**
+
+| tag | channel_order | fresh (copy src) | mean-init val_vrmse | copy-init val_vrmse | copy vs mean |
+|---|---|---|---|---|---|
+| `pr_my_mx` | d, pr, my, mx | mx (my) | 0.08505 (523578) | 0.08550 (523579) | +0.53% |
+| `pr_mx_my` | d, pr, mx, my | my (mx) | 0.08507 (523580) | 0.08563 (523581) | +0.66% |
+| `mx_pr_my` | d, mx, pr, my | my (mx) | 0.08678 (523582) | 0.08717 (523583) | +0.45% |
+| `my_pr_mx` | d, my, pr, mx | mx (my) | 0.08699 (523584) | 0.08712 (523585) | +0.15% |
+| `pr_d_mx_my` | pr, d, mx, my | my (mx) | 0.08542 (523586) | 0.08581 (523587) | +0.46% |
+| `pr_d_my_mx` | pr, d, my, mx | mx (my) | 0.08759 (523588) | **0.08584 (523589)** | **-2.00%** |
+
+**Read-out 1 (copy-init vs mean-init, per arm):** 5 of 6 arms land inside
+the ~1.1% noise floor, copy-init if anything very slightly worse --
+reconfirms Q10's original null result (`pr_my_mx`, job 523495 vs 522476)
+now on the whole-structure lineage, clean single-variable comparison this
+time. **`pr_d_my_mx` is the one exception**: copy-init beats mean-init by
+2.00%, clearing the floor -- but this arm's mean-init sibling (0.08759) is
+also the single worst of all 12 arms, so this reads more like "copy-init
+avoids whatever made that particular mean-init arrangement land badly"
+than a robust general copy-init win -- consistent with the two
+density-moved copy-init arms converging to nearly the same value (0.08581
+vs 0.08584) while their mean-init siblings differ by 2.5% (0.08542 vs
+0.08759), i.e. copy-init looks *more* consistent across arrangements here,
+not just occasionally better. Worth a closer look before generalizing from
+n=1, not enough on its own to flip Q10's overall null verdict.
+
+**Read-out 2 (does Q8's ~6% spread / pressure-last mechanism persist?):**
+yes. All 6 mean-init arms (0.08505-0.08759, ~3% spread among themselves)
+land **worse** than the default `mx_my_pr` order's 0.08360 -- every arm
+here deliberately moves pressure off index 3 (since the original Q8 winner
+keeps it there), so this is exactly the expected direction, now confirmed
+under whole-structure unfreeze + 18 epochs rather than just the old
+frozen-trunk baseline. No arm beats the default; `mx_my_pr` stays the
+config's channel order.
+
+**Read-out 3 (arms 5-6, density moved off index 0):** both fall inside
+arms 1-4's mean-init spread (0.08542 and 0.08759 vs range 0.08505-0.08699)
+rather than standing out as clear outliers in either direction -- supports
+"index-0 has no special status beyond holding a pretrained slot like any
+other," same conclusion the read-out criterion flagged as the "inside the
+spread" outcome.
 
 **Launch (13 jobs total -- run these from the cluster, this environment
 has no `sbatch` access):**
@@ -2623,10 +2864,23 @@ file Open Question 4 would need.
 | Portable entry points | `scripts/*.py` |
 | Slurm logs | `log_finetuning_vae/lundquist/<jobname>_<jobid>.log`, `log_finetuning_vae/sng_pvc/<jobid>-<jobname>.{out,err}` |
 | job -> config -> output_dir map | `log_finetuning_vae/{lundquist,sng_pvc}/INDEX.tsv` (appended by the sbatch scripts) |
-| Per-run metrics, panels, resolved config | `finetune_vae_outputs_lundquist/<run>/{metrics,visualizations,training_config.yaml}` -- **tracked in git** since `f88eb09` |
-| Checkpoints | `finetune_vae_outputs_lundquist/<run>/checkpoints/vae_shockwave_best.safetensors` -- **gitignored**, this machine is the only copy |
+| Per-run metrics, panels, resolved config | `finetune_vae_outputs/lundquist/<run>/{metrics,visualizations,training_config.yaml}` -- **tracked in git** since `f88eb09` |
+| Checkpoints | `finetune_vae_outputs/lundquist/<run>/checkpoints/vae_shockwave_best.safetensors` -- **gitignored**, this machine is the only copy |
 | Retired runs | git history, see Artifact retention under the Ledger |
-| Closed configs/outputs (2026-08-06 cleanup, extended 2026-08-08) | `configs/finetune_vae/archive/done/` + `finetune_vae_outputs_{lundquist,sng_pvc}/archive/done/<run>/` for finished, citable results (capacity-diagnostic attempts 1/3/4/5/6, full head-vs-tail sweep, encoder-LR sweep, channel-order sweep, seed noise floor sweep); `.../archive/known-bad/` for runs whose numbers are flagged uninterpretable (the 8-sim diagnostic tier of the head-vs-tail sweep, capacity attempt 2) -- see each folder's `README.md` before reusing anything inside |
+| Closed configs/outputs (2026-08-06 cleanup, extended 2026-08-08, 2026-08-12) | `configs/finetune_vae/archive/done/` + `finetune_vae_outputs/{lundquist,sng_pvc}/archive/done/<run>/` for finished, citable results (capacity diagnostics, full head-vs-tail sweep, encoder-LR sweep, channel-order sweep v1+v2, copy-init, seed noise floor sweep, decoder/adapter LR sweep, log-density, RMSE-only, 18-epoch confirmation, loss-function retest batch); `.../archive/known-bad/` for runs whose numbers are flagged uninterpretable (the 8-sim diagnostic tier of the head-vs-tail sweep, capacity attempt 2, GradNorm) -- see each folder's `README.md` before reusing anything inside |
+
+**Directory rename (2026-08-12):** the two per-cluster output trees moved
+from top-level `finetune_vae_outputs_lundquist/` / `finetune_vae_outputs_
+sng_pvc/` to `finetune_vae_outputs/lundquist/` / `finetune_vae_outputs/
+sng_pvc/` (one shared parent, cluster as a subdirectory) -- pure
+`git mv`, no content changes. `windinet/cluster_config.py`'s
+`output_root` entries and the two hardcoded `LOCAL_DIR` mirror targets in
+`jobs/sng_pvc/finetune_vae.sbatch`/`finetune_vae_debug.sbatch` were
+updated to match. Historical citations elsewhere in this file that point
+into a specific git commit (e.g. `git show f88eb09:finetune_vae_outputs_
+lundquist/...`) were deliberately left unchanged -- that commit's tree
+still has the pre-rename layout, so rewriting the citation would make it
+wrong, not right.
 
 ## Protocol going forward
 
