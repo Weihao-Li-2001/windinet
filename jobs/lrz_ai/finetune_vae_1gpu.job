@@ -1,0 +1,77 @@
+#!/bin/bash
+#SBATCH -J windinet_test
+###-------------------------------------
+#SBATCH -p lrz-hgx-h100-94x4
+###------------------------------------
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=48
+#SBATCH --time=06:00:00
+#SBATCH --gres=gpu:1  #gpus per node (fixed for nvidia-h100)
+#SBATCH -o %j-%x.out
+#SBATCH -e %j-%x.err
+
+echo "Directory where err and out file are logged: ${SLURM_SUBMIT_DIR}"
+
+export RESULT_DIR=/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline
+export DATA_DIR=/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/128x128_ds
+
+# Base config to patch; override with: sbatch jobs/lrz_ai/finetune_vae_1gpu.job configs/finetune_vae/<your-config>.yaml
+export BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+
+# Rendezvous settings
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+echo "MASTER_ADDR: $MASTER_ADDR"
+
+# Pick a free port on this node
+export MASTER_PORT=$(python - <<'PY'
+import socket
+s = socket.socket()
+s.bind(('', 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+echo "MASTER_PORT: $MASTER_PORT"
+echo "SLURM_NODEID: $SLURM_NODEID"
+echo "SLURM_NNODES: $SLURM_NNODES"
+
+# World size = number of GPUs on this node
+echo "SLURM_GPUS_PER_NODE: $SLURM_GPUS_ON_NODE"
+export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_GPUS_ON_NODE))
+echo "WORLD_SIZE: $WORLD_SIZE"
+
+export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((WORLD_SIZE-1)))
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+
+start_time=$(date +%s)
+echo "Job started at: $(date)"
+
+srun --pty \
+  --container-image="/dss/dsshome1/09/ge26qux3/windinet1.sqsh" \
+  --container-mounts=$HOME:$HOME,$RESULT_DIR:/mnt/result,$DATA_DIR:/mnt/data \
+  --container-workdir="$HOME/work_wh/windinet" \
+  --export=ALL,MASTER_PORT,MASTER_ADDR,WORLD_SIZE,CUDA_VISIBLE_DEVICES,BASE_CONFIG \
+  bash -lc "
+    conda activate windinet && \
+    export CUBLAS_WORKSPACE_CONFIG=:4096:8 && \
+    export PYTHONPATH=\"\$(pwd):\$PYTHONPATH\" && \
+    export RUN_CONFIG=\"/tmp/finetune_vae_run_\$SLURM_JOB_ID.yaml\" && \
+    python -c 'import os, yaml
+from windinet.cluster_config import patch_config_for_cluster
+cfg = yaml.safe_load(open(os.environ[\"BASE_CONFIG\"]))
+patch_config_for_cluster(cfg, cluster=\"lrz_ai\", num_processes=int(os.environ[\"SLURM_GPUS_ON_NODE\"]), output_suffix=\"\")
+yaml.safe_dump(cfg, open(os.environ[\"RUN_CONFIG\"], \"w\"), sort_keys=False)
+print(\"output_dir=\" + cfg[\"output_dir\"] + \" data_root=\" + cfg[\"data\"][\"data_root\"])' && \
+    torchrun \
+      --nnodes=\$SLURM_JOB_NUM_NODES \
+      --nproc_per_node=\$SLURM_GPUS_ON_NODE \
+      --rdzv_id=\$SLURM_JOB_ID \
+      --rdzv_endpoint="\$MASTER_ADDR:\$MASTER_PORT" \
+      --rdzv-backend=c10d \
+      scripts/finetune_vae.py \"\$RUN_CONFIG\" \
+    "
+
+end_time=$(date +%s)
+echo "Job finished at: $(date)"
+echo "Total runtime: $((end_time - start_time)) seconds"

@@ -37,6 +37,15 @@ CLUSTER_DEFAULTS = {
         "num_dataloader_workers": 4,
         "effective_batch": 32,
     },
+    "lrz_ai": {
+        # Paths as seen inside the enroot container: --container-mounts binds
+        # $DATA_DIR/$RESULT_DIR (set by the .job script) to /mnt/data and
+        # /mnt/result respectively.
+        "data_root": "/mnt/data/train.h5",
+        "output_root": "/mnt/result",
+        "num_dataloader_workers": 4,
+        "effective_batch": 32,
+    },
 }
 
 
