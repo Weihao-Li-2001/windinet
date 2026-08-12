@@ -7,6 +7,12 @@
 #SBATCH --account=pn82ku
 #SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
 #SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+# i20r02c04s06 has a broken/stale scratch (hppfs) mount as of 2026-08-12:
+# jobs 523911/523913/523914 all landed there and died with
+# FileNotFoundError on euler_mq_dataset/128x128_ds/train.h5, while the same
+# config on i20r02c04s04 (523910, 523912) read it fine. Exclude until LRZ
+# fixes the mount; remove this line once that's confirmed.
+#SBATCH --exclude=i20r02c04s06
 
 # Batch submission for scripts/latent_stats.py -- encode-only diagnostic
 # (no training, no gradients), see that script's own docstring for the
