@@ -1,0 +1,71 @@
+START TIME: Wed 12 Aug 2026 07:07:51 AM CEST
+job=523912 node=i20r02c04s04
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+config=configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml (patched -> /tmp/latent_stats_sng_pvc_Z3Ky.yaml) checkpoint=/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors num_samples=675 output=log_finetuning_vae/sng_pvc/523912-latent_stats.json
+Device: xpu
+Encoding 675 sims from the 'eval' split (of 4500 total)
+
+Pretrained (freshly-inflated, no finetuning)
+
+Finetuned
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors (epoch=18, step=2160)
+  loaded finetuned checkpoint (epoch=18): 
+/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_wh
+ole_structure_baseline/checkpoints/vae_shockwave_best.safetensors
+
+Full per-channel report written to 
+log_finetuning_vae/sng_pvc/523912-latent_stats.json
+  Raw physical channels (this   
+ sample, not the full dataset)  
+┏━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ channel    ┃   mean ┃    std ┃
+┡━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ density    │ 0.8881 │ 0.6463 │
+│ momentum_x │ 0.0192 │ 0.5335 │
+│ momentum_y │ 0.0031 │ 0.5131 │
+│ pressure   │ 0.9157 │ 0.9167 │
+└────────────┴────────┴────────┘
+              Rescaled latents (target: mean 0, std 1 per channel)              
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┓
+┃ encoder              ┃ |mean| avg ┃ |mean| max ┃ std avg ┃ std min ┃ std max ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━┩
+│ pretrained (no       │     0.3736 │     1.5646 │  0.8382 │  0.2674 │  1.2800 │
+│ finetune)            │            │            │         │         │         │
+│ finetuned            │     0.3952 │     1.4462 │  0.8682 │  0.3376 │  1.2931 │
+└──────────────────────┴────────────┴────────────┴─────────┴─────────┴─────────┘
+
+Finetuning-induced shift in rescaled-latent mean (L2 over channels): 6.8639
+Finetuning-induced std ratio (finetuned/pretrained, avg over channels): 1.0470
+Top-5 latent channels by |mean shift|: [(114, 1.7227), (41, 1.5664), (48, 
+1.3902), (125, 1.3622), (3, 1.3513)]
+END TIME: Wed 12 Aug 2026 07:24:27 AM CEST
