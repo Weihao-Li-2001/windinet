@@ -849,9 +849,11 @@ discontinuities. 5x spread, same model, same epoch.
     "KL divergence weight" below for the full diagnosis, the weight-choice
     math, and the result.
     Config: `finetune_vae_whole_structure_baseline_kl.yaml`.
-20. **PLANNED, configs written, not yet submitted: is training time still
-    the bottleneck? Epoch budget 18 -> 30, plus slower decay and a lower
-    LR floor, PhD-advisor-requested (2026-08-12).** Direct continuation
+20. ~~Is training time still the bottleneck? Epoch budget 18 -> 30, plus
+    slower decay and a lower LR floor, PhD-advisor-requested
+    (2026-08-12).~~ **ANSWERED (2026-08-14): epoch budget alone drove the
+    entire gain (-6.09%); neither a slower decay nor a lower LR floor added
+    anything beyond it.** Direct continuation
     of Open Question 7 (15->18 epochs, -2.02%, still improving not
     plateaued at epoch 18: -1.6% ep16->17, -0.4% ep17->18). Four configs,
     one variable each except (d):
@@ -887,10 +889,16 @@ discontinuities. 5x spread, same model, same epoch.
     **Kill criterion:** usual (epoch 2 train_loss above epoch 1's) for
     all four; ~11h estimated wall-clock each (vs ~6.6h for the 18-epoch
     baseline), cheap enough not to need a stricter one.
-21. **PLANNED, config written, not yet submitted: does the fresh channel's
-    `mean` init leave a visible "superposition of the other 3 channels"
-    artifact, and does `zeros` init remove it? PhD-advisor-motivated
-    (2026-08-12).** Observed qualitatively on the whole-structure
+    **RESULT: see "Epoch budget / schedule-shape sweep (Open Question 20,
+    resolved 2026-08-14)" below for the full readout.**
+21. ~~Does the fresh channel's `mean` init leave a visible "superposition of
+    the other 3 channels" artifact, and does `zeros` init remove it?
+    PhD-advisor-motivated (2026-08-12).~~ **ANSWERED, quantitatively
+    (2026-08-14): no -- `zeros` init makes the fresh channel's own val_vrmse
+    measurably *worse* (+4.3 to +4.7%, both at 18 and 30 epochs), not
+    better; the qualitative "does the blending artifact go away" half stays
+    open (no visualization panels were mirrored for these runs).** Observed
+    qualitatively on the whole-structure
     baseline's pressure channel (the fresh, index-3 slot under the
     default channel order): low val_vrmse but reconstructions visually
     resemble a blend of density/momentum_x/momentum_y rather than an
@@ -943,9 +951,14 @@ discontinuities. 5x spread, same model, same epoch.
     two-part (quantitative + qualitative-panel) read-out and kill
     criterion as (a); ~11h estimated wall-clock, same as the other
     `_ep30*` runs.
-22. **PLANNED, configs written, not yet submitted: KL divergence weight
-    sweep -- where does regularization saturate below 1e-7, and where does
-    reconstruction cost actually appear above it?** Direct follow-up to
+    **RESULT: see "Fresh-channel init, zeros vs mean (Open Question 21,
+    resolved 2026-08-14)" below for the full readout.**
+22. ~~KL divergence weight sweep -- where does regularization saturate
+    below 1e-7, and where does reconstruction cost actually appear above
+    it?~~ **ANSWERED (2026-08-14): it doesn't, anywhere in this range --
+    val_vrmse stays inside the noise floor across all 3 orders of
+    magnitude tested (1e-8 through 1e-5), including the deliberate
+    failure-end bracket.** Direct follow-up to
     Open Question 19, which tested a single point (1e-7: -0.30% val_vrmse,
     ~359x more regularized `val_kl`, 196385 -> 547 by epoch 18) and closed
     with "promoted candidate, not yet adopted as baseline" -- one point is
@@ -995,6 +1008,135 @@ discontinuities. 5x spread, same model, same epoch.
     sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl1e6.yaml
     sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_kl1e5.yaml
     ```
+    **RESULT: see "KL divergence weight sweep (Open Question 22, resolved
+    2026-08-14)" below for the full readout.**
+
+### Epoch budget / schedule-shape sweep (Open Question 20, resolved 2026-08-14)
+
+**ANSWERED: epoch budget alone is what mattered.** All four arms ran the
+full 30 epochs (jobs 523909 (a; original attempt job 523902 crashed at
+distributed-init, rank 0-7 all exit code 1, re-submitted as 523909),
+523903 (b, slowdecay), 523904 (c, lowfloor), 523905 (d, combined),
+sng_pvc, launched 2026-08-12 05:44 CEST) and are read against the
+confirmed 18-epoch baseline (0.08360, job 523577):
+
+| | val_vrmse (epoch 30) | vs 18ep baseline | vs (a) |
+|---|---|---|---|
+| (a) epochs only, 18->30 | **0.078504** | **-6.09%** | -- |
+| (c) + low LR floor (1e-6->1e-7) | 0.078579 | -6.00% | +0.10% (noise) |
+| (b) + slow decay (`stable_fraction` 0.7->0.5) | 0.078936 | -5.58% | +0.55% (noise) |
+| (d) slow decay + low floor (combined) | 0.079102 | -5.38% | +0.76% (noise) |
+
+Simply running 12 more epochs on the unmodified schedule is the entire
+effect -- a real, well-past-the-2.2%-bar win on its own. Neither of the two
+schedule-shape changes buys anything on top of that: (b), (c), and (d) are
+all inside the ~1.1% single-run seed-noise floor of (a)'s own result, and
+if anything trend slightly *worse*, not better -- the combined ask (d) is
+the worst of the four. This matches the "Caution on (b)" note above:
+`stable_fraction` reduction has now failed to help in three separate
+regimes (Open Question 5, the 8-sim "Attempt 6" diagnostic, and here).
+
+**Convergence detail for (a):** LR holds at the 5e-05 peak through epoch
+21 (`stable_fraction 0.7` of a 30-epoch budget), during which val_vrmse
+just oscillates noisily between ~0.09 and ~0.12 (swings up to +/-27% epoch
+to epoch, no discernible trend) -- decay doesn't start until epoch 22.
+Once it does, the drop is clean and monotonic (epoch 22: 0.1058 -> epoch
+27: 0.07935), then flattens: epoch 27->28/28->29/29->30 are -0.52%/-0.45%/
+-0.10%, all under the ~1.1% noise floor. **Practical read: (a) is
+converged by roughly epoch 27-28** -- the last 2-3 epochs of the 30-epoch
+budget contribute no further distinguishable-from-noise gain, though
+nothing in this data suggests the run needed to stop there either (no
+overfitting signature, val_vrmse is still trending flat-to-down, not up).
+
+**Answer to "is it worth lowering the LR further or stretching the decay
+phase":** no, based on this sweep -- both levers were tested directly (`c`
+= lower floor, `b`/`d` = longer decay phase, at the same 30-epoch total
+budget) and neither improved on epochs-alone. This doesn't rule out a
+*differently shaped* schedule (e.g. a genuinely larger epoch budget beyond
+30, or decay-phase changes not yet tried), only the two specific variants
+the PhD advisor asked about.
+
+**Kill criterion:** none triggered; all four completed 30/30 epochs with
+monotonically-recovering `train_loss`, no epoch-2-above-epoch-1 pattern.
+
+### Fresh-channel init, zeros vs mean (Open Question 21, resolved 2026-08-14)
+
+**ANSWERED (quantitative half only): `zeros` init does not fix the fresh
+channel, it makes its reconstruction measurably worse.** Two runs, both
+sng_pvc, launched 2026-08-12: (a) `..._zerosinit.yaml` (18 epochs, job
+523906, already committed 2026-08-12) and (b) `..._ep30_zerosinit.yaml`
+(30 epochs, job 523907). Per-channel val_vrmse against the matched-epoch
+mean-init baseline (job 523577 for 18ep, job 523909/Open Question 20(a)
+for 30ep):
+
+| channel | 18ep baseline (mean) | 18ep zeros (a) | delta | 30ep baseline (mean, Q20a) | 30ep zeros (b) | delta |
+|---|---|---|---|---|---|---|
+| pressure (the fresh channel) | 0.12699 | 0.13300 | **+4.73%** | 0.11341 | 0.11831 | **+4.32%** |
+| momentum_x | 0.10653 | 0.10383 | -2.53% | 0.10067 | 0.09893 | -1.73% |
+| momentum_y | 0.10569 | 0.10486 | -0.78% (noise) | 0.10005 | 0.09978 | -0.27% (noise) |
+| density | 0.10653 | 0.10759 | +0.99% (noise) | 0.10066 | 0.10199 | +1.32% |
+| **overall val_vrmse** | 0.08360 | 0.08397 | +0.44% (noise) | 0.07850 | 0.07898 | +0.60% (noise) |
+
+The overall val_vrmse comparison looks like a wash at both epoch counts
+(both deltas sit inside the ~1.1% noise floor) -- but that average hides a
+real, consistent, above-noise trade at the channel level: `zeros` costs
+the fresh pressure channel ~4.3-4.7% (same size at both 18 and 30 epochs,
+i.e. **not** a "needs more training to catch up" effect -- 12 extra
+epochs did not close this gap), while it buys momentum_x back ~1.7-2.5%.
+Net effect on the mean is coincidental cancellation, not evidence that
+`zeros` is neutral.
+
+**Open half:** the motivating question was qualitative ("does the visual
+superposition-of-other-channels artifact go away"), which this data
+cannot answer -- neither run's `visualizations/` directory was mirrored
+back to the repo (gitignored per cluster convention, and this checkout
+never had them locally either). What the quantitative result does say:
+whatever `zeros` changes about the fresh channel's reconstruction, it
+isn't an unambiguous improvement, so a positive qualitative finding (if
+one exists) would come with this quantitative cost attached, not for
+free.
+
+**Kill criterion:** none triggered on either run.
+
+### KL divergence weight sweep (Open Question 22, resolved 2026-08-14)
+
+**ANSWERED: no reconstruction cost detected anywhere in this range --
+regularization keeps climbing while val_vrmse stays flat.** Four arms,
+all sng_pvc, 18 epochs, launched 2026-08-12 13:03 CEST (jobs 523959
+kl1e-8, 523960 kl3e-7, 523961 kl1e-6, 523962 kl1e-5), read against the
+same 18-epoch baseline Open Question 19 used (0.08360, job 523577) and
+that question's own kl=1e-7 result (job 523595):
+
+| kl weight | val_vrmse | vs baseline | epoch-18 val_kl |
+|---|---|---|---|
+| 1e-8 | 0.08342 | -0.22% (noise) | 782 |
+| 1e-7 (Open Question 19) | 0.08335 | -0.30% (noise) | 547 |
+| 3e-7 | 0.08356 | -0.05% (noise) | 456 |
+| 1e-6 | 0.08390 | +0.35% (noise) | 294 |
+| 1e-5 (deliberate failure-end bracket) | 0.08417 | +0.73% (noise) | 83 |
+| unweighted baseline (passive monitor) | 0.08360 | -- | ~196,385 |
+
+`val_kl` decreases monotonically as the weight increases -- a clean
+regularization curve, exactly as expected -- but **val_vrmse never leaves
+the ~1.1% seed-noise band across all five points, spanning three orders of
+magnitude of weight, including the arm explicitly designed to fail
+(1e-5, steady-state contribution ~2.0, nominally larger than the rest of
+the weighted objective combined).** This directly refutes the question's
+own premise (that reconstruction cost should appear "somewhere above
+1e-7") within the range actually tested: it doesn't, at least not by
+1e-5. Practically, this means the KL weight can be pushed at least to
+1e-6 (val_kl down to 294, ~667x more regularized than unweighted) with no
+reconstruction cost distinguishable from noise -- a stronger regularization
+default than Open Question 19's 1e-7 promoted candidate, for the same
+practical price (indistinguishable val_vrmse).
+
+**Gap still open:** same one Open Question 19 flagged -- no per-epoch
+latent mean/std/logvar summary-statistic diagnostic exists yet, so "how
+regularized" each arm is can still only be read via `val_kl`'s raw,
+unnormalized scale, not a calibrated metric. Not implemented as part of
+this sweep.
+
+**Kill criterion:** none triggered on any of the four arms.
 
 ### Copy-init for a physically-paired momentum channel (Open Question 10, new 2026-08-08)
 
