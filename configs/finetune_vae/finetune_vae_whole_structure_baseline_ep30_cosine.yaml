@@ -1,0 +1,130 @@
+# VAE finetuning config -- does the WSD schedule's constant-peak-LR
+# "stable" phase actually buy anything, or is a smooth cosine decay across
+# the whole post-warmup budget as good or better? Not yet a formal ledger
+# row -- add one before/when launching, per protocol point 2.
+#
+# MOTIVATION: on the ep30 baseline (job 523909), LR holds at the 5e-05
+# peak through epoch 21 (`stable_fraction 0.7` of 30) -- during that
+# entire stable phase, val_vrmse just oscillates noisily between ~0.09 and
+# ~0.12 with no discernible trend (swings up to +/-27% epoch to epoch).
+# The clean, monotonic drop only starts once decay begins at epoch 22 (see
+# "Epoch budget / schedule-shape sweep (Open Question 20, resolved
+# 2026-08-14)" in EXPERIMENTS.md). Whether that stable phase is silent
+# useful work (WSD's own rationale: high-LR "exploration" that only shows
+# up once the decay phase "consolidates" it) or genuinely wasted budget
+# under this particular training regime is an open, purely empirical
+# question -- not resolvable by reasoning about the schedule alone.
+#
+# `windinet/training/vae_trainer.py`'s `cosine` branch already implements
+# exactly the alternative: `stable_steps = 0`, decay starts immediately
+# after warmup and runs the entire post-warmup budget as one cosine curve
+# down to `min_learning_rate`. No code change needed, already wired up via
+# `scheduler_type`.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep30.yaml (30
+# epochs, wsd schedule, confirmed val_vrmse 0.078504, job 523909):
+#   optimization.scheduler_type: "wsd" -> "cosine"
+# Everything else UNCHANGED, including `epochs: 30` and
+# `min_learning_rate: 1e-6` -- same total step budget and same floor, only
+# the shape of the curve between warmup-end and floor changes (0 stable +
+# 3400 anneal steps here, vs the wsd run's 2380 stable + 1020 anneal).
+#
+# READ-OUT: compare epoch-30 val_vrmse to ep30's confirmed 0.078504 (job
+# 523909), bar >2.2% (2x the ~1.1% seed noise floor, protocol point 3).
+# Also worth an early-epoch comparison against the wsd run's own epoch-N
+# rows: if cosine's val_vrmse starts dropping cleanly well before epoch 22
+# (where wsd's decay begins), that's direct within-run evidence the
+# earlier decay is doing useful work rather than just reaching the same
+# floor sooner without benefit.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) -- LR starts
+# decaying immediately after warmup here instead of staying at peak for 21
+# epochs, so if anything this should look calmer/more stable early on than
+# the wsd run, not less. ~10.7h estimated wall-clock, same total step
+# budget as the ep30 baseline (job 523909's actual runtime).
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_cosine.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "cosine"
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "cosine", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "schedule-shape"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_cosine"
+clean_output_dir: true

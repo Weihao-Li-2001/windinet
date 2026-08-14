@@ -1,0 +1,145 @@
+# VAE finetuning config -- epoch budget extended 30 -> 40, extension of
+# Open Question 20a (EXPERIMENTS.md) past its own resolution. Not yet a
+# formal ledger row -- add one before/when launching, per protocol point 2.
+#
+# WHY THIS IS PLAUSIBLE: same mechanism as the 15->18 (Open Question 7) and
+# 18->30 (Open Question 20a) pushes -- `warmup_steps` stays absolute at
+# 200, `stable_fraction` is a fraction of the post-warmup budget so both
+# the stable and decay phases stretch proportionally to the larger total.
+# Both prior epoch-budget extensions in this ledger were real, above-noise
+# wins (-2.02%, -6.09%), so extrapolating the same lever again is not an
+# unreasonable next step.
+#
+# WHY IT MIGHT NOT HELP: unlike those two, this one comes with a specific
+# within-run caution already on record. The 18->30 run's OWN tail already
+# converged before the budget ran out: LR holds at peak through epoch 21
+# (`stable_fraction 0.7` of 30), val_vrmse just oscillates noisily with no
+# trend during that entire stable phase, decay starts at epoch 22 and gives
+# a real, clean drop through epoch 27 -- but epoch 27->28/28->29/29->30 are
+# already -0.52%/-0.45%/-0.10%, all under the ~1.1% seed-noise floor (see
+# "Epoch budget / schedule-shape sweep (Open Question 20, resolved
+# 2026-08-14)" in EXPERIMENTS.md). Going to 40 with the same
+# `stable_fraction` mostly lengthens the noisy, no-trend stable phase (now
+# ~28 epochs before decay starts at epoch ~29) rather than obviously buying
+# more of the effective part of the schedule -- the part that actually did
+# the work last time was the decay window, not the stable phase. This is a
+# real test of that concern, not a foregone conclusion either way.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep30.yaml (30
+# epochs, otherwise identical, confirmed val_vrmse 0.078504, job 523909):
+#   optimization.epochs: 30 -> 40
+# Everything else UNCHANGED, including `stable_fraction: 0.7` and
+# `min_learning_rate: 1e-6` (this isolates epoch count alone, same as
+# Open Question 20a did against the 18-epoch baseline -- see the sibling
+# `_ep30_slowdecay.yaml`/`_ep30_lowfloor.yaml` for the schedule-SHAPE
+# levers, already tested independently and found not to help, Open
+# Question 20 b/c/d).
+# Resolved schedule: 4800 total opt steps (120/epoch x 40), 200 warmup,
+# stable_fraction 0.7 -> 3220 stable + 1380 anneal (vs the 30-epoch run's
+# 2380 stable + 1020 anneal).
+#
+# READ-OUT: compare epoch-40 val_vrmse to BOTH reference points --
+# ep30's confirmed 0.078504 (job 523909) and the original 18-epoch
+# baseline's 0.08360 (job 523577). Per protocol point 3, only a delta vs
+# ep30 clearing ~2.2% (2x the ~1.1% seed noise floor) counts as a real
+# further effect; anything smaller confirms the diminishing-returns
+# concern above rather than refuting it. Also worth reading this run's OWN
+# epoch-30 row against ep30's final result (0.078504) -- if this run's
+# epoch 30 is already close to ep30's converged number (schedule not yet
+# near its own floor since decay is now stretched to epoch ~40), that is
+# within-run evidence the stable phase alone (epochs ~22-29 here, still at
+# peak LR) isn't doing anything useful, same logic Open Question 20a used
+# against the 18-epoch baseline's epoch-18 row.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's). No stricter
+# one needed on cost grounds -- observed per-epoch timing from the ep30 run
+# (job 523909: ~1287s/epoch, train=1229.5s + eval=38.1s + viz=10.5s +
+# ckpt=8.2s) puts 40 epochs at ~14.3h wall-clock (vs ep30's actual ~10.7h),
+# not the original rough extrapolation.
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 0.3
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 40
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "40ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep40"
+clean_output_dir: true
