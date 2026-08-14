@@ -1,0 +1,131 @@
+# VAE finetuning config -- re-verifies encoder_tail_lr_multiplier: 1.0
+# (encoder trunk at full decoder-level LR, no reduced-caution multiplier)
+# under the CURRENT 30-epoch training regime. PhD-advisor-requested
+# (2026-08-14): prefers a single shared LR for encoder and decoder over
+# the current 0.3x default, on parsimony grounds -- if the multiplier
+# isn't earning its keep, it's one fewer hyperparameter to carry and
+# justify. Not yet a formal ledger row -- add one before/when launching,
+# per protocol point 2.
+#
+# WHY RE-VERIFY RATHER THAN JUST ADOPT: Open Question 6's original 0.3x
+# vs 1.0x comparison (jobs 521887/521888, 0.08516 vs 0.08584, +0.80%,
+# inside the ~1.1% seed-noise floor -- statistically a tie) was run
+# 2026-08-06 on the 15-epoch schedule, a materially different training
+# regime from the current 30-epoch whole-structure baseline (this repo's
+# now-adopted third baseline, EXPERIMENTS.md). 1.0x trained stably at 15
+# epochs, but the risk `encoder_tail_lr_multiplier`'s sub-1.0 default was
+# designed against -- an unfrozen, pretrained encoder trunk drifting too
+# far under full decoder-level LR -- is the kind of thing that could show
+# up only with more training steps, not necessarily within 15 epochs. This
+# run checks whether that tie still holds at 30.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep30.yaml (30
+# epochs, confirmed val_vrmse 0.078504, job 523909):
+#   optimization.encoder_tail_lr_multiplier: 0.3 -> 1.0
+# Everything else UNCHANGED. Absolute encoder LR becomes 5e-05, equal to
+# the decoder LR (no safety margin, same framing as the original
+# `_enclr1x.yaml`).
+#
+# READ-OUT: compare epoch-30 val_vrmse to the ep30 baseline's confirmed
+# 0.078504 (job 523909), bar >2.2% (2x the ~1.1% seed noise floor,
+# protocol point 3). A tie (like the 15-epoch result) supports adopting
+# 1.0x as the new default on parsimony grounds; a real regression means
+# the 0.3x margin was masked at 15 epochs and only shows up with more
+# training, i.e. re-affirms keeping the multiplier.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's) PLUS the
+# original enclr1x framing's explicit watch -- if val_vrmse is heading
+# toward the 0.15-0.2+ range instead of down from the ~0.10-0.11
+# baseline-adapter-only starting point, or epoch-over-epoch train_loss
+# diverges upward across multiple consecutive epochs (not just one rough
+# epoch), that's the pretrained-trunk-destabilizing failure mode this
+# multiplier exists to prevent, now given 30 epochs to actually show up in
+# rather than 15. ~10.7h estimated wall-clock (same total step budget as
+# the ep30 baseline, job 523909's actual runtime).
+#
+# Usage:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_enclr1x.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+  unfreeze_down_blocks: [0, 1, 2]
+  unfreeze_encoder_tail: true
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  adapter_lr_multiplier: 1.0
+  encoder_tail_lr_multiplier: 1.0
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 2
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "30ep", "enclr1x", "shockwave-cfd", "whole-structure-baseline", "encoder-lr-sweep"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_enclr1x"
+clean_output_dir: true
