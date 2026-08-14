@@ -68,6 +68,15 @@ INNER_SCRIPT="${HOME}/.windinet_lrz_ai_run_${SLURM_JOB_ID}.sh"
 trap 'rm -f "${INNER_SCRIPT}"' EXIT
 cat > "${INNER_SCRIPT}" <<'INNER'
 set -eo pipefail
+# `conda activate` refuses to run in a non-interactive shell (this script)
+# until the shell has sourced conda's own init hook -- `conda init` writes
+# that sourcing into ~/.bashrc, which non-interactive shells don't load.
+# `conda shell.bash hook` re-derives the same hook from the `conda` binary
+# already on PATH inside the container, so this doesn't depend on knowing
+# the image's conda install path (miniconda/mambaforge/system, wherever it
+# lives). Without this, jobs died in ~1 minute with "CondaError: Run
+# 'conda init' before 'conda activate'" (jobs 5744998/5744999, 2026-08-12).
+eval "$(conda shell.bash hook)"
 conda activate windinet
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export PYTHONPATH="$(pwd):$PYTHONPATH"
