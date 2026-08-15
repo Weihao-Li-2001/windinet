@@ -1,0 +1,95 @@
+W0815 18:40:55.565474 1451706 site-packages/torch/distributed/run.py:874] 
+W0815 18:40:55.565474 1451706 site-packages/torch/distributed/run.py:874] *****************************************
+W0815 18:40:55.565474 1451706 site-packages/torch/distributed/run.py:874] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0815 18:40:55.565474 1451706 site-packages/torch/distributed/run.py:874] *****************************************
+/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/dss/dsshome1/09/ge26qux3/work_wh/windinet/scripts/finetune_vae.py", line 43, in <module>
+[rank0]:     app()
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank0]:     raise e
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank0]:     return get_command(self)(*args, **kwargs)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank0]:     return self.main(*args, **kwargs)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank0]:     return _main(
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank0]:     rv = self.invoke(ctx)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank0]:     return ctx.invoke(self.callback, **ctx.params)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank0]:     return callback(*args, **kwargs)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank0]:     return callback(**use_params)
+[rank0]:   File "/dss/dsshome1/09/ge26qux3/work_wh/windinet/scripts/finetune_vae.py", line 36, in main
+[rank0]:     trainer = VaeTrainer(config)
+[rank0]:   File "/dss/dsshome1/09/ge26qux3/work_wh/windinet/windinet/training/vae_trainer.py", line 123, in __init__
+[rank0]:     self._load_vae()
+[rank0]:   File "/dss/dsshome1/09/ge26qux3/work_wh/windinet/windinet/training/vae_trainer.py", line 145, in _load_vae
+[rank0]:     self._vae = load_vae(self._config.model.model_source, dtype=torch.float32)
+[rank0]:   File "/dss/dsshome1/09/ge26qux3/work_wh/windinet/windinet/inference/model_loader.py", line 123, in load_vae
+[rank0]:     return AutoencoderKLLTXVideo.from_pretrained(
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/diffusers/models/modeling_utils.py", line 1274, in from_pretrained
+[rank0]:     resolved_model_file = _get_model_file(
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/diffusers/utils/hub_utils.py", line 308, in _get_model_file
+[rank0]:     model_file = hf_hub_download(
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1019, in hf_hub_download
+[rank0]:     return _hf_hub_download_to_cache_dir(
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1242, in _hf_hub_download_to_cache_dir
+[rank0]:     _download_to_tmp_and_move(
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1932, in _download_to_tmp_and_move
+[rank0]:     xet_get(
+[rank0]:   File "/opt/conda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 565, in xet_get
+[rank0]:     with session.new_file_download_group(
+[rank0]: RuntimeError: Task error: File reconstruction error: IO Error: Disk quota exceeded (os error 122)
+[rank0]:[W815 18:41:15.251510836 ProcessGroupNCCL.cpp:1624] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0815 18:41:16.218347 1451706 site-packages/torch/distributed/elastic/multiprocessing/api.py:1028] Sending process 1451767 closing signal SIGTERM
+E0815 18:41:16.484282 1451706 site-packages/torch/distributed/elastic/multiprocessing/api.py:1002] failed (exitcode: 1) local_rank: 0 (pid: 1451766) of binary: /opt/conda/envs/windinet/bin/python3.10
+Traceback (most recent call last):
+  File "/opt/conda/envs/windinet/bin/torchrun", line 6, in <module>
+    sys.exit(main())
+  File "/opt/conda/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 367, in wrapper
+    return f(*args, **kwargs)
+  File "/opt/conda/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 1028, in main
+    run(args)
+  File "/opt/conda/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 1019, in run
+    elastic_launch(
+  File "/opt/conda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 194, in __call__
+    return launch_agent(
+  File "/opt/conda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 383, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/finetune_vae.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-08-15_18:41:16
+  host      : lrz-hgx-h100-017
+  rank      : 1 (local_rank: 1)
+  exitcode  : -15 (pid: 1451767)  (SIGTERM)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 1451767
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-08-15_18:41:16
+  host      : lrz-hgx-h100-017
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 1451766) 
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+srun: error: lrz-hgx-h100-017: task 0: Exited with exit code 1
