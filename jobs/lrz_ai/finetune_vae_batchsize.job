@@ -1,0 +1,165 @@
+#!/bin/bash
+#SBATCH -J windinet_bs_sweep
+###-------------------------------------
+#SBATCH -p lrz-hgx-h100-94x4
+###------------------------------------
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=48
+#SBATCH --time=06:00:00
+#SBATCH --gres=gpu:1  #gpus per node (fixed for nvidia-h100)
+#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
+#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+
+# Batch-size sweep, Open Question 23 (EXPERIMENTS.md). Tests whether
+# optimization.batch_size (per-GPU micro-batch) changes results or only
+# wall-clock/OOM feasibility, at a FIXED effective_batch=32 -- same
+# optimizer-step count and LR schedule as every other run in this ledger,
+# see windinet/cluster_config.py's derivation. 1-GPU variant of
+# finetune_vae_1gpu.job, parameterized by BATCH_SIZE instead of relying on
+# the baseline config's hard-coded batch_size=1 / accum=16 -- same relation
+# to finetune_vae_1gpu.job that jobs/lundquist/finetune_vae_batchsize.sbatch
+# has to jobs/lundquist/finetune_vae_2gpu.sbatch. 1 GPU (not 2/4): with a
+# single rank there's no DDP split of the effective batch, so
+# gradient_accumulation_steps alone carries the batch_size/wall-clock
+# trade-off this question is about, matching the sng_pvc single-tile sweep's
+# isolation of the same variable.
+#
+# Submit with:
+#   BATCH_SIZE=<1|2|4|8|16> sbatch jobs/lrz_ai/finetune_vae_batchsize.job [BASE_CONFIG] [DATA_DIR]
+#
+# gradient_accumulation_steps is re-derived by patch_config_for_cluster so
+# 1 rank x BATCH_SIZE x accum always lands on effective_batch 32 -- e.g.
+# BATCH_SIZE=2 -> accum 16, BATCH_SIZE=16 -> accum 2. Total optimizer steps
+# and the LR schedule are unchanged across arms, so any val_vrmse
+# difference is a real finding, not a step-count confound (see EXPERIMENTS.md
+# Open Question 23's decision rule for how the read-out turns into a choice).
+#
+# THIS IS A REAL RUN, NOT A THROWAWAY DIAGNOSTIC: full 18 epochs, normal
+# checkpointing/visualization, output committed to
+# finetune_vae_outputs/lrz_ai/finetune_vae_whole_structure_baseline_bs<N>/
+# per protocol.
+#
+# IF A GIVEN BATCH_SIZE OOMs, THAT IS THE ANSWER FOR THAT ARM, NOT A BUG --
+# see Open Question 23's kill criterion. The job will die with a CUDA OOM
+# in the .err log; record which sizes fail here (H100, 80GB) before
+# assuming the same sizes are safe on lundquist's A6000 or sng_pvc.
+
+echo "Directory where err and out file are logged: ${SLURM_SUBMIT_DIR}"
+
+export RESULT_DIR=/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline
+export DATA_DIR=${2:-/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/128x128_ds}
+
+# Base config to patch; override with:
+#   BATCH_SIZE=<N> sbatch jobs/lrz_ai/finetune_vae_batchsize.job configs/finetune_vae/<your-config>.yaml
+export BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml}
+
+export BATCH_SIZE=${BATCH_SIZE:?"set BATCH_SIZE (1, 2, 4, 8, or 16), e.g. BATCH_SIZE=4 sbatch jobs/lrz_ai/finetune_vae_batchsize.job"}
+
+# Rendezvous settings
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+echo "MASTER_ADDR: $MASTER_ADDR"
+
+# Pick a free port on this node
+export MASTER_PORT=$(python - <<'PY'
+import socket
+s = socket.socket()
+s.bind(('', 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+echo "MASTER_PORT: $MASTER_PORT"
+echo "SLURM_NODEID: $SLURM_NODEID"
+echo "SLURM_NNODES: $SLURM_NNODES"
+
+# World size = number of GPUs on this node
+echo "SLURM_GPUS_PER_NODE: $SLURM_GPUS_ON_NODE"
+export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_GPUS_ON_NODE))
+echo "WORLD_SIZE: $WORLD_SIZE"
+
+export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((WORLD_SIZE-1)))
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+echo "BATCH_SIZE: $BATCH_SIZE"
+
+# Everything that has to run inside the container (config patch, training,
+# mirroring the run back onto the DSS-backed repo checkout) lives in its own
+# script instead of one giant escaped `bash -lc "..."` string -- $HOME is
+# bind-mounted 1:1 into the container below, so a script written here on the
+# host is visible at the same path inside the container. Cleaned up on exit.
+INNER_SCRIPT="${HOME}/.windinet_lrz_ai_run_${SLURM_JOB_ID}.sh"
+trap 'rm -f "${INNER_SCRIPT}"' EXIT
+cat > "${INNER_SCRIPT}" <<'INNER'
+set -eo pipefail
+# `conda activate` refuses to run in a non-interactive shell (this script)
+# until the shell has sourced conda's own init hook -- see finetune_vae_1gpu.job's
+# header for the fuller explanation (jobs 5744998/5744999, 2026-08-12).
+eval "$(conda shell.bash hook)"
+conda activate windinet
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+export PYTHONPATH="$(pwd):$PYTHONPATH"
+export RUN_CONFIG="/tmp/finetune_vae_bs_${SLURM_JOB_ID}.yaml"
+
+python -c '
+import os, yaml
+from windinet.cluster_config import patch_config_for_cluster
+cfg = yaml.safe_load(open(os.environ["BASE_CONFIG"]))
+batch_size = int(os.environ["BATCH_SIZE"])
+cfg["optimization"]["batch_size"] = batch_size
+patch_config_for_cluster(
+    cfg,
+    cluster="lrz_ai",
+    num_processes=int(os.environ["SLURM_GPUS_ON_NODE"]),
+    output_suffix=f"_bs{batch_size}",
+)
+yaml.safe_dump(cfg, open(os.environ["RUN_CONFIG"], "w"), sort_keys=False)
+print(
+    f"{os.environ[\"SLURM_GPUS_ON_NODE\"]} GPUs x batch_size {batch_size} x accum "
+    f"{cfg[\"optimization\"][\"gradient_accumulation_steps\"]} -> effective batch "
+    f"{int(os.environ[\"SLURM_GPUS_ON_NODE\"]) * batch_size * cfg[\"optimization\"][\"gradient_accumulation_steps\"]}; "
+    f"output_dir={cfg[\"output_dir\"]} data_root={cfg[\"data\"][\"data_root\"]}"
+)
+'
+OUT_DIR=$(python -c 'import os, yaml; print(yaml.safe_load(open(os.environ["RUN_CONFIG"]))["output_dir"])')
+
+# Make log_finetuning_vae/lrz_ai/ self-describing: one row per job mapping
+# the log to the config it ran and the output_dir it wrote, tagged with
+# BATCH_SIZE so grepping the index alone tells arms apart -- same convention
+# as jobs/lundquist/finetune_vae_batchsize.sbatch's INDEX.tsv rows.
+printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}_bs${BATCH_SIZE}" \
+    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/lrz_ai/INDEX.tsv
+
+torchrun \
+  --nnodes=${SLURM_JOB_NUM_NODES} \
+  --nproc_per_node=${SLURM_GPUS_ON_NODE} \
+  --rdzv_id=${SLURM_JOB_ID} \
+  --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
+  --rdzv-backend=c10d \
+  scripts/finetune_vae.py "${RUN_CONFIG}"
+
+# Mirror the run's visualizations/metrics/config back onto the DSS-backed
+# repo checkout -- see finetune_vae_1gpu.job's header for the full
+# explanation. Assumes rsync is available inside the container image.
+OUTPUT_ROOT=$(python -c 'from windinet.cluster_config import CLUSTER_DEFAULTS; print(CLUSTER_DEFAULTS["lrz_ai"]["output_root"])')
+RUN_NAME=${OUT_DIR#"${OUTPUT_ROOT}/"}
+LOCAL_DIR="finetune_vae_outputs/lrz_ai/${RUN_NAME}"
+mkdir -p "${LOCAL_DIR}"
+rsync -a --exclude='checkpoints/' "${OUT_DIR}/" "${LOCAL_DIR}/"
+echo "Mirrored (excl. checkpoints/) to ${LOCAL_DIR}"
+INNER
+
+start_time=$(date +%s)
+echo "Job started at: $(date)"
+
+# No --pty: this is a batch job (submitted via sbatch, no attached terminal),
+# not an interactive session.
+srun \
+  --container-image="/dss/dsshome1/09/ge26qux3/windinet1.sqsh" \
+  --container-mounts=$HOME:$HOME,$RESULT_DIR:/mnt/result,$DATA_DIR:/mnt/data \
+  --container-workdir="$HOME/work_wh/windinet" \
+  --export=ALL,MASTER_PORT,MASTER_ADDR,WORLD_SIZE,CUDA_VISIBLE_DEVICES,BASE_CONFIG,BATCH_SIZE \
+  bash "${INNER_SCRIPT}"
+
+end_time=$(date +%s)
+echo "Job finished at: $(date)"
+echo "Total runtime: $((end_time - start_time)) seconds"

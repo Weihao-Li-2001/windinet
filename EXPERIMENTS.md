@@ -1063,31 +1063,68 @@ discontinuities. 5x spread, same model, same epoch.
     actually moves.
     **Sweep:** `batch_size` in {1 (reference), 2, 4, 8, 16},
     `finetune_vae_whole_structure_baseline.yaml` (18ep) held fixed
-    otherwise. Starting with **lundquist** (2 GPUs, A6000) -- sng_pvc
-    (Intel XPU) and lrz_ai (H100) to follow once lundquist's read-out is
-    in, since GPU memory capacity differs by cluster and a size that fits
-    on one may not fit on another.
+    otherwise, split across two clusters (decided 2026-08-16, supersedes the
+    original lundquist-first plan below):
+    - **sng_pvc, 8 XPU tiles** (the tile count already used for job 523577,
+      not a new single-tile setup) -- but `effective_batch=32` at 8 tiles
+      caps `batch_size` at **4** (`batch_size x num_processes` must divide
+      32; 8 and 16 would need `effective_batch` >= 64/128, a different
+      experiment). Covers `batch_size` in {1, 2, 4} only.
+      `jobs/sng_pvc/finetune_vae_batchsize.sbatch`.
+    - **lrz_ai, 1 GPU (H100)** -- single rank, no DDP split, so it covers
+      the full {1, 2, 4, 8, 16} range. `jobs/lrz_ai/finetune_vae_batchsize.job`.
+
+    `batch_size=1` on sng_pvc reproduces job 523577's exact setup (same 8
+    tiles, accum=4) as a harness sanity check; lrz_ai's `batch_size=1` arm
+    is this config's first run on that cluster, no prior reference point.
+    lundquist (2 GPUs, A6000, script written but not submitted) remains
+    available if a third cluster's read-out is wanted later, since GPU
+    memory capacity differs by cluster and a size that fits on one may not
+    fit on another.
     **Read-out:** per arm, (a) OOM or not, (b) final val_vrmse vs the
     `batch_size=1` reference (bar: >2.2%, 2x the noise floor, would be
     surprising and worth explaining), (c) wall-clock/per-epoch timing vs
     the reference. `batch_size=1` also fills in lundquist's own missing
     reference point for this config -- previously only run on sng_pvc (job
     523577, val_vrmse 0.08360).
+    **Decision rule (adopt as new cluster default once read out):** among
+    arms that (a) don't OOM and (b) land within 2.2% val_vrmse of the
+    `batch_size=1` reference, pick the one with the lowest mean per-epoch
+    `total=` wall-clock from the log (`Epoch N timing: ... total=Xs`,
+    `windinet/training/vae_trainer.py:983-985` -- average epochs 2+ to drop
+    epoch-1 warmup/compile). If two or more arms land within 5% of each
+    other's wall-clock (noise), prefer the *smaller* `batch_size`: it leaves
+    more activation-memory headroom for the upcoming 256/512res configs
+    (`finetune_vae_whole_structure_baseline_256res.yaml` and beyond), where
+    the same `batch_size` will cost substantially more memory per sample
+    than it does at 128x128. Do not just take the largest surviving
+    `batch_size` on speed alone -- OOM headroom at this resolution says
+    nothing about headroom at 4x the pixel count.
     **Kill criterion:** none in the usual train_loss sense -- OOM itself
     *is* the informative outcome for an arm here, not a bug to abort on.
     Only a non-memory failure (train_loss diverging, unrelated crash) would
     count as a real bug.
-    **Launch** (`jobs/lundquist/finetune_vae_batchsize.sbatch`, new script):
+    **Launch** (new scripts, `--time` sized to each config's expected
+    wall-clock -- 12h for sng_pvc at 8 tiles, matching finetune_vae.sbatch's
+    own budget; 6h for lrz_ai at 1 GPU, matching finetune_vae_1gpu.job's):
     ```
-    BATCH_SIZE=1  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
-    BATCH_SIZE=2  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
-    BATCH_SIZE=4  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
-    BATCH_SIZE=8  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
-    BATCH_SIZE=16 sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
+    # sng_pvc, 8 XPU tiles -- capped at batch_size in {1, 2, 4}, see above
+    BATCH_SIZE=1  sbatch jobs/sng_pvc/finetune_vae_batchsize.sbatch
+    BATCH_SIZE=2  sbatch jobs/sng_pvc/finetune_vae_batchsize.sbatch
+    BATCH_SIZE=4  sbatch jobs/sng_pvc/finetune_vae_batchsize.sbatch
+
+    # lrz_ai, 1 GPU (H100) -- full range
+    BATCH_SIZE=1  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
+    BATCH_SIZE=2  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
+    BATCH_SIZE=4  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
+    BATCH_SIZE=8  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
+    BATCH_SIZE=16 sbatch jobs/lrz_ai/finetune_vae_batchsize.job
     ```
-    **NOT YET LAUNCHED (2026-08-15)** -- row written before submission per
+    **NOT YET LAUNCHED (2026-08-16)** -- row written before submission per
     protocol point 2; this machine has no direct cluster access, so
-    submission happens from the lundquist login node.
+    submission happens from each cluster's own login node.
+    (`jobs/lundquist/finetune_vae_batchsize.sbatch`, the original 2-GPU
+    script, remains available for a third cluster's read-out later.)
 
 ### Epoch budget / schedule-shape sweep (Open Question 20, resolved 2026-08-14)
 
