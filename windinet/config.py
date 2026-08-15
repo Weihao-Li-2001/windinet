@@ -597,7 +597,17 @@ class VaeVisualizationConfig(ConfigBaseModel):
 
     enabled: bool = Field(default=True)
     interval_epochs: int = Field(default=1, ge=1)
-    num_samples: int = Field(default=2, ge=1)
+    num_samples: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "How many eval sims to render, chosen as an evenly-spaced spread over the eval "
+            "set's gamma range rather than eval order -- 1 is the median gamma, 2 is "
+            "min/max, 3 (default) is min/median/max, N>3 adds evenly-spaced points between "
+            "the extremes. Selection is fixed per run (recomputed from eval_set, not "
+            "random), so the same sims are plotted every epoch."
+        ),
+    )
     frame_numbers: list[int] = Field(default=[25, 50, 75, 100], min_length=1)
     dpi: int = Field(default=150, ge=72)
 

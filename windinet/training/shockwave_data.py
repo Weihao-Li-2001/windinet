@@ -28,6 +28,11 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 
+def parse_gamma(sid: str) -> float:
+    """Physical adiabatic index encoded in a sample id, e.g. "0000_gamma1.22" -> 1.22."""
+    return float(sid.split("gamma")[1])
+
+
 class ShockWaveDataset(Dataset):
     """
     Load ShockWave CFD simulations from HDF5.
@@ -248,17 +253,8 @@ class ShockWaveDataset(Dataset):
             pressure = pressure[:self.num_sim_frames]
 
 
-        # parse gamma from name
-        # example:
-        # 0000_gamma1.2200000286
-
-        gamma = float(
-            sid.split("gamma")[1]
-        )
-
-
         gamma = torch.tensor(
-            gamma,
+            parse_gamma(sid),
             dtype=torch.float32
         )
 

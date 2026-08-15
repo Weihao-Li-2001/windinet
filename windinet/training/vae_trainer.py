@@ -66,7 +66,7 @@ from windinet.loss_weighting.utils import (
     compute_grad_norms,
 )
 
-from windinet.training.shockwave_data import ShockWaveDataset, build_shockwave_video
+from windinet.training.shockwave_data import ShockWaveDataset, build_shockwave_video, parse_gamma
 from windinet.training.vae_visualization import (
     denormalize_fields,
     save_metrics_history,
@@ -568,6 +568,26 @@ class VaeTrainer:
             num_workers=cfg.data.num_dataloader_workers,
         )
 
+        # Visualization samples: fixed sims spanning the gamma range (min,
+        # evenly-spaced middle point(s), max) rather than whichever sims
+        # happen to land first in eval_shard -- PhD-advisor-requested
+        # (2026-08-16), so figures always show the full physical regime, not
+        # an arbitrary pair. Computed over the full eval_set (not eval_shard)
+        # so the choice is independent of world_size -- every rank agrees,
+        # even though only IS_MAIN_PROCESS renders them (see
+        # _save_visualization's call site below).
+        vis_gammas = [parse_gamma(full_dataset.ids[i]) for i in eval_set.indices]
+        gamma_order = sorted(range(len(vis_gammas)), key=lambda k: vis_gammas[k])
+        n_vis = min(cfg.visualization.num_samples, len(gamma_order))
+        if n_vis == 1:
+            vis_picks = [gamma_order[len(gamma_order) // 2]]
+        else:
+            vis_picks = [
+                gamma_order[round(i * (len(gamma_order) - 1) / (n_vis - 1))]
+                for i in range(n_vis)
+            ]
+        vis_loader = DataLoader(Subset(eval_set, vis_picks), batch_size=1, shuffle=False)
+
         logger.info(f"Dataset: {n_train} train, {n_eval} eval samples")
 
         # Optimizer. The channel interface (adapters, or the inflated
@@ -939,7 +959,7 @@ class VaeTrainer:
                     vis_t0 = time.time()
                     vis_cfg = cfg.visualization
                     if vis_cfg.enabled and epoch % vis_cfg.interval_epochs == 0:
-                        self._save_visualization(eval_loader, device, epoch)
+                        self._save_visualization(vis_loader, device, epoch)
                     vis_elapsed = time.time() - vis_t0
 
                     monitored = (
@@ -1066,15 +1086,14 @@ class VaeTrainer:
         return {name: value / max(1, count) for name, value in sums.items()}
 
     @torch.no_grad()
-    def _save_visualization(self, eval_loader: DataLoader, device: torch.device, epoch: int) -> None:
-        """Render fixed validation samples at configured physical frame numbers."""
+    def _save_visualization(self, vis_loader: DataLoader, device: torch.device, epoch: int) -> None:
+        """Render the fixed gamma-spread validation samples (see train()'s vis_loader) at
+        configured physical frame numbers."""
         cfg = self._config
         vis_cfg = cfg.visualization
         self._set_trainable_modules_mode(False)
         saved_count = 0
-        for sample_index, batch in enumerate(eval_loader):
-            if sample_index >= vis_cfg.num_samples:
-                break
+        for sample_index, batch in enumerate(vis_loader):
             orig_F = batch["density"].shape[1]
             x = build_shockwave_video(
                 batch,
