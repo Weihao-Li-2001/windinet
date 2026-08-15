@@ -23,11 +23,17 @@ pip install -e ".[training]"
 
 ### Base weights
 
-The LTX-Video weights every stage builds on live in the repo under `pretrained/hub/`
-(~8.4 GB, gitignored), not in `~/.cache/huggingface`. `windinet/paths.py` resolves that
-path relative to the checkout, so nothing needs configuring on a new machine — only the
-files themselves. See [pretrained/README.md](pretrained/README.md) for how to populate a
-fresh checkout and for the `WINDINET_HF_CACHE` override.
+By default, LTX-Video weights download to `huggingface_hub`'s own cache
+(`~/.cache/huggingface`) like any other project -- no setup needed. Set
+`WINDINET_HF_CACHE=/path/to/dir` (`windinet/paths.py`) to redirect to a
+different location instead -- e.g. lundquist's `jobs/lundquist/*.sbatch`
+launchers point it at an in-repo `pretrained/hub/` (~8.4 GB, gitignored) so
+a checkout there is self-contained. **This is opt-in per machine, not a
+repo-wide default** -- sng_pvc and lrz_ai deliberately leave it unset and
+use the ordinary `~/.cache/huggingface` location (lrz_ai's `$HOME` is
+DSS-quota'd and can't absorb an in-repo copy). See
+[pretrained/README.md](pretrained/README.md) for the layout and how to
+populate one.
 
 ## Training
 

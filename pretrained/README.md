@@ -1,8 +1,15 @@
 # Pretrained base weights
 
-The LTX-Video weights WinDiNet builds on live here, in `pretrained/hub/`, instead
-of in `~/.cache/huggingface/hub`. A checkout is therefore self-contained: nothing
-outside the repo has to be present for training, preprocessing, or inference.
+**Only in use on lundquist.** By default (every other machine, including
+sng_pvc and lrz_ai) weights download to `huggingface_hub`'s own cache,
+`~/.cache/huggingface/hub` -- nothing here applies unless `WINDINET_HF_CACHE`
+is explicitly set, which only `jobs/lundquist/*.sbatch` do. This directory
+exists so a lundquist checkout is self-contained there: nothing outside the
+repo has to be present for training, preprocessing, or inference on that
+machine specifically. sng_pvc and lrz_ai must keep using the ordinary
+`~/.cache/huggingface` location -- lrz_ai's `$HOME` is DSS-quota'd and can't
+absorb an in-repo copy (job 5750198, "Disk quota exceeded", 2026-08-15,
+from an earlier version of this setup that redirected every cluster).
 
 `pretrained/hub/` is a regular HuggingFace hub cache, so `huggingface_hub` reads
 it offline and writes new downloads into it unchanged:
@@ -17,15 +24,19 @@ The contents are gitignored — 8.4 GB does not belong in git history.
 
 ## How the path is resolved
 
-`windinet/paths.py` derives `HF_CACHE_DIR` from the package location, so it
-follows the checkout wherever it sits. `import windinet` exports `HF_HUB_CACHE`
-early (before `huggingface_hub` freezes its constants), and every load call in
-`windinet/inference/model_loader.py` additionally passes `cache_dir=` explicitly.
-The `jobs/**/*.sbatch` scripts export `HF_HUB_CACHE="${PWD}/pretrained/hub"` too,
-which covers subprocesses that never import `windinet`.
+`windinet/paths.py`'s `HF_CACHE_DIR` is `None` -- and `import windinet` a
+no-op for cache purposes -- unless `WINDINET_HF_CACHE` is set in the
+environment; every load call in `windinet/inference/model_loader.py`
+passes `cache_dir=` explicitly, so it also does nothing without that env
+var (would pass the string `"None"` otherwise, hence the explicit guard in
+that module). `jobs/lundquist/*.sbatch` export `HF_HUB_CACHE="${PWD}/pretrained/hub"`
+directly at the shell level (not via `WINDINET_HF_CACHE`), which covers
+subprocesses that never import `windinet` too -- this is the only place
+that happens; `jobs/sng_pvc/*.sbatch` and `jobs/lrz_ai/*.job` deliberately
+do not.
 
-Set `WINDINET_HF_CACHE=/path/to/hub` to point at a copy elsewhere (shared scratch,
-a cluster-wide cache).
+Set `WINDINET_HF_CACHE=/path/to/hub` on a machine that should also use an
+in-repo (or shared) cache to point `windinet.paths`/`model_loader.py` at it.
 
 ## Populating a fresh checkout
 

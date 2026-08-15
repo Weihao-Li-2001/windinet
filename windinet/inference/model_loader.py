@@ -23,8 +23,10 @@ from windinet.paths import HF_CACHE_DIR
 
 HF_MAIN_REPO = "Lightricks/LTX-Video"
 
-# Every download/lookup goes to the in-repo hub cache, never to ~/.cache/huggingface.
-CACHE_DIR = str(HF_CACHE_DIR)
+# None (huggingface_hub's own default) unless WINDINET_HF_CACHE is set --
+# see windinet/paths.py's module docstring. str(HF_CACHE_DIR) here would
+# turn a real None into the literal string "None" if it weren't guarded.
+CACHE_DIR = str(HF_CACHE_DIR) if HF_CACHE_DIR is not None else None
 
 
 class LtxvModelVersion(str, Enum):
