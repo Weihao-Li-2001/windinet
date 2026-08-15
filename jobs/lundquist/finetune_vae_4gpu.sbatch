@@ -7,7 +7,7 @@
 #SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
 #SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
 
-# 4-GPU variant of jobs/lundquist/finetune_vae_6gpu.sbatch.
+# 4-GPU launcher for this cluster.
 #
 # Submit with:   sbatch jobs/lundquist/finetune_vae_4gpu.sbatch
 # Watch with:    tail -f log_finetuning_vae/lundquist/wh_finetune_vae_<jobid>.log
@@ -21,7 +21,8 @@
 #
 # That is byte-identical to the outputs/vae_inflate4_more and vae_meaninit
 # runs, so val_vrmse from this job is directly comparable to their 0.10489 /
-# 0.10177. The 6-GPU job is not (accum 5 -> batch 30, 1280 steps).
+# 0.10177. (The old 6-GPU launcher was not -- accum 5 -> batch 30, 1280
+# steps -- and has since been retired, see jobs/lundquist/README.md.)
 #
 # The baseline config ships gradient_accumulation_steps: 8, so this
 # script patches it to 8 rather than forking another checked-in YAML. The

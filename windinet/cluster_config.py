@@ -17,8 +17,11 @@ CLUSTER_DEFAULTS = {
         "data_root": "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5",
         # Repo-relative, shared by every lundquist GPU-count variant on
         # purpose: there's one lundquist result at a time, not one per GPU
-        # count, so the 2/4/6-GPU scripts all land here regardless of
-        # output_suffix. clean_output_dir wipes it at the start of each run.
+        # count, so the 2/4-GPU scripts all land here regardless of
+        # output_suffix (the batch_size sweep is the deliberate exception --
+        # see jobs/lundquist/finetune_vae_batchsize.sbatch, it always passes
+        # a real output_suffix). clean_output_dir wipes it at the start of
+        # each run.
         "output_root": "finetune_vae_outputs/lundquist",
         "num_dataloader_workers": 4,
         "effective_batch": 32,
@@ -69,16 +72,18 @@ def patch_config_for_cluster(
     Overrides data_root and num_dataloader_workers from CLUSTER_DEFAULTS,
     derives gradient_accumulation_steps from the target effective batch
     (CLUSTER_DEFAULTS[cluster]["effective_batch"], or `effective_batch` to
-    override it -- e.g. lundquist's 6-GPU script targets 30, not 32, because
-    32 isn't divisible by 6 ranks) and num_processes, so every cluster/GPU
-    count combination trains on the same effective batch without hand-tuning
+    override it -- e.g. lundquist's debug launcher passes effective_batch=1
+    to hit an exact one-optimizer-step-per-sim diagnostic instead of the
+    cluster default) and num_processes, so every cluster/GPU count
+    combination trains on the same effective batch without hand-tuning
     the multiplier. output_dir gets output_suffix appended, then gets
     relocated under the cluster's output_root (its own top-level results
     folder, e.g. sng_pvc's $SCRATCH). output_suffix is typically "" for
     scripts that intentionally share one cluster-wide output_dir (lundquist's
-    2/4/6-GPU variants all overwrite the same run on purpose -- see
+    2/4-GPU variants all overwrite the same run on purpose -- see
     CLUSTER_DEFAULTS); pass a real suffix only when two scripts sharing a
-    cluster must NOT overwrite each other's output.
+    cluster must NOT overwrite each other's output (e.g. lundquist's
+    batch_size sweep, one output_dir per `BATCH_SIZE`).
 
     data_root overrides CLUSTER_DEFAULTS[cluster]["data_root"] verbatim (no
     {scratch} formatting -- pass an already-expanded path) for runs against a

@@ -7,7 +7,7 @@
 #SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
 #SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
 
-# 2-GPU variant of jobs/lundquist/finetune_vae_6gpu.sbatch.
+# 2-GPU launcher for this cluster.
 #
 # Submit with:   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch
 # Watch with:    tail -f log_finetuning_vae/lundquist/vae_2gpu_<jobid>.log

@@ -45,6 +45,21 @@ verdict **after** it finishes.
   been re-run under the new value; until it is, job 521887's own directory
   (`finetune_vae_whole_structure_baseline_enclr0p3x`) is the authoritative
   reproduction of what "baseline" now means.
+- **New reference baseline (as of 2026-08-15)**: `encoder_tail_lr_multiplier`
+  dropped from 0.3x to **1.0x** -- encoder now trains at the same LR as the
+  decoder, no reduced-caution multiplier. PhD-advisor-requested, on
+  parsimony grounds (one fewer hyperparameter to carry if it isn't earning
+  its keep). Motivated by re-running Open Question 6's 0.3x-vs-1.0x
+  comparison under the now-current 30-epoch regime (`_ep30_enclr1x.yaml`,
+  job 524322, val_vrmse **0.078662**) against the 30-epoch 0.3x baseline
+  (job 523909, val_vrmse 0.078504) -- **+0.20%, inside the ~1.1% seed noise
+  floor**, the same tie the original 15-epoch sweep found (0.8%). Two
+  independent confirmations at two epoch budgets with no measurable cost:
+  adopted. `configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml`
+  updated in place (`0.3 -> 1.0`) -- **every follow-up change should now be
+  diffed against 1.0x**. Job 524322's own directory
+  (`finetune_vae_whole_structure_baseline_ep30_enclr1x`) is the authoritative
+  reproduction until the file itself is re-run under the new value.
 
 ## Fixed setup (identical in every 15-epoch run)
 
@@ -517,6 +532,18 @@ discontinuities. 5x spread, same model, same epoch.
    "New reference baseline (as of 2026-08-08)" note above: that file's
    `encoder_tail_lr_multiplier` has since been bumped to 0.3x, so job
    521885's 0.1x result is no longer what the file reproduces.
+
+   **Re-verified at 30 epochs (2026-08-15), 1.0x adopted.** The 0.3x-vs-1.0x
+   tie above was measured on the 15-epoch schedule; the PhD advisor asked
+   to re-check it under the now-current 30-epoch regime before trusting the
+   original margin, since more training steps could in principle let the
+   unfrozen pretrained trunk drift under the higher LR in a way 15 epochs
+   wouldn't show. `finetune_vae_whole_structure_baseline_ep30_enclr1x.yaml`
+   (job 524322, val_vrmse **0.078662**) vs the 30-epoch 0.3x baseline (job
+   523909, 0.078504): **+0.20%**, still inside the ~1.1% seed noise floor --
+   if anything a tighter tie than at 15 epochs (0.8%). No sign of the
+   drift risk showing up with more steps. 1.0x adopted as the new default;
+   see "New reference baseline (as of 2026-08-15)" at the top of this file.
 
    **Timing caveat (still applies):** all four were submitted at 10:34
    CEST, *before* the eval-parallelization fix (commit `f9c8541`, pulled
@@ -1010,6 +1037,57 @@ discontinuities. 5x spread, same model, same epoch.
     ```
     **RESULT: see "KL divergence weight sweep (Open Question 22, resolved
     2026-08-14)" below for the full readout.**
+23. **Does per-GPU micro-batch size (`optimization.batch_size`) change
+    results or only wall-clock/OOM feasibility?**
+    **THE QUESTION:** every run in this ledger so far uses `batch_size: 1`,
+    with `gradient_accumulation_steps` doing all the work of reaching
+    `effective_batch` (32, `windinet/cluster_config.py`'s cluster default)
+    -- many small, serialized micro-steps per optimizer step. Larger
+    `batch_size` at the same `effective_batch` changes nothing about the
+    optimizer trajectory *in principle*: total optimizer steps and the LR
+    schedule are derived from `effective_batch`/`n_train`, not `batch_size`
+    (`patch_config_for_cluster` re-derives `gradient_accumulation_steps` so
+    `num_processes x batch_size x accum` always equals 32, holding steps-
+    per-epoch at ~120 regardless of the split -- per-rank micro-batches
+    scale as `1913/batch_size`, accum as `16/batch_size`, their ratio
+    constant). What changes is (a) how many samples sit in GPU memory at
+    once per forward/backward -- an OOM risk larger `batch_size`
+    introduces that accumulation never did -- and (b) how much of the
+    effective batch is assembled via true parallelism (one bigger kernel
+    launch) vs sequential accumulation, which could shift wall-clock either
+    direction (less per-step Python/comm overhead vs worse memory-bandwidth
+    utilization).
+    **HYPOTHESIS:** val_vrmse should be indistinguishable across arms (same
+    optimizer trajectory); the real questions are (1) which `batch_size`
+    values survive without OOM on each cluster's GPU, and (2) how wall-clock
+    actually moves.
+    **Sweep:** `batch_size` in {1 (reference), 2, 4, 8, 16},
+    `finetune_vae_whole_structure_baseline.yaml` (18ep) held fixed
+    otherwise. Starting with **lundquist** (2 GPUs, A6000) -- sng_pvc
+    (Intel XPU) and lrz_ai (H100) to follow once lundquist's read-out is
+    in, since GPU memory capacity differs by cluster and a size that fits
+    on one may not fit on another.
+    **Read-out:** per arm, (a) OOM or not, (b) final val_vrmse vs the
+    `batch_size=1` reference (bar: >2.2%, 2x the noise floor, would be
+    surprising and worth explaining), (c) wall-clock/per-epoch timing vs
+    the reference. `batch_size=1` also fills in lundquist's own missing
+    reference point for this config -- previously only run on sng_pvc (job
+    523577, val_vrmse 0.08360).
+    **Kill criterion:** none in the usual train_loss sense -- OOM itself
+    *is* the informative outcome for an arm here, not a bug to abort on.
+    Only a non-memory failure (train_loss diverging, unrelated crash) would
+    count as a real bug.
+    **Launch** (`jobs/lundquist/finetune_vae_batchsize.sbatch`, new script):
+    ```
+    BATCH_SIZE=1  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
+    BATCH_SIZE=2  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
+    BATCH_SIZE=4  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
+    BATCH_SIZE=8  sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
+    BATCH_SIZE=16 sbatch jobs/lundquist/finetune_vae_batchsize.sbatch
+    ```
+    **NOT YET LAUNCHED (2026-08-15)** -- row written before submission per
+    protocol point 2; this machine has no direct cluster access, so
+    submission happens from the lundquist login node.
 
 ### Epoch budget / schedule-shape sweep (Open Question 20, resolved 2026-08-14)
 
@@ -1058,6 +1136,26 @@ the PhD advisor asked about.
 
 **Kill criterion:** none triggered; all four completed 30/30 epochs with
 monotonically-recovering `train_loss`, no epoch-2-above-epoch-1 pattern.
+
+**Extension: cosine schedule tried and rejected (2026-08-15).** A fifth
+arm, `_ep30_cosine.yaml` (job 524309, `scheduler_type: "wsd" -> "cosine"`,
+same 30-epoch budget, everything else unchanged), landed val_vrmse
+**0.08136** vs (a)'s 0.078504 -- **+3.64%, clears the 2.2% (2x noise floor)
+bar, a real regression.** Cause is visible directly in the `learning_rate`
+column: the wsd schedule holds flat at the 5e-05 peak through epoch 21
+(`stable_fraction 0.7`), only decaying in the last ~9 epochs, while cosine
+starts decaying immediately from epoch 2 and is already down to 1.46e-05 by
+epoch 20 -- a level wsd doesn't reach until epoch 27. Cosine spends far
+less of the 30-epoch budget at/near peak LR, which reads directly as the
+regression. **Not adopted** -- wsd remains the schedule for the baseline.
+
+**Extension: 40-epoch arm incomplete, needs a longer time limit
+(2026-08-15).** `_ep40.yaml` (job 524308, `epochs: 30 -> 40`, same
+launch batch as the cosine arm above) was cancelled by Slurm at the
+12h `--time` limit in `jobs/sng_pvc/finetune_vae.sbatch`, reaching only
+epoch 32/40 (~1245-1290s/epoch observed -> 40 epochs needs ~14h). No
+result -- re-launch with a longer `--time` before drawing any conclusion
+about whether 40 epochs beats 30.
 
 ### Fresh-channel init, zeros vs mean (Open Question 21, resolved 2026-08-14)
 

@@ -35,14 +35,24 @@ script lives.
 |---|---|---|---|---|
 | `finetune_vae_2gpu.sbatch` | 2 | 16 | 32 | `scripts/finetune_vae.py` |
 | `finetune_vae_4gpu.sbatch` | 4 | 8 | 32 | `scripts/finetune_vae.py` |
-| `finetune_vae_6gpu.sbatch` | 6 | 5 | 30 | `scripts/finetune_vae.py` |
+| `finetune_vae_batchsize.sbatch` | 2 | derived from `BATCH_SIZE` | 32 | `scripts/finetune_vae.py` |
 | `train_dit.sbatch` | 4 | - | - | `scripts/train.py` |
 | `finetune_vae_debug.sbatch` | 1 | 1 | 1 | `scripts/finetune_vae.py` |
 
 The 2- and 4-GPU variants patch `gradient_accumulation_steps` so both land on
 effective batch 32 and 1800 optimizer steps -- results from them are directly
-comparable. **The 6-GPU variant is not** (batch 30, different step count); do
-not compare its `val_vrmse` against the ledger without noting this.
+comparable. `finetune_vae_batchsize.sbatch` also targets effective batch 32
+(same step count, see `EXPERIMENTS.md` Open Question 23) but sweeps the
+`batch_size`/accum split at a fixed 2 GPUs instead of GPU count -- comparable
+to `finetune_vae_2gpu.sbatch`'s own result, its `BATCH_SIZE=1` arm.
+
+**Retired (2026-08-15): the 6-GPU variant.** `finetune_vae_6gpu.sbatch` is
+gone -- it targeted effective batch 30 (32 isn't divisible by 6 ranks), a
+different step count from every other launcher here, so its results were
+never directly comparable to the ledger without a caveat. No longer in use;
+its historical runs (job 21618 and similar, `vae_inflate4_tail3x` etc. in
+`EXPERIMENTS.md`) stand as-is, just not reproducible via a checked-in script
+anymore.
 
 `finetune_vae_debug.sbatch` is a different kind of script, not a smaller version of the
 others: its default config is `finetune_vae_overfit.yaml`, the overfit-8
@@ -52,13 +62,16 @@ explicitly rather than taking the cluster default of 32, and its `val_vrmse`
 is not comparable to the ledger at all -- see `EXPERIMENTS.md` Open
 Questions #2.
 
-**All three write to the same `output_dir`** (`finetune_vae_outputs/lundquist/<run>`,
-no per-GPU-count suffix -- see `windinet/cluster_config.py`), on purpose:
-there's one current lundquist result, not one per GPU count. `clean_output_dir:
-true` wipes that directory at the start of every run, so submitting a
-different variant overwrites whatever the previous one produced. If you need
-to keep results from two variants side by side, copy the output_dir out
-before submitting the next one.
+**The 2- and 4-GPU variants write to the same `output_dir`**
+(`finetune_vae_outputs/lundquist/<run>`, no per-GPU-count suffix -- see
+`windinet/cluster_config.py`), on purpose: there's one current lundquist
+result, not one per GPU count. `clean_output_dir: true` wipes that directory
+at the start of every run, so submitting a different variant overwrites
+whatever the previous one produced. If you need to keep results from two
+variants side by side, copy the output_dir out before submitting the next
+one. `finetune_vae_batchsize.sbatch` is the exception -- it suffixes
+`output_dir` per `BATCH_SIZE` on purpose (`_bs1`, `_bs2`, ...) so its five
+arms don't overwrite each other.
 
 Each job appends a row to `log_finetuning_vae/lundquist/INDEX.tsv` mapping job
 id -> config -> output_dir. See `../../EXPERIMENTS.md` for results and

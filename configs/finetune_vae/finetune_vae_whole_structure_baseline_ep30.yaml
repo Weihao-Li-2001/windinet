@@ -45,6 +45,16 @@
 #
 # Usage:
 #   sbatch jobs/sng_pvc/finetune_vae.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml
+#
+# UPDATE (2026-08-15): encoder_tail_lr_multiplier bumped 0.3 -> 1.0 (encoder
+# now shares the decoder's LR, no reduced-caution multiplier). PhD-advisor-
+# requested on parsimony grounds. `_ep30_enclr1x.yaml` (job 524322,
+# val_vrmse 0.078662) re-verified the 15-epoch tie (Open Question 6,
+# 0.08516 vs 0.08584, ~0.8%) still holds at 30 epochs against this file's
+# own 0.3x result (job 523909, val_vrmse 0.078504, ~0.20% apart, inside the
+# ~1.1% seed noise floor both times) -- no measurable cost to dropping the
+# multiplier, so it's retired here. See EXPERIMENTS.md "New reference
+# baseline (as of 2026-08-15)".
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -75,7 +85,7 @@ data:
 optimization:
   learning_rate: 5e-5
   adapter_lr_multiplier: 1.0
-  encoder_tail_lr_multiplier: 0.3
+  encoder_tail_lr_multiplier: 1.0
   min_learning_rate: 1e-6
   scheduler_type: "wsd"
   stable_fraction: 0.7
