@@ -240,3 +240,9 @@ finetune_vae_outputs/sng_pvc/**/metrics/loss_curves.png
 finetune_vae_outputs/lrz_ai/**/visualizations/
 finetune_vae_outputs/lrz_ai/**/metrics/loss_curves.png
 checkpoints/
+
+# In-repo HuggingFace cache for the LTX-Video base weights (~8.4 GB).
+# The weights themselves stay out of git; pretrained/README.md explains how to
+# get them (rsync from another checkout, or let the loader re-download).
+pretrained/*
+!pretrained/README.md

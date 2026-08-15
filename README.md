@@ -21,6 +21,14 @@ pip install -e .
 pip install -e ".[training]"
 ```
 
+### Base weights
+
+The LTX-Video weights every stage builds on live in the repo under `pretrained/hub/`
+(~8.4 GB, gitignored), not in `~/.cache/huggingface`. `windinet/paths.py` resolves that
+path relative to the checkout, so nothing needs configuring on a new machine — only the
+files themselves. See [pretrained/README.md](pretrained/README.md) for how to populate a
+fresh checkout and for the `WINDINET_HF_CACHE` override.
+
 ## Training
 
 Training has two stages: (1) finetuning the VAE to reconstruct the 4-channel CFD fields, then (2) training the diffusion transformer (DiT) on the resulting latents.

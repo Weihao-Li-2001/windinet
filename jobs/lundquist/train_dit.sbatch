@@ -29,6 +29,9 @@ set -euo pipefail
 PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python
 cd /local/disk/hramachandran/work/wh_work/windinet
 
+# LTX base weights ship with the repo (pretrained/hub), not ~/.cache/huggingface.
+export HF_HUB_CACHE="${PWD}/pretrained/hub"
+
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"
 
 # See the note in jobs/lundquist/finetune_vae_4gpu.sbatch -- keeps log_finetuning_vae/lundquist/ self-describing.

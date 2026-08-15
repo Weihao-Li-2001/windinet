@@ -46,6 +46,10 @@ micromamba activate windinet   # env with an XPU-enabled torch +
 
 cd /dss/dsshome1/0D/go76fuz2/windinet
 
+# LTX base weights ship with the repo (pretrained/hub), not ~/.cache/huggingface.
+# Sync them once from lundquist: rsync -a <lundquist>:.../windinet/pretrained/ pretrained/
+export HF_HUB_CACHE="${PWD}/pretrained/hub"
+
 echo "START TIME: $(date)"
 echo "job=${SLURM_JOB_ID} node=$(hostname)"
 xpu-smi discovery || true

@@ -34,6 +34,9 @@ set -euo pipefail
 PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python
 cd /local/disk/hramachandran/work/wh_work/windinet
 
+# LTX base weights ship with the repo (pretrained/hub), not ~/.cache/huggingface.
+export HF_HUB_CACHE="${PWD}/pretrained/hub"
+
 # Defaults to the overfit-8 diagnostic; pass any other config as $1, e.g.
 #   sbatch jobs/lundquist/finetune_vae_debug.sbatch configs/finetune_vae/<your-config>.yaml
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_overfit.yaml}

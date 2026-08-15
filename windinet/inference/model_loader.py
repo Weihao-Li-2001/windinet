@@ -19,7 +19,12 @@ from diffusers import (
 )
 from pydantic import BaseModel, ConfigDict
 
+from windinet.paths import HF_CACHE_DIR
+
 HF_MAIN_REPO = "Lightricks/LTX-Video"
+
+# Every download/lookup goes to the in-repo hub cache, never to ~/.cache/huggingface.
+CACHE_DIR = str(HF_CACHE_DIR)
 
 
 class LtxvModelVersion(str, Enum):
@@ -94,6 +99,7 @@ def load_scheduler() -> FlowMatchEulerDiscreteScheduler:
     return FlowMatchEulerDiscreteScheduler.from_pretrained(
         LtxvModelVersion.LTXV_13B_097_DEV.hf_repo,
         subfolder="scheduler",
+        cache_dir=CACHE_DIR,
     )
 
 
@@ -118,23 +124,30 @@ def load_vae(
                 LtxvModelVersion.LTXV_2B_095.hf_repo,
                 subfolder="vae",
                 torch_dtype=dtype,
+                cache_dir=CACHE_DIR,
             )
         return AutoencoderKLLTXVideo.from_single_file(
             source.safetensors_url,
             torch_dtype=dtype,
+            cache_dir=CACHE_DIR,
         )
     elif isinstance(source, (str, Path)):
         if _is_safetensors_url(source):
             try:
-                return AutoencoderKLLTXVideo.from_single_file(source, torch_dtype=dtype)
+                return AutoencoderKLLTXVideo.from_single_file(source, torch_dtype=dtype, cache_dir=CACHE_DIR)
             except ValueError as e:
                 if "Cannot load  because encoder.conv_out.conv.weight" in str(e):
                     return AutoencoderKLLTXVideo.from_pretrained(
-                        LtxvModelVersion.LTXV_2B_095.hf_repo, subfolder="vae", torch_dtype=dtype,
+                        LtxvModelVersion.LTXV_2B_095.hf_repo,
+                        subfolder="vae",
+                        torch_dtype=dtype,
+                        cache_dir=CACHE_DIR,
                     )
                 raise e
         elif _is_huggingface_repo(source):
-            return AutoencoderKLLTXVideo.from_pretrained(source, subfolder="vae", torch_dtype=dtype)
+            return AutoencoderKLLTXVideo.from_pretrained(
+                source, subfolder="vae", torch_dtype=dtype, cache_dir=CACHE_DIR,
+            )
 
     raise ValueError(f"Invalid model source: {source}")
 
@@ -243,17 +256,21 @@ def load_transformer(
     if isinstance(source, LtxvModelVersion):
         if source in (LtxvModelVersion.LTXV_13B_097_DEV, LtxvModelVersion.LTXV_13B_097_DISTILLED):
             return _load_ltxv_13b_transformer(source.safetensors_url, dtype=dtype)
-        return LTXVideoTransformer3DModel.from_single_file(source.safetensors_url, torch_dtype=dtype)
+        return LTXVideoTransformer3DModel.from_single_file(
+            source.safetensors_url, torch_dtype=dtype, cache_dir=CACHE_DIR,
+        )
     elif isinstance(source, (str, Path)):
         if _is_safetensors_url(source):
             try:
-                return LTXVideoTransformer3DModel.from_single_file(source, torch_dtype=dtype)
+                return LTXVideoTransformer3DModel.from_single_file(source, torch_dtype=dtype, cache_dir=CACHE_DIR)
             except ValueError as e:
                 if "Cannot load  because time_embed.emb.timestep_embedder.linear_1.bias" in str(e):
                     return _load_ltxv_13b_transformer(source, dtype=dtype)
                 raise e
         elif _is_huggingface_repo(source):
-            return LTXVideoTransformer3DModel.from_pretrained(source, subfolder="transformer", torch_dtype=dtype)
+            return LTXVideoTransformer3DModel.from_pretrained(
+                source, subfolder="transformer", torch_dtype=dtype, cache_dir=CACHE_DIR,
+            )
 
     raise ValueError(f"Invalid model source: {source}")
 
@@ -314,4 +331,6 @@ def _load_ltxv_13b_transformer(safetensors_url: str, *, dtype: torch.dtype) -> L
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json") as f:
         json.dump(transformer_13b_config, f)
         f.flush()
-        return LTXVideoTransformer3DModel.from_single_file(safetensors_url, config=f.name, torch_dtype=dtype)
+        return LTXVideoTransformer3DModel.from_single_file(
+            safetensors_url, config=f.name, torch_dtype=dtype, cache_dir=CACHE_DIR,
+        )
