@@ -1,0 +1,139 @@
+#!/bin/bash
+#SBATCH -J windinet_2gpu
+###-------------------------------------
+#SBATCH -p lrz-hgx-h100-94x4
+###------------------------------------
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=96
+#SBATCH --time=06:00:00
+#SBATCH --gres=gpu:2  #gpus per node
+#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
+#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+
+# 2-GPU variant of jobs/lrz_ai/finetune_vae_1gpu.job -- same script, only the
+# #SBATCH --gres/--cpus-per-task header differs (torchrun --nproc_per_node
+# and patch_config_for_cluster's num_processes are both already derived from
+# SLURM_GPUS_ON_NODE below, not hard-coded, so nothing else needed to change).
+#
+# Written for the queue-wait / wall-clock comparison in EXPERIMENTS.md
+# (2026-08-16): lrz_ai's 1-GPU queue wait is under 2h but training itself is
+# slow single-GPU; this tests whether 2/4-GPU requests queue for
+# meaningfully longer and how much wall-clock that buys back.
+#
+# --cpus-per-task=96 is 48/GPU x 2, scaled proportionally from the 1-GPU
+# script's 48 -- UNVERIFIED against this partition's actual per-node core
+# count (partition name suggests 4 GPUs/node, unclear core total). If the
+# job stays PENDING with a "Requested node configuration is not available"
+# reason, lower this.
+#
+# Submit from the repo root so the #SBATCH -o/-e paths above resolve:
+#   sbatch jobs/lrz_ai/finetune_vae_2gpu.job [configs/finetune_vae/<your-config>.yaml]
+#
+# To read the queue wait once this lands, from Submit to Start:
+#   sacct -j <jobid> -X -o JobID,Submit,Start,Elapsed,State
+#
+# $2 (optional) overrides DATA_DIR, same as finetune_vae_1gpu.job -- see that
+# script's header for the full explanation.
+
+echo "Directory where err and out file are logged: ${SLURM_SUBMIT_DIR}"
+
+export RESULT_DIR=/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline
+export DATA_DIR=${2:-/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/128x128_ds}
+
+# Base config to patch; override with: sbatch jobs/lrz_ai/finetune_vae_2gpu.job configs/finetune_vae/<your-config>.yaml
+export BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+
+# Rendezvous settings
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+echo "MASTER_ADDR: $MASTER_ADDR"
+
+# Pick a free port on this node
+export MASTER_PORT=$(python - <<'PY'
+import socket
+s = socket.socket()
+s.bind(('', 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+echo "MASTER_PORT: $MASTER_PORT"
+echo "SLURM_NODEID: $SLURM_NODEID"
+echo "SLURM_NNODES: $SLURM_NNODES"
+
+# World size = number of GPUs on this node
+echo "SLURM_GPUS_PER_NODE: $SLURM_GPUS_ON_NODE"
+export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_GPUS_ON_NODE))
+echo "WORLD_SIZE: $WORLD_SIZE"
+
+export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((WORLD_SIZE-1)))
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+
+# Everything that has to run inside the container (config patch, training,
+# mirroring the run back onto the DSS-backed repo checkout) lives in its own
+# script instead of one giant escaped `bash -lc "..."` string -- $HOME is
+# bind-mounted 1:1 into the container below, so a script written here on the
+# host is visible at the same path inside the container. Cleaned up on exit.
+INNER_SCRIPT="${HOME}/.windinet_lrz_ai_run_${SLURM_JOB_ID}.sh"
+trap 'rm -f "${INNER_SCRIPT}"' EXIT
+cat > "${INNER_SCRIPT}" <<'INNER'
+set -eo pipefail
+# `conda activate` refuses to run in a non-interactive shell (this script)
+# until the shell has sourced conda's own init hook -- see finetune_vae_1gpu.job's
+# header for the fuller explanation (jobs 5744998/5744999, 2026-08-12).
+eval "$(conda shell.bash hook)"
+conda activate windinet
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+export PYTHONPATH="$(pwd):$PYTHONPATH"
+export RUN_CONFIG="/tmp/finetune_vae_run_${SLURM_JOB_ID}.yaml"
+
+python -c '
+import os, yaml
+from windinet.cluster_config import patch_config_for_cluster
+cfg = yaml.safe_load(open(os.environ["BASE_CONFIG"]))
+patch_config_for_cluster(cfg, cluster="lrz_ai", num_processes=int(os.environ["SLURM_GPUS_ON_NODE"]), output_suffix="")
+yaml.safe_dump(cfg, open(os.environ["RUN_CONFIG"], "w"), sort_keys=False)
+print("output_dir=" + cfg["output_dir"] + " data_root=" + cfg["data"]["data_root"])
+'
+OUT_DIR=$(python -c 'import os, yaml; print(yaml.safe_load(open(os.environ["RUN_CONFIG"]))["output_dir"])')
+
+# Make log_finetuning_vae/lrz_ai/ self-describing: one row per job mapping
+# the log to the config it ran and the output_dir it wrote, same convention
+# as log_finetuning_vae/{sng_pvc,lundquist}/INDEX.tsv.
+printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
+    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/lrz_ai/INDEX.tsv
+
+torchrun \
+  --nnodes=${SLURM_JOB_NUM_NODES} \
+  --nproc_per_node=${SLURM_GPUS_ON_NODE} \
+  --rdzv_id=${SLURM_JOB_ID} \
+  --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
+  --rdzv-backend=c10d \
+  scripts/finetune_vae.py "${RUN_CONFIG}"
+
+# Mirror the run's visualizations/metrics/config back onto the DSS-backed
+# repo checkout -- see finetune_vae_1gpu.job's header for the full
+# explanation. Assumes rsync is available inside the container image.
+OUTPUT_ROOT=$(python -c 'from windinet.cluster_config import CLUSTER_DEFAULTS; print(CLUSTER_DEFAULTS["lrz_ai"]["output_root"])')
+RUN_NAME=${OUT_DIR#"${OUTPUT_ROOT}/"}
+LOCAL_DIR="finetune_vae_outputs/lrz_ai/${RUN_NAME}"
+mkdir -p "${LOCAL_DIR}"
+rsync -a --exclude='checkpoints/' "${OUT_DIR}/" "${LOCAL_DIR}/"
+echo "Mirrored (excl. checkpoints/) to ${LOCAL_DIR}"
+INNER
+
+start_time=$(date +%s)
+echo "Job started at: $(date)"
+
+# No --pty: this is a batch job (submitted via sbatch, no attached terminal),
+# not an interactive session.
+srun \
+  --container-image="/dss/dsshome1/09/ge26qux3/windinet1.sqsh" \
+  --container-mounts=$HOME:$HOME,$RESULT_DIR:/mnt/result,$DATA_DIR:/mnt/data \
+  --container-workdir="$HOME/work_wh/windinet" \
+  --export=ALL,MASTER_PORT,MASTER_ADDR,WORLD_SIZE,CUDA_VISIBLE_DEVICES,BASE_CONFIG \
+  bash "${INNER_SCRIPT}"
+
+end_time=$(date +%s)
+echo "Job finished at: $(date)"
+echo "Total runtime: $((end_time - start_time)) seconds"

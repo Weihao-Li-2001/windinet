@@ -23,6 +23,26 @@ in:
 ```bash
 sbatch jobs/lrz_ai/finetune_vae_1gpu.job                                    # baseline config
 sbatch jobs/lrz_ai/finetune_vae_1gpu.job configs/finetune_vae/other.yaml    # or pass one
+sbatch jobs/lrz_ai/finetune_vae_2gpu.job                                    # 2-GPU variant
+sbatch jobs/lrz_ai/finetune_vae_4gpu.job                                    # 4-GPU variant
+```
+
+`finetune_vae_2gpu.job`/`finetune_vae_4gpu.job` (added 2026-08-16) are the
+same script as `finetune_vae_1gpu.job` -- only the `#SBATCH --gres`/
+`--cpus-per-task` header differs, since `num_processes`/`--nproc_per_node`
+are already derived from `SLURM_GPUS_ON_NODE` at runtime, not hard-coded.
+`--cpus-per-task` is scaled proportionally from the 1-GPU script's 48
+(96/192), unverified against this partition's actual per-node core count --
+if a job stays `PENDING` with a node-configuration-not-available reason,
+lower it.
+
+Written to answer a queue-wait/wall-clock question: lrz_ai's 1-GPU queue
+wait is under 2h but single-GPU training is slow -- these test whether
+requesting 2/4 GPUs queues meaningfully longer, and how much wall-clock that
+buys back. To read the queue wait once a job lands:
+
+```bash
+sacct -j <jobid> -X -o JobID,Submit,Start,Elapsed,State
 ```
 
 ## Output flow
