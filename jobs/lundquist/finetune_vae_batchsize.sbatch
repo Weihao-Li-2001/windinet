@@ -47,6 +47,9 @@ set -euo pipefail
 PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python
 cd /local/disk/hramachandran/work/wh_work/windinet
 
+# LTX base weights ship with the repo (pretrained/hub), not ~/.cache/huggingface.
+export HF_HUB_CACHE="${PWD}/pretrained/hub"
+
 BATCH_SIZE=${BATCH_SIZE:?"set BATCH_SIZE (1, 2, 4, 8, or 16), e.g. BATCH_SIZE=4 sbatch jobs/lundquist/finetune_vae_batchsize.sbatch"}
 
 # Defaults to the ep18 whole-structure baseline (Open Question 23's test
