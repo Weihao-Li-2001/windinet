@@ -31,16 +31,19 @@ sbatch jobs/lrz_ai/finetune_vae_4gpu.job                                    # 4-
 same script as `finetune_vae_1gpu.job` -- only the `#SBATCH --gres`/
 `--cpus-per-task` header differs, since `num_processes`/`--nproc_per_node`
 are already derived from `SLURM_GPUS_ON_NODE` at runtime, not hard-coded.
-`--cpus-per-task` is 48 for 2-GPU (confirmed working, job 5750198) and 94
-for 4-GPU. `sinfo -p lrz-hgx-h100-94x4 -N -o "%N %c %G %m"` reports 96
-cpus / 4 gpus per node (hardware total, `GRES gpu:4(S:0-1)`, GPUs
-socket-bound across 2 sockets), but 96 for the 4-GPU job still failed
-submission ("CPU count per node can not be satisfied") even though 48
-worked for 2-GPU -- the partition name itself explains why:
-`lrz-hgx-h100-94x4`, 94 *allocatable* cores x 4 gpus (2 presumably reserved
-for OS/system overhead), not the 96 `sinfo` reports as raw hardware. (An
-even earlier attempt that scaled proportionally from the 1-GPU script's own
-48 -- 96/192 -- failed outright: 192 exceeds even the raw 96-core total.)
+`--cpus-per-task` is 48 for 2-GPU (confirmed working, job 5750198) and 92
+for 4-GPU. `sinfo` reports 96 cpus/node (raw hardware, `GRES gpu:4(S:0-1)`,
+GPUs socket-bound across 2 sockets), but the real allocatable max is lower:
+`scontrol show node lrz-hgx-h100-001` shows `CoreSpecCount=2` reserving 2
+cores (`CPUSpecList=46-47,94-95` at `ThreadsPerCore=2`) for system overhead,
+leaving `CPUEfctv=92` / `CfgTRES cpu=92` -- confirmed partition-wide via
+`scontrol show partition lrz-hgx-h100-94x4`'s `TRES=cpu=2760` / 30 nodes =
+92 each. Two earlier guesses (96 -- `sinfo`'s raw total; 94 -- reading the
+partition name `lrz-hgx-h100-94x4` too literally) both failed submission
+outright with "CPU count per node can not be satisfied" before landing on
+92. (An even earlier attempt scaled proportionally from the 1-GPU script's
+own 48 -- 96/192 -- which also failed: 192 exceeds even the raw 96-core
+total.)
 
 Written to answer a queue-wait/wall-clock question: lrz_ai's 1-GPU queue
 wait is under 2h but single-GPU training is slow -- these test whether
