@@ -5,7 +5,7 @@
 ###------------------------------------
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=96
+#SBATCH --cpus-per-task=48
 #SBATCH --time=06:00:00
 #SBATCH --gres=gpu:2  #gpus per node
 #SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
@@ -21,11 +21,14 @@
 # slow single-GPU; this tests whether 2/4-GPU requests queue for
 # meaningfully longer and how much wall-clock that buys back.
 #
-# --cpus-per-task=96 is 48/GPU x 2, scaled proportionally from the 1-GPU
-# script's 48 -- UNVERIFIED against this partition's actual per-node core
-# count (partition name suggests 4 GPUs/node, unclear core total). If the
-# job stays PENDING with a "Requested node configuration is not available"
-# reason, lower this.
+# --cpus-per-task=48 = 24 cores/GPU x 2 -- 24 is the real per-GPU fair
+# share (`sinfo -p lrz-hgx-h100-94x4 -N -o "%N %c %G %m"`: 96 cpus / 4 gpus
+# per node, GRES gpu:4(S:0-1) -- GPUs are socket-bound across 2 sockets).
+# A first attempt at 96 (proportionally scaled from the 1-GPU script's own
+# 48, itself already 2x fair share) failed with "CPU count per node can not
+# be satisfied": asking for the whole node's cores while only requesting 2
+# of 4 GPUs crosses both sockets' worth of CPU without matching GPU coverage.
+# 48 keeps the request inside a fair-share, socket-safe footprint.
 #
 # Submit from the repo root so the #SBATCH -o/-e paths above resolve:
 #   sbatch jobs/lrz_ai/finetune_vae_2gpu.job [configs/finetune_vae/<your-config>.yaml]

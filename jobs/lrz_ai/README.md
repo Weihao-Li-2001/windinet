@@ -31,10 +31,14 @@ sbatch jobs/lrz_ai/finetune_vae_4gpu.job                                    # 4-
 same script as `finetune_vae_1gpu.job` -- only the `#SBATCH --gres`/
 `--cpus-per-task` header differs, since `num_processes`/`--nproc_per_node`
 are already derived from `SLURM_GPUS_ON_NODE` at runtime, not hard-coded.
-`--cpus-per-task` is scaled proportionally from the 1-GPU script's 48
-(96/192), unverified against this partition's actual per-node core count --
-if a job stays `PENDING` with a node-configuration-not-available reason,
-lower it.
+`--cpus-per-task` is 24 cores/GPU (48 for 2-GPU, 96 for 4-GPU) -- the real
+per-node fair share, confirmed via
+`sinfo -p lrz-hgx-h100-94x4 -N -o "%N %c %G %m"`: 96 cpus / 4 gpus per node,
+`GRES gpu:4(S:0-1)` (GPUs socket-bound across 2 sockets). A first attempt
+that scaled proportionally from the 1-GPU script's own 48 (96/192) failed
+submission outright -- 192 exceeds the node's 96 total cores, and 96 while
+only requesting 2 of 4 GPUs crossed both sockets' CPUs without matching GPU
+coverage ("CPU count per node can not be satisfied").
 
 Written to answer a queue-wait/wall-clock question: lrz_ai's 1-GPU queue
 wait is under 2h but single-GPU training is slow -- these test whether

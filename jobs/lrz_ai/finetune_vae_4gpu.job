@@ -5,7 +5,7 @@
 ###------------------------------------
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=192
+#SBATCH --cpus-per-task=96
 #SBATCH --time=06:00:00
 #SBATCH --gres=gpu:4  #gpus per node
 #SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
@@ -21,11 +21,12 @@
 # slow single-GPU; this tests whether 2/4-GPU requests queue for
 # meaningfully longer and how much wall-clock that buys back.
 #
-# --cpus-per-task=192 is 48/GPU x 4, scaled proportionally from the 1-GPU
-# script's 48 -- UNVERIFIED against this partition's actual per-node core
-# count (partition name suggests 4 GPUs/node, unclear core total). If the
-# job stays PENDING with a "Requested node configuration is not available"
-# reason, lower this.
+# --cpus-per-task=96 = 24 cores/GPU x 4 = the whole node (96 cpus, 4 gpus
+# per node -- `sinfo -p lrz-hgx-h100-94x4 -N -o "%N %c %G %m"`). A 4-GPU job
+# wants the whole node anyway, so this requests it exclusively rather than
+# guessing a fraction. (A first attempt at 192, proportionally scaled from
+# the 1-GPU script's own 48, exceeded the node's 96 total cores outright and
+# failed immediately.)
 #
 # Submit from the repo root so the #SBATCH -o/-e paths above resolve:
 #   sbatch jobs/lrz_ai/finetune_vae_4gpu.job [configs/finetune_vae/<your-config>.yaml]
