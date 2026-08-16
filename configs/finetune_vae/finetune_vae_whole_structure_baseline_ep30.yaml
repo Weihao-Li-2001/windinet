@@ -55,6 +55,28 @@
 # ~1.1% seed noise floor both times) -- no measurable cost to dropping the
 # multiplier, so it's retired here. See EXPERIMENTS.md "New reference
 # baseline (as of 2026-08-15)".
+#
+# UPDATE (2026-08-16): inflate_init "mean" -> "zeros", PhD-advisor-requested
+# directly against this file (not a new single-variable sibling config).
+# RATIONALE: "mean" has no principled justification for the fresh channel
+# (it's an arbitrary choice among several plausible inits, not derived from
+# anything about the physics or the pretrained VAE), whereas "zeros" is the
+# more defensible default absent a specific reason to prefer another value.
+# This is consistent with Open Question 21's own quantitative finding
+# ("Fresh-channel init, zeros vs mean", resolved 2026-08-14): overall
+# val_vrmse for zeros vs mean was a wash at both 18ep (0.08397 vs 0.08360,
+# job 523906) and 30ep (0.07898 vs 0.07850, job 523907) -- both deltas
+# inside the ~1.1% seed noise floor, i.e. not a metric-based reason to
+# prefer mean. That said, OQ21 also found a real per-channel trade hiding
+# inside the wash: zeros costs the fresh pressure channel ~4.3-4.7%
+# val_vrmse at both epoch counts (no epoch-count-driven recovery), offset by
+# momentum_x improving ~1.7-2.5% -- coincidental cancellation, not evidence
+# zeros is neutral at the channel level. If this baseline's next run repeats
+# that pressure-channel regression, that is the expected, already-measured
+# cost of this change, not a new bug. OQ21's qualitative motivation (does
+# the cross-channel superposition artifact go away) was never checked --
+# visualizations weren't mirrored back -- so that part remains genuinely
+# open.
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -62,7 +84,7 @@ model:
 adapter:
   enabled: true
   mode: "inflate"
-  inflate_init: "mean"
+  inflate_init: "zeros"
   freeze_conv_in: false
   checkpoint: null
   channels: ["density", "momentum_x", "momentum_y", "pressure"]
@@ -130,7 +152,7 @@ checkpoints:
 wandb:
   enabled: false
   project: "windinet"
-  tags: ["vae", "inflate", "mean-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget"]
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget"]
 
 seed: 42
 output_dir: "finetune_vae_whole_structure_baseline_ep30"
