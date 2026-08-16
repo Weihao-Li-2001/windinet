@@ -12,18 +12,23 @@
 # Submit with:   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch
 # Watch with:    tail -f log_finetuning_vae/lundquist/vae_2gpu_<jobid>.log
 #
-# THE COUPLING (see vae_trainer.py:499). batch_size is 1 and the prepared
-# loader is sharded, so each rank sees ceil(3825/2) = 1913 batches:
+# THE COUPLING (see vae_trainer.py:499). batch_size is 16 (accum 1, see the
+# "batch_size 16" note further down) and the prepared loader is sharded, so
+# each rank sees ceil(3825/2) = 1913 samples:
 #
-#     effective batch  = 2 ranks x 1 x accum 16           = 32
-#     steps_per_epoch  = ceil(1913 / 16)                  = 120
-#     total_opt_steps  = 10 epochs x 120                  = 1200
+#     effective batch  = 2 ranks x 16 x accum 1            = 32
+#     steps_per_epoch  = ceil(1913 / 16)                   = 120
+#     total_opt_steps  = 10 epochs x 120                   = 1200
 #
-# Same 32 / 1200 as the 4-GPU reference runs, so the optimization trajectory
-# matches; only wall clock differs.
+# steps_per_epoch/total_opt_steps depend only on batch_size x accum (16
+# either way), not on how that 16 splits between them -- same 32/1200 as
+# the 4-GPU reference runs and as batch_size=1/accum=16 would give, so the
+# optimization trajectory matches regardless of the split; only wall clock
+# differs (see the "batch_size 16" note below for how much).
 #
-# The baseline config ships gradient_accumulation_steps: 8, so this
-# script patches it to 16 rather than forking another checked-in YAML.
+# The baseline config ships gradient_accumulation_steps: 8; this script's
+# patch step overrides both batch_size and (via patch_config_for_cluster)
+# gradient_accumulation_steps rather than forking another checked-in YAML.
 #
 # --cpus-per-task=12 covers 2 ranks x num_dataloader_workers: 4 = 8 loader
 # workers plus the ranks themselves.
@@ -53,6 +58,15 @@ export HF_HUB_CACHE="${PWD}/pretrained/hub"
 # to configs/finetune_vae/archive/done/, see EXPERIMENTS.md. Pass any other
 # config as $1, e.g.
 #   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch configs/finetune_vae/<your-config>.yaml
+#
+# batch_size 16 (2026-08-16): the largest batch_size that still divides
+# effective_batch=32 across 2 GPUs (accum=1) -- adopted as lundquist's
+# production default per Open Question 23's lundquist arms (job 21991,
+# batch_size=16, val_vrmse 0.084825 vs batch_size=1's 0.083545, ~1.53%
+# apart -- above the ~1.1% single-seed noise floor but inside the 2.2%
+# "real effect" bar) and a real ~18.7% wall-clock win (8.19h -> 6.66h for
+# 18 epochs, job 21989 vs 21991). See EXPERIMENTS.md's "Open Question 23"
+# section for the full readout.
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_2gpu_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
@@ -62,9 +76,10 @@ import sys, yaml
 from windinet.cluster_config import patch_config_for_cluster
 src, dst = sys.argv[1], sys.argv[2]
 cfg = yaml.safe_load(open(src))
+cfg["optimization"]["batch_size"] = 16  # production default, see header comment above
 patch_config_for_cluster(cfg, cluster="lundquist", num_processes=2, output_suffix="")
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
-print(f"2 GPUs x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; output_dir {cfg['output_dir']}")
+print(f"2 GPUs x batch_size {cfg['optimization']['batch_size']} x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; output_dir {cfg['output_dir']}")
 PY
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"

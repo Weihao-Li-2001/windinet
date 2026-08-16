@@ -92,6 +92,13 @@ export HDF5_USE_FILE_LOCKING=FALSE
 # baseline_ep30.yaml, 30ep/1.0x-encoder-LR, val_vrmse 0.078662, job 524322)
 # -- was finetune_vae_baseline.yaml (frozen-trunk, superseded), now archived
 # to configs/finetune_vae/archive/done/, see EXPERIMENTS.md.
+#
+# batch_size 4 (2026-08-16): the largest batch_size that still divides
+# effective_batch=32 across 8 tiles (accum=1) -- adopted as sng_pvc's
+# production default per Open Question 23's sng_pvc arms (job 524577,
+# batch_size=4, val_vrmse 0.084099 vs batch_size=1's 0.083633, well inside
+# the ~1.1% noise floor) and the batch_size x accum grid follow-up. See
+# EXPERIMENTS.md's "Open Question 23" section for the full readout.
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml}
 DATA_ROOT_OVERRIDE=${2:-}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
@@ -106,6 +113,7 @@ from windinet.cluster_config import patch_config_for_cluster
 
 src, dst, num_processes, data_root_override = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
 cfg = yaml.safe_load(open(src))
+cfg["optimization"]["batch_size"] = 4  # production default, see header comment above
 patch_config_for_cluster(
     cfg,
     cluster="sng_pvc",
@@ -115,8 +123,9 @@ patch_config_for_cluster(
 )
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(
-    f"{num_processes} XPU tiles x accum {cfg['optimization']['gradient_accumulation_steps']} "
-    f"-> effective batch 32; output_dir {cfg['output_dir']}"
+    f"{num_processes} XPU tiles x batch_size {cfg['optimization']['batch_size']} x "
+    f"accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; "
+    f"output_dir {cfg['output_dir']}"
 )
 PY
 
