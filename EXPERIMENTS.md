@@ -1316,14 +1316,22 @@ completion of job 524308.
 (b) `_ep40.yaml`'s result once/if that one completes (isolates KL's own
 marginal contribution at 40 epochs), (c) Open Question 19's 18-epoch
 kl=1e-7 arm (does "free regularization" still hold at a longer schedule).
-**Time:** no direct lundquist 4-GPU/40-epoch measurement exists --
-`jobs/lundquist/finetune_vae_4gpu.sbatch`'s own `--time=08:00:00` was sized
-for a 10-epoch design intent and will not fit 40 epochs even under an
-optimistic per-epoch estimate; see the config's own header for the full
-timing writeup. **Submit with an explicit `--time` override, not the
-script's default:**
+**Time:** no direct lundquist 4-GPU/40-epoch measurement exists, but linear
+extrapolation from job 21989's 2-GPU number (train=1517s/epoch at 1913
+samples/rank; 4-GPU shards to 957/rank, exactly half, and only the train
+phase scales with per-rank samples) gives ~883s/epoch (~14.7 min) at
+4-GPU, so ~9.8h for 40 epochs -- fits the `debug` partition's 12h hard kill
+(`scontrol show partition debug` on lundquist to confirm) with ~18%
+margin, tighter than `finetune_vae_2gpu.sbatch`'s own 10-epoch design
+(~2x margin). Check the actual per-epoch rate after epoch 1-2 (same
+convention as that script) and drop `optimization.epochs` if it's running
+slower than ~883s/epoch, rather than risk a 12h SIGKILL close to the
+finish line. `jobs/lundquist/finetune_vae_4gpu.sbatch`'s own
+`--time=08:00:00` (sized for a 10-epoch design intent) is still not
+enough -- **submit with an explicit `--time` override at the partition
+max:**
 ```
-sbatch --time=16:00:00 jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml
+sbatch --time=12:00:00 jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml
 ```
 **Kill criterion:** usual (epoch 2 train_loss above epoch 1's), with Open
 Question 19/22's one-extra-epoch latitude for a `train_kl`/`val_kl` blip in

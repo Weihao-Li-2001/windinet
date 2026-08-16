@@ -54,19 +54,26 @@
 # give this run the same one-extra-epoch latitude before treating a rough
 # start as a genuine kill.
 #
-# TIME: no direct 4-GPU/40-epoch lundquist measurement exists. Best
-# available anchors: lundquist 2-GPU at effective_batch=32 measured
-# 22.2-27.3 min/epoch depending on batch_size (jobs 21989/21991, 18-epoch
-# runs); this script's own 4-GPU header estimates ~16-18 min/epoch from an
-# older, lower-confidence extrapolation. Even the optimistic end (~16
-# min/epoch x 40 = ~10.7h) exceeds `finetune_vae_4gpu.sbatch`'s own
-# --time=08:00:00 -- override at submit time, do not rely on the script's
-# own header budget for this run (see jobs/lundquist/README.md and that
-# script's own comments for the 10-epoch design intent this budget was
-# actually sized for).
+# TIME: no direct 4-GPU/40-epoch lundquist measurement exists, but a
+# same-config 2-GPU point does (job 21989, batch_size=1, effective_batch=32):
+# train=1517s/epoch at 1913 samples/rank. 4-GPU shards to 957 samples/rank
+# (exactly half), and train time scales with per-rank samples (rank-0-only
+# eval doesn't, see finetune_vae_4gpu.sbatch's own header) -- linear
+# extrapolation: train ~759s + eval ~67s + viz/ckpt ~57s (both from the same
+# job) = ~883s/epoch (~14.7 min), so 40 epochs ~9.8h. That fits
+# `debug` partition's 12h hard kill (confirm with
+# `scontrol show partition debug` on lundquist -- this machine has no
+# cluster access to check directly) with ~18% margin, tighter than the ~2x
+# margin `finetune_vae_2gpu.sbatch`'s own 10-epoch design had, so re-check
+# the actual per-epoch rate after epoch 1-2 (same convention as that
+# script) and be ready to drop `optimization.epochs` if it's running
+# noticeably slower than ~883s/epoch, rather than let a 12h SIGKILL erase
+# a run close to the finish line. `finetune_vae_4gpu.sbatch`'s own
+# --time=08:00:00 default (sized for a 10-epoch run) is NOT enough here --
+# override at submit time.
 #
 # Usage:
-#   sbatch --time=16:00:00 jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml
+#   sbatch --time=12:00:00 jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"

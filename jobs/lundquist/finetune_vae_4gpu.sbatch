@@ -3,7 +3,7 @@
 #SBATCH --partition=debug
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=24
-#SBATCH --time=08:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
 #SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
 
@@ -37,7 +37,11 @@
 # eval over 675 sims does not, so 957/rank here lands at ~16-18 min/epoch, i.e.
 # ~3h for 10 epochs. (Ignore the 29 min/epoch figure in the older sbatch header;
 # that run was on a slower box and overestimates this hardware by ~2x.)
-# 8h is deliberate slack, not a fitted budget.
+# --time above is the `debug` partition's 12h hard kill (confirm with
+# `scontrol show partition debug`), not a fitted budget -- deliberate slack
+# for a 10-epoch run, but a longer-epoch config (e.g. the ep40 configs) can
+# still eat most or all of it; check the actual per-epoch rate after epoch
+# 1-2 before trusting a long run to finish inside 12h.
 
 set -euo pipefail
 

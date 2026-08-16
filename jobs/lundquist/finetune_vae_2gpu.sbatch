@@ -3,7 +3,7 @@
 #SBATCH --partition=debug
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=12
-#SBATCH --time=10:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
 #SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
 
