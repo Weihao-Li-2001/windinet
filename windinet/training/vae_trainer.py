@@ -105,13 +105,18 @@ def vrmse_per_channel(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-
 
 # Whole-structure unfreeze: every spatially-downsampling encoder stage
 # (down_blocks[0:3]) plus the tail (down_blocks[-1]+mid_block+norm_out+
-# conv_out) trains alongside the decoder, always. Was configurable
-# (adapter.unfreeze_down_blocks / adapter.unfreeze_encoder_tail) for the
-# head-vs-tail unfreeze sweep (Open Question 3, EXPERIMENTS.md); every
-# config since has used this exact combination, so it's hardcoded rather
-# than carried as dead config surface. Archived configs from that sweep
-# that unfroze a different subset can no longer be replayed as-is -- see
-# configs/finetune_vae/archive/{done,known-bad}/README.md.
+# conv_out) trains alongside the decoder, when enabled -- this exact subset,
+# not individually selectable, since granular per-block control
+# (adapter.unfreeze_down_blocks / adapter.unfreeze_encoder_tail) was already
+# tried and retired after the head-vs-tail unfreeze sweep (Open Question 3,
+# EXPERIMENTS.md) settled on unfreezing everything. Archived configs from
+# that sweep that unfroze a different subset can no longer be replayed
+# as-is -- see configs/finetune_vae/archive/{done,known-bad}/README.md.
+# Whether this whole set trains at all (vs. conv_in-only, or nothing when
+# mode='adapter') is controlled by adapter.unfreeze_encoder_trunk
+# (windinet/config.py's VaeAdapterConfig) -- see _load_vae's use of it
+# below, restored 2026-08-16 to support conv_in-only vs whole-encoder vs
+# frozen-behind-adapter as three selectable training scopes.
 _UNFROZEN_DOWN_BLOCKS = [0, 1, 2]
 
 
@@ -234,16 +239,25 @@ class VaeTrainer:
                 "them remain valid and this VAE can be swapped in at inference."
             )
 
-        # Whole-structure unfreeze, always on -- see _UNFROZEN_DOWN_BLOCKS.
-        extra_modules = self._get_encoder_extra_modules()
-        for module in extra_modules:
-            for p in module.parameters():
-                p.requires_grad_(True)
-        logger.info(
-            f"Encoder extra modules UNFROZEN: down_blocks{_UNFROZEN_DOWN_BLOCKS} + "
-            "tail (down_blocks[-1]+mid_block+norm_out+conv_out)"
-        )
-        self._encoder_extra_unfrozen = bool(extra_modules)
+        # Whole-structure unfreeze: mode='inflate' only, gated by
+        # unfreeze_encoder_trunk (default True) -- see _UNFROZEN_DOWN_BLOCKS.
+        # mode='adapter' always keeps the encoder trunk frozen (a frozen VAE
+        # behind trainable in/out adapters is the point of that mode);
+        # unfreeze_encoder_trunk=False restricts mode='inflate' to
+        # conv_in-only encoder training (decoder + conv_in, no trunk).
+        self._encoder_extra_unfrozen = self._inflated and adapter_cfg.unfreeze_encoder_trunk
+        if self._encoder_extra_unfrozen:
+            extra_modules = self._get_encoder_extra_modules()
+            for module in extra_modules:
+                for p in module.parameters():
+                    p.requires_grad_(True)
+            logger.info(
+                f"Encoder extra modules UNFROZEN: down_blocks{_UNFROZEN_DOWN_BLOCKS} + "
+                "tail (down_blocks[-1]+mid_block+norm_out+conv_out)"
+            )
+        else:
+            reason = "mode='adapter'" if not self._inflated else "unfreeze_encoder_trunk=false"
+            logger.info(f"Encoder extra modules (down_blocks/tail) FROZEN ({reason})")
 
         if self._config.optimization.enable_gradient_checkpointing:
             base_vae = self._vae.vae if isinstance(self._vae, AdaptedVAE) else self._vae
@@ -413,11 +427,12 @@ class VaeTrainer:
         if isinstance(vae, AdaptedVAE):
             vae.in_adapter.train(training)
             vae.out_adapter.train(training)
-        # A frozen conv_in stays in eval mode with the rest of the frozen encoder.
+        # A frozen conv_in/trunk stays in eval mode with the rest of the frozen encoder.
         if self._inflated and not self._config.adapter.freeze_conv_in:
             self._get_encoder_conv_in().train(training)
-        for module in self._get_encoder_extra_modules():
-            module.train(training)
+        if self._encoder_extra_unfrozen:
+            for module in self._get_encoder_extra_modules():
+                module.train(training)
 
     # ------------------------------------------------------------------
     # VAE encode / decode

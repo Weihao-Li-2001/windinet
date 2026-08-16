@@ -490,6 +490,18 @@ class VaeAdapterConfig(ConfigBaseModel):
             "otherwise."
         ),
     )
+    unfreeze_encoder_trunk: bool = Field(
+        default=True,
+        description=(
+            "mode='inflate' only: also unfreeze the encoder's down_blocks[0:3] + tail "
+            "(down_blocks[-1]+mid_block+norm_out+conv_out) -- the whole-structure unfreeze that "
+            "is this config's default. False restricts encoder training to conv_in alone (see "
+            "freeze_conv_in) -- decoder + conv_in only, matching the pre-whole-structure-unfreeze "
+            "baseline. Ignored under mode='adapter': that mode's whole point is a frozen VAE "
+            "behind trainable in/out adapters, so the encoder trunk is always frozen there "
+            "regardless of this flag."
+        ),
+    )
     hidden_channels: int = Field(default=32, ge=1, description="Adapter hidden width (checkpoint metadata wins when resuming)")
     activation: Literal["relu", "silu", "swish", "gelu", "tanh"] = "gelu"
     identity_init: bool = Field(
