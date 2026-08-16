@@ -50,6 +50,17 @@ Usage:
         --num-samples 32 \\
         --output latent_stats_whole_structure_baseline.json
 
+By default this measures against the 'eval' split -- held out from training,
+but not from the hyperparameter tuning that picked this checkpoint's config
+in the first place (every KL-weight/epoch/lr-schedule sweep in EXPERIMENTS.md
+watched val_vrmse on this exact split). For a shift measurement uncontaminated
+by that, pass --split test --test-h5 <path to test.h5>, e.g.:
+    python scripts/latent_stats.py configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml \\
+        --checkpoint <checkpoint>.safetensors \\
+        --split test --test-h5 euler_mq_dataset/128x128_ds/test.h5 \\
+        --num-samples 32 \\
+        --output latent_stats_test.json
+
 Must run on a single tile / single process -- this is encode-only inference
 (no gradients, no accelerate launch needed).
 """
@@ -185,9 +196,23 @@ def _summarize(block: dict) -> dict[str, float]:
 def main(
     config_path: str = typer.Argument(..., help="VaeTrainerConfig-shaped YAML (data_root/adapter/normalization only matter)"),
     checkpoint: str = typer.Option(..., help="Finetuned inflate-mode checkpoint (ltx-inflated-io-v1 safetensors)"),
-    num_samples: int = typer.Option(32, help="How many held-out (eval-split) sims to encode"),
+    num_samples: int = typer.Option(32, help="How many sims to encode"),
     batch_size: int = typer.Option(4, help="Sims per encode() call"),
-    split: str = typer.Option("eval", help="'eval' (held-out, never seen by the finetuned checkpoint) or 'train'"),
+    split: str = typer.Option(
+        "eval",
+        help=(
+            "'eval' (held-out within cfg.data.data_root's train.h5, same "
+            "permutation VaeTrainer used to pick this checkpoint's best epoch) "
+            "or 'train' (also within train.h5) -- both were exposed to training/"
+            "tuning decisions, if only indirectly. 'test' is the clean option: "
+            "a standalone file (test.h5) never touched by any train/eval split "
+            "or hyperparameter decision in this project -- requires --test-h5."
+        ),
+    ),
+    test_h5: str = typer.Option(
+        None,
+        help="Path to a standalone test.h5 (sibling of train.h5, e.g. euler_mq_dataset/128x128_ds/test.h5). Required and only used when --split test.",
+    ),
     output: str = typer.Option("latent_stats.json", help="Where to write the full per-channel JSON report"),
 ) -> None:
     with open(config_path) as f:
@@ -196,18 +221,32 @@ def main(
     device = get_default_device()
     console.print(f"Device: {device}")
 
-    # Reproduce VaeTrainer.train()'s exact split (same seed, same perm) so
-    # "eval" here is the same held-out set the finetuned checkpoint never
-    # trained on -- results aren't inflated by memorization.
-    full_dataset = ShockWaveDataset(Path(cfg.data.data_root), num_sim_frames=cfg.data.num_sim_frames)
-    split_generator = torch.Generator().manual_seed(cfg.seed)
-    perm = torch.randperm(len(full_dataset), generator=split_generator).tolist()
-    n_eval = min(cfg.data.eval_sims, len(full_dataset))
-    n_train = len(full_dataset) - n_eval
-    eval_indices = perm[n_train:n_train + n_eval]
-    train_indices = perm[:n_train]
-    chosen = (eval_indices if split == "eval" else train_indices)[:num_samples]
-    console.print(f"Encoding {len(chosen)} sims from the '{split}' split (of {len(full_dataset)} total)")
+    if split == "test":
+        if not test_h5:
+            raise typer.BadParameter("--test-h5 is required when --split test (a standalone file, not a slice of train.h5)")
+        # test.h5 is never split -- every sim in it is already held out from
+        # every train/eval decision made against train.h5, so there's no
+        # permutation to reproduce here; just take the first num_samples ids.
+        full_dataset = ShockWaveDataset(Path(test_h5), num_sim_frames=cfg.data.num_sim_frames)
+        chosen = list(range(len(full_dataset)))[:num_samples]
+        console.print(
+            f"Encoding {len(chosen)} sims from the standalone test set "
+            f"'{test_h5}' (of {len(full_dataset)} total, never used in any "
+            "train/eval split or tuning decision)"
+        )
+    else:
+        # Reproduce VaeTrainer.train()'s exact split (same seed, same perm) so
+        # "eval" here is the same held-out set the finetuned checkpoint never
+        # trained on -- results aren't inflated by memorization.
+        full_dataset = ShockWaveDataset(Path(cfg.data.data_root), num_sim_frames=cfg.data.num_sim_frames)
+        split_generator = torch.Generator().manual_seed(cfg.seed)
+        perm = torch.randperm(len(full_dataset), generator=split_generator).tolist()
+        n_eval = min(cfg.data.eval_sims, len(full_dataset))
+        n_train = len(full_dataset) - n_eval
+        eval_indices = perm[n_train:n_train + n_eval]
+        train_indices = perm[:n_train]
+        chosen = (eval_indices if split == "eval" else train_indices)[:num_samples]
+        console.print(f"Encoding {len(chosen)} sims from the '{split}' split (of {len(full_dataset)} total)")
 
     loader = DataLoader(
         Subset(full_dataset, chosen),
@@ -236,6 +275,7 @@ def main(
         "config": config_path,
         "checkpoint": checkpoint,
         "split": split,
+        "data_source": test_h5 if split == "test" else cfg.data.data_root,
         "sim_indices": chosen,
         "num_latent_channels": len(reference_mean),
         "raw_channels": {name: {"mean": raw_result["mean"][i], "std": raw_result["std"][i]} for i, name in enumerate(RAW_CHANNELS)},
