@@ -1,0 +1,115 @@
+# VAE finetuning config -- LR schedule experiment #1, forked from
+# finetune_vae_whole_structure_baseline_ep30.yaml (the current 128x128/
+# lundquist baseline, val_vrmse 0.078662, job 524322).
+#
+# SINGLE VARIABLE vs that baseline:
+#   optimization.stable_fraction:   0.7   -> unset (ignored once stable_end_epoch is set)
+#   optimization.stable_end_epoch:  unset -> 12
+# Everything else UNCHANGED (epochs 30, warmup_steps 200, min_learning_rate
+# 1e-6, zeros-init, etc.).
+#
+# WHAT THIS CHANGES: stable_fraction=0.7 on this baseline resolves to
+# stable ending at epoch ~21.5 (2380/3600 steps), decay running epoch
+# ~21.5->30 (~8.5 epochs). This run instead hardcodes the boundary directly
+# -- warmup unchanged (ends ~epoch 1.67), stable through epoch 12, decay
+# epoch 12->30 (18 epochs, vs the baseline's ~8.5) -- per PhD-advisor
+# design preference for a boundary chosen on structural grounds (how long
+# the schedule should hold at peak / how many steps the anneal needs) over
+# one that's just a fixed proportion of whatever total budget got picked.
+# Resolved schedule: 3600 total opt steps, 200 warmup, 1240 stable, 2160
+# anneal (vs baseline's 200/2380/1020).
+#
+# READ-OUT: compare epoch-30 val_vrmse against the ep30 baseline (0.078662).
+# Also worth reading epoch 12 itself against the baseline's own epoch-12
+# row -- this run's decay has already started there, the baseline's hasn't.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's).
+#
+# TIME: same per-epoch cost as the ep30 baseline (schedule choice doesn't
+# change the forward/backward workload).
+#
+# Usage:
+#   sbatch jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_wsd_s12.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  # THE variable: hardcode the stable/decay boundary at epoch 12 instead of
+  # deriving it from stable_fraction (ignored once stable_end_epoch is set).
+  stable_fraction: 0.7
+  stable_end_epoch: 12
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "hardcoded-schedule", "stable-end-12"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_wsd_s12"
+clean_output_dir: true

@@ -434,7 +434,21 @@ class VaeOptimizationConfig(ConfigBaseModel):
         default=0.7,
         gt=0.0,
         le=1.0,
-        description="wsd only: fraction of post-warmup steps held at peak LR before decay.",
+        description=(
+            "wsd only: fraction of post-warmup steps held at peak LR before decay. "
+            "Ignored when stable_end_epoch is set."
+        ),
+    )
+    stable_end_epoch: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "wsd only: hardcode the stable/decay boundary as an absolute epoch instead "
+            "of deriving it from stable_fraction -- overrides stable_fraction when set. "
+            "The stable phase runs from the end of warmup through the end of this "
+            "epoch; decay then anneals from there to the floor by the end of `epochs`. "
+            "Must be less than `epochs` (decay needs at least one step)."
+        ),
     )
     plateau_factor: float = Field(
         default=0.5,
@@ -463,6 +477,15 @@ class VaeOptimizationConfig(ConfigBaseModel):
     warmup_steps: int = Field(default=50, description="Linear warmup optimizer steps")
     warmup_start_factor: float = Field(default=0.01)
     enable_gradient_checkpointing: bool = Field(default=True)
+
+    @model_validator(mode="after")
+    def validate_stable_end_epoch(self):
+        if self.stable_end_epoch is not None and self.stable_end_epoch >= self.epochs:
+            raise ValueError(
+                f"stable_end_epoch ({self.stable_end_epoch}) must be less than epochs "
+                f"({self.epochs}) -- decay needs at least one epoch after it."
+            )
+        return self
 
 
 class VaeAdapterConfig(ConfigBaseModel):

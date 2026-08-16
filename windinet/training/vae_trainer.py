@@ -703,7 +703,15 @@ class VaeTrainer:
             floor = cfg.optimization.min_learning_rate / base_lr
             decay_steps = max(1, total_opt_steps - warmup_steps)
             if sched_type == "wsd":
-                stable_steps = int(round(decay_steps * cfg.optimization.stable_fraction))
+                if cfg.optimization.stable_end_epoch is not None:
+                    # Hardcoded boundary, not derived as a fraction of the post-warmup
+                    # budget: stable runs from the end of warmup through the end of
+                    # stable_end_epoch, in absolute steps. Validated in config.py
+                    # (stable_end_epoch < epochs) so stable_end_step < total_opt_steps.
+                    stable_end_step = cfg.optimization.stable_end_epoch * steps_per_epoch
+                    stable_steps = max(0, stable_end_step - warmup_steps)
+                else:
+                    stable_steps = int(round(decay_steps * cfg.optimization.stable_fraction))
             elif sched_type == "constant":
                 stable_steps = decay_steps
             else:  # cosine: decay immediately after warmup

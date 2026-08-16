@@ -1,0 +1,109 @@
+# VAE finetuning config -- LR schedule experiment #2, forked from
+# finetune_vae_whole_structure_baseline_ep30_wsd_s12.yaml (experiment #1 of
+# this pair -- see that file's header for the stable_end_epoch=12 rationale).
+#
+# SINGLE VARIABLE vs that config:
+#   optimization.min_learning_rate: 1e-6 -> 5e-7 (half)
+# Everything else UNCHANGED, including stable_end_epoch=12 -- this isolates
+# the floor's own effect on top of the hardcoded 12/30 schedule, not epochs
+# or the stable/decay split.
+#
+# WHY 2x, not the ~10x floor drop the archived _ep30_lowfloor.yaml tried
+# (1e-6 -> 1e-7): that is a separate, already-answered question (Open
+# Question 20c). This is a fresh, smaller probe specifically against the
+# stable_end_epoch=12 schedule, not a rerun of that one.
+#
+# READ-OUT: compare epoch-30 val_vrmse against experiment #1's own result
+# (isolates the floor) and against the ep30 baseline (0.078662, isolates
+# neither -- three variables moved from there: stable_end_epoch, and now
+# the floor).
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's).
+#
+# TIME: same per-epoch cost as experiment #1 (LR floor doesn't change the
+# forward/backward workload).
+#
+# Usage:
+#   sbatch jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_wsd_s12_lowfloor2x.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  # THE variable: half the experiment-#1 floor (1e-6 -> 5e-7).
+  min_learning_rate: 5e-7
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  stable_end_epoch: 12
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "hardcoded-schedule", "stable-end-12", "lowfloor-2x"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_wsd_s12_lowfloor2x"
+clean_output_dir: true

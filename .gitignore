@@ -241,6 +241,12 @@ finetune_vae_outputs/lrz_ai/**/visualizations/
 finetune_vae_outputs/lrz_ai/**/metrics/loss_curves.png
 checkpoints/
 
+# Diagnostic-script PNGs synced down under log_finetuning_vae/ (e.g.
+# scripts/latent_shift_metrics.py's per-sample channel-correlation heatmaps)
+# -- large binary images regenerable by rerunning the script; the JSON/log
+# they came from is the durable record and stays tracked.
+log_finetuning_vae/**/*.png
+
 # In-repo HuggingFace cache for the LTX-Video base weights (~8.4 GB).
 # The weights themselves stay out of git; pretrained/README.md explains how to
 # get them (rsync from another checkout, or let the loader re-download).
