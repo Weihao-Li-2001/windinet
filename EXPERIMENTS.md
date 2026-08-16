@@ -1300,6 +1300,37 @@ epoch 32/40 (~1245-1290s/epoch observed -> 40 epochs needs ~14h). No
 result -- re-launch with a longer `--time` before drawing any conclusion
 about whether 40 epochs beats 30.
 
+**Extension: 40 epochs + KL weight 1e-7 combined, lundquist 4-GPU, NOT YET
+LAUNCHED (2026-08-16).** `finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml`
+combines this section's still-open epoch-budget question with Open Question
+19's already-confirmed no-cost `kl=1e-7` arm -- two independently-validated
+single-variable changes in one run (protocol point 4's two-tag limit),
+against the *current* baseline (`_ep30.yaml`, zeros-init/1.0x-encoder-LR,
+0.078662, job 524322) rather than the still-incomplete `_ep40.yaml` arm
+above. Unlike `_ep40.yaml`, `inflate_init` is `zeros` here (synced to the
+current baseline; `_ep40.yaml` was forked before that change and still
+carries the retired `mean`), so this is not a like-for-like rerun of the
+incomplete sng_pvc attempt -- treat its result as a fresh data point, not a
+completion of job 524308.
+**Read-out:** epoch-40 val_vrmse vs (a) `_ep30.yaml`'s 0.078662 (bar: 2.2%),
+(b) `_ep40.yaml`'s result once/if that one completes (isolates KL's own
+marginal contribution at 40 epochs), (c) Open Question 19's 18-epoch
+kl=1e-7 arm (does "free regularization" still hold at a longer schedule).
+**Time:** no direct lundquist 4-GPU/40-epoch measurement exists --
+`jobs/lundquist/finetune_vae_4gpu.sbatch`'s own `--time=08:00:00` was sized
+for a 10-epoch design intent and will not fit 40 epochs even under an
+optimistic per-epoch estimate; see the config's own header for the full
+timing writeup. **Submit with an explicit `--time` override, not the
+script's default:**
+```
+sbatch --time=16:00:00 jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml
+```
+**Kill criterion:** usual (epoch 2 train_loss above epoch 1's), with Open
+Question 19/22's one-extra-epoch latitude for a `train_kl`/`val_kl` blip in
+epoch 1-2 (diffusers' logvar clamp on the freshly-inflated conv_in's
+uncalibrated posterior, not a bug) before treating a rough start as a
+genuine kill.
+
 ### Fresh-channel init, zeros vs mean (Open Question 21, resolved 2026-08-14)
 
 **ANSWERED (quantitative half only): `zeros` init does not fix the fresh

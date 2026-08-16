@@ -1,0 +1,152 @@
+# VAE finetuning config -- epoch budget 30 -> 40 (extension of Open Question
+# 20a past its own resolution, same lever as finetune_vae_whole_structure_
+# baseline_ep40.yaml) COMBINED with KL divergence weight 0 -> 1e-7 (Open
+# Question 19's already-answered arm: "regularizes at effectively no
+# reconstruction cost", val_vrmse -0.30% vs baseline, inside the noise
+# floor). Two independently-resolved single-variable wins combined into one
+# run, per protocol point 4 (max two change tags: `ep40` + `kl1e7`).
+#
+# SINGLE VARIABLE(S) vs finetune_vae_whole_structure_baseline_ep30.yaml (30
+# epochs, zeros-init, 1.0x encoder LR, confirmed val_vrmse 0.078662, job
+# 524322 -- the current baseline as of 2026-08-16):
+#   optimization.epochs:        30    -> 40
+#   loss_weighting.weights.kl:  unset -> 1.0e-7
+# Everything else UNCHANGED, including `inflate_init: "zeros"` (this file
+# was forked after that baseline change -- the sibling `_ep40.yaml` was
+# forked before it and still carries the retired `mean` value; this file
+# intentionally does NOT reproduce that staleness, so it isolates exactly
+# two variables against the *current* baseline rather than three against an
+# out-of-date one).
+#
+# WHY THIS IS PLAUSIBLE: both levers were independently confirmed to help
+# (or at least not hurt) in isolation --
+#   - epochs 18->30 (Open Question 20a): -6.09%, a real win.
+#   - kl 0->1e-7 (Open Question 19): -0.30% (inside noise floor, i.e. free
+#     regularization, not a reconstruction cost) -- but note Open Question
+#     22's follow-up sweep found *no* val_vrmse cost anywhere up to 1e-5
+#     either, so 1e-7 isn't "the best" KL weight by any measured criterion,
+#     just the one both prior open questions actually ran and confirmed
+#     safe. Nothing here has tested epochs x kl interacting -- e.g. whether
+#     40 epochs of gentle KL regularization compounds differently than 30
+#     did, since KL's own gradient contribution is per-step, not per-epoch.
+#   - `finetune_vae_whole_structure_baseline_ep40.yaml`'s own known caution
+#     applies here too: the 18->30 push's gains came almost entirely from
+#     the decay window (epochs ~22-27), not the stable phase -- 40 epochs
+#     mostly lengthens the noisy, no-trend stable phase further (now
+#     ~28 epochs before decay starts ~epoch 29) rather than obviously
+#     buying more of the effective part of the schedule.
+#
+# READ-OUT: compare epoch-40 val_vrmse against THREE reference points --
+# (a) this baseline's own ep30 result (0.078662, job 524322) -- per
+# protocol point 3, only a delta clearing ~2.2% (2x the ~1.1% seed-noise
+# floor) counts as a real further epoch-budget effect; (b) the un-KL'd
+# `_ep40.yaml` result once/if that one is run, to isolate KL's own marginal
+# contribution at 40 epochs specifically; (c) Open Question 19's original
+# 18-epoch kl=1e-7 arm, to see whether the "free regularization" finding
+# still holds at a longer schedule. Also read val_kl at epoch 40 against
+# Open Question 19's ~547 (18ep) to check regularization is still landing
+# in the same regime, not drifting.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's), with Open
+# Question 19/22's blip caveat -- train_kl/val_kl may spike to 1e5-1e9 in
+# epoch 1-2 (diffusers' logvar clamp on the freshly-inflated conv_in's
+# uncalibrated posterior, not a bug) and should self-correct by epoch 2-3;
+# give this run the same one-extra-epoch latitude before treating a rough
+# start as a genuine kill.
+#
+# TIME: no direct 4-GPU/40-epoch lundquist measurement exists. Best
+# available anchors: lundquist 2-GPU at effective_batch=32 measured
+# 22.2-27.3 min/epoch depending on batch_size (jobs 21989/21991, 18-epoch
+# runs); this script's own 4-GPU header estimates ~16-18 min/epoch from an
+# older, lower-confidence extrapolation. Even the optimistic end (~16
+# min/epoch x 40 = ~10.7h) exceeds `finetune_vae_4gpu.sbatch`'s own
+# --time=08:00:00 -- override at submit time, do not rely on the script's
+# own header budget for this run (see jobs/lundquist/README.md and that
+# script's own comments for the 10-epoch design intent this budget was
+# actually sized for).
+#
+# Usage:
+#   sbatch --time=16:00:00 jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 40
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE second variable: unset (0.0) -> 1e-7, Open Question 19's confirmed
+    # no-cost arm. See header.
+    kl: 1.0e-7
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "40ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget", "kl-divergence"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep40_kl1e7"
+clean_output_dir: true
