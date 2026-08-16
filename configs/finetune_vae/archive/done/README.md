@@ -162,12 +162,15 @@ What's here:
   every generic launcher (`jobs/{sng_pvc,lundquist}/finetune_vae*.sbatch`,
   `jobs/lrz_ai/finetune_vae_{1,2,4}gpu.job`) now defaults to it (or its
   256-res counterpart on lrz_ai). `finetune_vae_whole_structure_baseline.yaml`
-  still has one live use: the batch-size sweep (Open Question 23,
-  `jobs/{sng_pvc,lrz_ai,lundquist}/finetune_vae_batchsize.{sbatch,job}`)
-  is deliberately pinned to it rather than the current baseline, since that
-  sweep is about wall-clock/OOM, not accuracy, and changing its base config
-  mid-sweep would confound the read-out. `finetune_vae_baseline.yaml` keeps
-  one live use too: the sng_pvc throughput/rendezvous diagnostics
+  still has two live uses: `jobs/sng_pvc/latent_stats.sbatch` and
+  `jobs/sng_pvc/inflate_weight_drift.sbatch` default to it as a cheap,
+  representative config for those diagnostics (neither trains anything, so
+  the exact baseline version doesn't matter for their purposes). The
+  batch-size sweep (Open Question 23) was a third live use of this file
+  until it closed 2026-08-16 -- `jobs/{sng_pvc,lundquist}/finetune_vae_batchsize.{sbatch}`
+  and `jobs/lrz_ai/finetune_vae_batchsize.job` are retired now that that
+  question has an answer, see `EXPERIMENTS.md`. `finetune_vae_baseline.yaml`
+  keeps one live use too: the sng_pvc throughput/rendezvous diagnostics
   (`finetune_vae_diag*.sbatch`) default to it as a cheap, fast config for
   pure infra testing, unrelated to accuracy.
 

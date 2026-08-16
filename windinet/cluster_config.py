@@ -18,10 +18,10 @@ CLUSTER_DEFAULTS = {
         # Repo-relative, shared by every lundquist GPU-count variant on
         # purpose: there's one lundquist result at a time, not one per GPU
         # count, so the 2/4-GPU scripts all land here regardless of
-        # output_suffix (the batch_size sweep is the deliberate exception --
-        # see jobs/lundquist/finetune_vae_batchsize.sbatch, it always passes
-        # a real output_suffix). clean_output_dir wipes it at the start of
-        # each run.
+        # output_suffix (a script that needs several arms to coexist -- e.g.
+        # the now-retired batch_size sweep, EXPERIMENTS.md Open Question 23
+        # -- is the exception, and always passes a real output_suffix).
+        # clean_output_dir wipes it at the start of each run.
         "output_root": "finetune_vae_outputs/lundquist",
         "num_dataloader_workers": 4,
         "effective_batch": 32,

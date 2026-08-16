@@ -46,7 +46,7 @@ Navigation only -- nothing below was reworded or reordered to build this list.
   20. Epoch budget 18->30 + schedule shape -- **ANSWERED: epoch budget alone drove the gain** -- [Epoch budget / schedule-shape sweep](#epoch-budget-schedule-shape-sweep-open-question-20-resolved-2026-08-14) (~line 909)
   21. Fresh-channel init, zeros vs. mean -- **ANSWERED (quantitative half): zeros costs the fresh channel** -- [Fresh-channel init](#fresh-channel-init-zeros-vs-mean-open-question-21-resolved-2026-08-14) (~line 951)
   22. KL divergence weight sweep, where does it saturate -- **ANSWERED: nowhere in range tested** -- [KL divergence weight sweep](#kl-divergence-weight-sweep-open-question-22-resolved-2026-08-14) (~line 1013)
-  23. Does per-GPU micro-batch size change results or just wall-clock/feasibility -- **IN PROGRESS** (inline only, ~line 1070); batch_size x accum grid follow-up beyond effective_batch=32, sng_pvc (inline only, ~line 1159)
+  23. Does per-GPU micro-batch size change results or just wall-clock/feasibility -- **CLOSED: larger batch_size is faster, no real val_vrmse cost; production batch_size set per cluster** (inline only, ~line 1121)
 - [sng_pvc throughput diagnostic](#sng_pvc-throughput-diagnostic)
 - [Eval parallelization fix, CONFIRMED WORKING (2026-08-06)](#eval-parallelization-fix-confirmed-working-2026-08-06)
 - [New loss components (H2/PCC/VRMS/KL), opt-in, NOT ENABLED anywhere yet (2026-08-06)](#new-loss-components-h2pccvrmskl-opt-in-not-enabled-anywhere-yet-2026-08-06)
@@ -1118,9 +1118,42 @@ discontinuities. 5x spread, same model, same epoch.
     ```
     **RESULT: see "KL divergence weight sweep (Open Question 22, resolved
     2026-08-14)" below for the full readout.**
-23. **Does per-GPU micro-batch size (`optimization.batch_size`) change
-    results or only wall-clock/OOM feasibility?**
-    **THE QUESTION:** every run in this ledger so far uses `batch_size: 1`,
+23. ~~Does per-GPU micro-batch size (`optimization.batch_size`) change
+    results or only wall-clock/OOM feasibility?~~ **CLOSED (2026-08-16):
+    larger batch_size is faster with no val_vrmse cost clearing the "real
+    effect" bar, at every effective_batch=32 arm actually run. Production
+    batch_size adopted per cluster (lundquist=16, sng_pvc=4, lrz_ai=16 --
+    all accum=1, the effective_batch=32 ceiling at each cluster's
+    production GPU count); no further batch_size testing planned.**
+    Results:
+    | cluster | arms run | fastest vs `batch_size=1` | val_vrmse delta | verdict |
+    |---|---|---|---|---|
+    | sng_pvc (8 tiles) | 1, 2, 4 | `batch_size=4`: **-8%** wall-clock (job 524577 vs 524575) | +0.56% (inside ~1.1% noise floor) | adopt 4 |
+    | lundquist (2 GPU) | 1, 16 | `batch_size=16`: **-18.7%** wall-clock (job 21991 vs 21989, 6.66h vs 8.19h/18ep) | +1.53% (above the 1.1% floor, inside the 2.2% "real effect" bar) | adopt 16 |
+    | lrz_ai (1 GPU) | none completed | -- (all 5 arms crashed on an f-string `SyntaxError` in the launcher, fixed 2026-08-16 but never resubmitted) | -- | production value (16, 2-GPU) extrapolated from lundquist, not lrz_ai-confirmed |
+
+    `lundquist`'s eval time (~66s/epoch) was identical regardless of
+    `batch_size` -- the entire wall-clock difference is in the train phase,
+    consistent with fewer/bigger forward-backward passes being the
+    mechanism, not anything eval-side.
+
+    **Decision on the batch_size x accum grid follow-up (effective_batch >
+    32, designed 2026-08-16, `jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch`):
+    dropped, not pursued.** That follow-up would have isolated
+    `effective_batch`'s own effect (holding `batch_size` fixed, varying only
+    `accum`/`effective_batch`) -- still an open theoretical question (see
+    the mechanism discussion below) -- but the user decided the
+    effective_batch=32 arms above already answer the practically load-
+    bearing question (what production `batch_size` to run at) well enough
+    to close the topic without it. `finetune_vae_batchsize_grid.sbatch` and
+    the three effective_batch=32 sweep launchers below are retired
+    (removed, not archived -- same precedent as
+    `jobs/lundquist/finetune_vae_6gpu.sbatch`, 69558ed) since none of them
+    have further use once this question is closed; their results remain
+    valid and citable by job ID above regardless.
+
+    **THE QUESTION (kept for context on why the sweep was designed this
+    way):** every run in this ledger so far uses `batch_size: 1`,
     with `gradient_accumulation_steps` doing all the work of reaching
     `effective_batch` (32, `windinet/cluster_config.py`'s cluster default)
     -- many small, serialized micro-steps per optimizer step. Larger
@@ -1185,82 +1218,19 @@ discontinuities. 5x spread, same model, same epoch.
     *is* the informative outcome for an arm here, not a bug to abort on.
     Only a non-memory failure (train_loss diverging, unrelated crash) would
     count as a real bug.
-    **Launch** (new scripts, `--time` sized to each config's expected
-    wall-clock -- 12h for sng_pvc at 8 tiles, matching finetune_vae.sbatch's
-    own budget; 6h for lrz_ai at 1 GPU, matching finetune_vae_1gpu.job's):
-    ```
-    # sng_pvc, 8 XPU tiles -- capped at batch_size in {1, 2, 4}, see above
-    BATCH_SIZE=1  sbatch jobs/sng_pvc/finetune_vae_batchsize.sbatch
-    BATCH_SIZE=2  sbatch jobs/sng_pvc/finetune_vae_batchsize.sbatch
-    BATCH_SIZE=4  sbatch jobs/sng_pvc/finetune_vae_batchsize.sbatch
-
-    # lrz_ai, 1 GPU (H100) -- full range
-    BATCH_SIZE=1  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
-    BATCH_SIZE=2  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
-    BATCH_SIZE=4  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
-    BATCH_SIZE=8  sbatch jobs/lrz_ai/finetune_vae_batchsize.job
-    BATCH_SIZE=16 sbatch jobs/lrz_ai/finetune_vae_batchsize.job
-    ```
-    **NOT YET LAUNCHED (2026-08-16)** -- row written before submission per
-    protocol point 2; this machine has no direct cluster access, so
-    submission happens from each cluster's own login node.
-    (`jobs/lundquist/finetune_vae_batchsize.sbatch`, the original 2-GPU
-    script, remains available for a third cluster's read-out later.)
-
-    **Follow-up (2026-08-16): batch_size x accum grid at effective_batch >
-    32, sng_pvc.** The {1,2,4}-only ceiling above is a consequence of
-    holding `effective_batch` fixed at 32 -- deliberately, so every arm
-    shares the ledger's optimizer-step count/LR schedule. This follow-up
-    drops that constraint on purpose to see whether bigger micro-batches +
-    bigger effective_batch buy more throughput (or hit OOM) as `batch_size`
-    grows past 4 on 8 tiles, using `jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch`
-    (new script; `finetune_vae_batchsize.sbatch` is left untouched since it's
-    scoped to the effective_batch=32 comparison above). Seven arms, chosen so
-    each `effective_batch` value is reachable by 2-3 different
-    `(batch_size, accum)` splits -- lets speed be compared two ways: same
-    `batch_size` at different `effective_batch`, and same `effective_batch`
-    via a different split:
-    | batch_size | accum | effective_batch | warmup_steps (rescaled) |
-    |---|---|---|---|
-    | 4 | 2 | 64 | 100 |
-    | 4 | 4 | 128 | 50 |
-    | 8 | 1 | 64 | 100 |
-    | 8 | 2 | 128 | 50 |
-    | 8 | 4 | 256 | 25 |
-    | 16 | 1 | 128 | 50 |
-    | 16 | 2 | 256 | 25 |
-
-    **Why warmup_steps is rescaled, not left at the baseline's 200:** fewer
-    steps/epoch at a bigger `effective_batch` would otherwise inflate
-    warmup's share of training (unscaled 200-step warmup is ~5.6% of a
-    30-epoch run's ~3600 total steps at `effective_batch=32`, but ~44% of
-    the ~450 total steps at `effective_batch=256`) -- confounding "does
-    batch size/effective_batch change quality" with "the wsd schedule's
-    shape got wrecked". The launcher rescales
-    `warmup_steps' = round(200 x 32 / effective_batch)` per arm so every arm
-    keeps the same warmup *fraction*, preserving quality-comparability
-    across arms (unlike the OOM/wall-clock-only framing of the {1,2,4}
-    sweep above).
-    **Base config:** `finetune_vae_whole_structure_baseline_ep30.yaml` (the
-    current baseline, 30 epochs), not the archived 18ep config the
-    {1,2,4} sweep above used.
-    **Read-out:** per arm, (a) OOM or not, (b) final val_vrmse -- now
-    meaningful across arms since warmup is rescaled, (c) wall-clock, both
-    same-`batch_size`-different-`effective_batch` and
-    same-`effective_batch`-different-split comparisons.
-    **Launch:**
-    ```
-    BATCH_SIZE=4  ACCUM=2 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
-    BATCH_SIZE=4  ACCUM=4 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
-    BATCH_SIZE=8  ACCUM=1 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
-    BATCH_SIZE=8  ACCUM=2 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
-    BATCH_SIZE=8  ACCUM=4 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
-    BATCH_SIZE=16 ACCUM=1 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
-    BATCH_SIZE=16 ACCUM=2 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
-    ```
-    **NOT YET LAUNCHED (2026-08-16)** -- row written before submission per
-    protocol point 2; this machine has no direct cluster access, submission
-    happens from sng_pvc's own login node.
+    **Launched (historical record):** sng_pvc `batch_size` in {1, 2, 4}
+    (jobs 524575/524576/524577) and lundquist `batch_size` in {1, 16}
+    (jobs 21989/21991, `batch_size=2` job 21990 cancelled by hand early,
+    no data) both completed and are read out in the results table above.
+    lrz_ai's 5 arms ({1,2,4,8,16}) all crashed on the launcher's f-string
+    bug (fixed 2026-08-16) and were never resubmitted after the fix --
+    lrz_ai's production `batch_size` above is extrapolated, not
+    lrz_ai-confirmed (see the results table). The launcher scripts that ran
+    these (`jobs/{sng_pvc,lundquist}/finetune_vae_batchsize.{sbatch}`,
+    `jobs/lrz_ai/finetune_vae_batchsize.job`) and the never-launched grid
+    follow-up (`jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch`) are
+    retired (removed 2026-08-16) now that this question is closed -- see
+    "Decision on the batch_size x accum grid follow-up" above.
 
 ### Epoch budget / schedule-shape sweep (Open Question 20, resolved 2026-08-14)
 

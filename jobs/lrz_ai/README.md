@@ -37,8 +37,20 @@ updated to match (still sized for the old queue-wait diagnostic default);
 override with `sbatch --time=<HH:MM:SS> ...` for a real 256res run until
 lrz_ai's actual per-epoch throughput and the partition's `MaxTime` are
 known -- see `finetune_vae_whole_structure_baseline_ep30_256res.yaml`'s own
-header. `finetune_vae_batchsize.job` is untouched (still defaults to the
-128-res whole-structure baseline, tied to Open Question 23's own design).
+header.
+
+**`batch_size=16` on `finetune_vae_2gpu.job` (2026-08-16):** the largest
+batch_size that still divides effective_batch=32 at 2 GPUs (accum=1) --
+adopted as lrz_ai's production default (2-GPU chosen over 1/4-GPU) per
+`EXPERIMENTS.md` Open Question 23 (closed 2026-08-16), extrapolated from
+lundquist's own batch_size=16 result at 2 GPUs (job 21991, ~18.7% faster
+than batch_size=1) since H100's 80GB has more headroom than the A6000 that
+result came from -- **not yet lrz_ai-confirmed**, and the script's own
+256res default (4x the memory/sample of the 128res result this is
+extrapolated from) makes that more, not less, true. `finetune_vae_1gpu.job`/
+`4gpu.job` are unchanged (batch_size=1) -- Open Question 23's lrz_ai arms
+all crashed on a launcher bug before producing a result at any GPU count,
+so there's nothing to justify a 1- or 4-GPU default yet.
 
 `finetune_vae_2gpu.job`/`finetune_vae_4gpu.job` (added 2026-08-16) are the
 same script as `finetune_vae_1gpu.job` -- only the `#SBATCH --gres`/

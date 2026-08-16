@@ -10,7 +10,7 @@ here hard-codes:
 - `cd /local/disk/hramachandran/work/wh_work/windinet`
 - `#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log`
 
-Moving the repo to another machine means rewriting all five, not porting them.
+Moving the repo to another machine means rewriting all four, not porting them.
 
 ## Submitting
 
@@ -31,20 +31,25 @@ script lives.
 
 ## What each one does
 
-| script | GPUs | accum | effective batch | launches |
-|---|---|---|---|---|
-| `finetune_vae_2gpu.sbatch` | 2 | 16 | 32 | `scripts/finetune_vae.py` |
-| `finetune_vae_4gpu.sbatch` | 4 | 8 | 32 | `scripts/finetune_vae.py` |
-| `finetune_vae_batchsize.sbatch` | 2 | derived from `BATCH_SIZE` | 32 | `scripts/finetune_vae.py` |
-| `train_dit.sbatch` | 4 | - | - | `scripts/train.py` |
-| `finetune_vae_debug.sbatch` | 1 | 1 | 1 | `scripts/finetune_vae.py` |
+| script | GPUs | batch_size | accum | effective batch | launches |
+|---|---|---|---|---|---|
+| `finetune_vae_2gpu.sbatch` | 2 | 16 | 1 | 32 | `scripts/finetune_vae.py` |
+| `finetune_vae_4gpu.sbatch` | 4 | 1 | 8 | 32 | `scripts/finetune_vae.py` |
+| `train_dit.sbatch` | 4 | - | - | - | `scripts/train.py` |
+| `finetune_vae_debug.sbatch` | 1 | 1 | 1 | 1 | `scripts/finetune_vae.py` |
 
 The 2- and 4-GPU variants patch `gradient_accumulation_steps` so both land on
 effective batch 32 and 1800 optimizer steps -- results from them are directly
-comparable. `finetune_vae_batchsize.sbatch` also targets effective batch 32
-(same step count, see `EXPERIMENTS.md` Open Question 23) but sweeps the
-`batch_size`/accum split at a fixed 2 GPUs instead of GPU count -- comparable
-to `finetune_vae_2gpu.sbatch`'s own result, its `BATCH_SIZE=1` arm.
+comparable.
+
+**`batch_size=16` on `finetune_vae_2gpu.sbatch` (2026-08-16):** the largest
+batch_size that still divides effective_batch=32 at 2 GPUs (accum=1) --
+adopted as the production default per `EXPERIMENTS.md` Open Question 23
+(closed 2026-08-16): job 21991 (batch_size=16) ran ~18.7% faster than job
+21989 (batch_size=1) for 18 epochs, with val_vrmse inside the "real effect"
+bar. `finetune_vae_4gpu.sbatch` is unchanged (batch_size=1, accum=8) --
+Open Question 23 wasn't run at 4 GPUs, so there's no result to justify
+moving it off the old default yet.
 
 **Retired (2026-08-15): the 6-GPU variant.** `finetune_vae_6gpu.sbatch` is
 gone -- it targeted effective batch 30 (32 isn't divisible by 6 ranks), a
@@ -53,6 +58,13 @@ never directly comparable to the ledger without a caveat. No longer in use;
 its historical runs (job 21618 and similar, `vae_inflate4_tail3x` etc. in
 `EXPERIMENTS.md`) stand as-is, just not reproducible via a checked-in script
 anymore.
+
+**Retired (2026-08-16): `finetune_vae_batchsize.sbatch`.** Swept
+`batch_size` in {1, 16} (accum derived to hold effective_batch=32) at a
+fixed 2 GPUs -- its results (jobs 21989/21990/21991) are what justified the
+`batch_size=16` default above. No further use once Open Question 23 closed;
+removed rather than left around as dead config surface, same precedent as
+the 6-GPU variant. Its historical runs stand as-is in `EXPERIMENTS.md`.
 
 `finetune_vae_debug.sbatch` is a different kind of script, not a smaller version of the
 others: its default config is `finetune_vae_overfit.yaml`, the overfit-8
@@ -69,9 +81,7 @@ result, not one per GPU count. `clean_output_dir: true` wipes that directory
 at the start of every run, so submitting a different variant overwrites
 whatever the previous one produced. If you need to keep results from two
 variants side by side, copy the output_dir out before submitting the next
-one. `finetune_vae_batchsize.sbatch` is the exception -- it suffixes
-`output_dir` per `BATCH_SIZE` on purpose (`_bs1`, `_bs2`, ...) so its five
-arms don't overwrite each other.
+one.
 
 Each job appends a row to `log_finetuning_vae/lundquist/INDEX.tsv` mapping job
 id -> config -> output_dir. See `../../EXPERIMENTS.md` for results and
