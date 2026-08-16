@@ -1,0 +1,134 @@
+# VAE finetuning config -- KL divergence weight sweep at 256x256 resolution,
+# arm 4/4 (kl=1e-5). Sibling arms: this file's own `kl` value is the only
+# difference across all four -- see finetune_vae_whole_structure_baseline_ep30_256res.yaml
+# (arm 1/4, kl unset/0, the reference), _kl1e6.yaml (arm 3/4), _kl1e5.yaml
+# (arm 4/4).
+#
+# WHY THIS SWEEP: Open Questions 19/22 already answered "does KL weight cost
+# reconstruction quality" at 128x128 -- no, not anywhere from 1e-7 through
+# 1e-5 (val_vrmse stayed flat, inside the noise floor, across that whole
+# range). This re-runs the same three points (1e-7/1e-6/1e-5) at 256x256
+# instead of re-deriving new ones, since the 128res sweep already bracketed
+# the interesting range and 256res's own reference arm (kl=0) has never
+# been run at all yet -- this is as much "does 256res itself work as
+# expected" as it is a KL-specific question. Not re-testing 1e-8/3e-7
+# (Open Question 22's bottom two arms, both indistinguishable from off) --
+# if 1e-7 through 1e-5 all still land flat here, that's confirmation enough
+# without re-covering ground the 128res sweep already closed.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep30_256res.yaml
+# (this sweep's own kl=0 reference arm, itself a single-variable step from
+# `_ep30.yaml`'s confirmed 128res baseline -- see that file's own header):
+#   loss_weighting.weights.kl:  unset (0.0) -> 1.0e-5
+# Everything else (resolution, epochs, LR, schedule, loss weights,
+# inflate_init) UNCHANGED across all four arms of this sweep.
+#
+# READ-OUT: val_vrmse across all four arms should stay mutually
+# indistinguishable (inside the ~1.1% seed noise floor) if 256res behaves
+# like 128res did; a real spread would be the first sign resolution changes
+# how much reconstruction budget KL competes for. Also read val_kl at
+# epoch 30 against Open Question 19's 128res reference points to check
+# regularization is landing in a comparable regime, not drifting with
+# resolution.
+#
+# KILL CRITERION: usual (epoch 2 train_loss above epoch 1's), with Open
+# Question 19/22's blip caveat -- train_kl/val_kl may spike to 1e5-1e9 in
+# epoch 1-2 (diffusers' logvar clamp on the freshly-inflated conv_in's
+# uncalibrated posterior, not a bug) and should self-correct by epoch 2-3;
+# give this run one extra epoch of latitude before treating a rough start
+# as a genuine kill.
+#
+# TIME/BATCH_SIZE: see finetune_vae_whole_structure_baseline_ep30_256res.yaml's
+# own header -- same untested-at-256res caveats apply identically here
+# (~16-21h estimated for 30 epochs, likely over a 12h budget; batch_size=16
+# untested at this resolution).
+#
+# Usage:
+#   sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_2gpu.job \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5.yaml \
+#       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by jobs/lrz_ai/*.job's DATA_DIR
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable: unset (0.0) -> 1e-5. Sweep arm 4/4, see header.
+    kl: 1.0e-5
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "kl-divergence", "kl-sweep"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_256res_kl1e5"
+clean_output_dir: true

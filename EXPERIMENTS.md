@@ -2379,6 +2379,38 @@ short diagnostic, not a real run); the config's own header carries the full
 timing writeup and the calibrated launch command once those two numbers are
 in.
 
+**LAUNCHING 2026-08-16 despite both unknowns still open, user decision:**
+sng_pvc paused for unrelated quota reasons (not resolution-related), so
+this 256res baseline determination moves to lrz_ai now rather than waiting
+on the two gates above. Four arms, lrz_ai 2 GPU, KL divergence weight sweep
+(re-running Open Question 19/22's already-confirmed-safe 128res points at
+256res instead of deriving new ones -- see each config's own header):
+- `finetune_vae_whole_structure_baseline_ep30_256res.yaml` (kl unset/0, the reference -- also fixed to `inflate_init: "zeros"` here, was still `mean`)
+- `finetune_vae_whole_structure_baseline_ep30_256res_kl1e7.yaml`
+- `finetune_vae_whole_structure_baseline_ep30_256res_kl1e6.yaml`
+- `finetune_vae_whole_structure_baseline_ep30_256res_kl1e5.yaml`
+
+**Time cap set to 12h for all four (user decision).** Best estimate (sng_pvc's
+own ~2.1x 128->256res per-epoch ratio applied to an optimistic lrz_ai
+128res guess) puts 30 epochs at 256res around **16-21h -- likely over 12h**;
+each config's header says to check the per-epoch rate after epoch 1-2 and
+be ready to cut epochs short. **Also unresolved:** `batch_size=16`
+(lrz_ai's production default since Open Question 23 closed) has never been
+tried at 256res -- consider submitting one arm first to confirm it doesn't
+OOM before submitting the other three, since all four share the same
+launcher/batch_size.
+**Launch:**
+```
+sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_2gpu.job configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res.yaml /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_2gpu.job configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res_kl1e7.yaml /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_2gpu.job configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res_kl1e6.yaml /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_2gpu.job configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5.yaml /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+```
+**NOT YET LAUNCHED (2026-08-16)** -- rows written before submission per
+protocol point 2; this machine has no cluster access, submission happens
+from lrz_ai's own login node. 512x512 was considered for this same slot
+and dropped (user decision) in favor of finishing 256res first.
+
 **THE QUESTION:** two of the whole-structure baseline's LR-bearing
 components have never been independently tuned -- the decoder's own
 `optimization.learning_rate` (anchors every other LR in the config, since
