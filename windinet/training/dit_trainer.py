@@ -1036,7 +1036,12 @@ class LtxvTrainer:
             return
         config_path = Path(self._config.output_dir) / "training_config.yaml"
         with open(config_path, "w") as f:
-            yaml.dump(self._config.model_dump(), f, default_flow_style=False, indent=2)
+            # mode="json": see VaeTrainer._save_config's identical fix -- plain
+            # model_dump() leaves enums as enum instances, which yaml.dump then
+            # writes as a "!!python/object/apply:..." tag that yaml.safe_load
+            # (used by anything that reads this file back as config input)
+            # can't parse.
+            yaml.dump(self._config.model_dump(mode="json"), f, default_flow_style=False, indent=2)
         logger.info(f"Training configuration saved to: {config_path.relative_to(self._config.output_dir)}")
 
     def _setup_accelerator(self) -> None:

@@ -389,6 +389,12 @@ class VaeDataConfig(ConfigBaseModel):
                 )
             self.channel_mean = [stats[key]["mean"] for key in stats_keys]
             self.channel_std = [stats[key]["std"] for key in stats_keys]
+            # Clear the file reference now that its values are resolved inline --
+            # otherwise a config dumped after this validator runs (e.g.
+            # VaeTrainer._save_config's training_config.yaml) has BOTH fields set,
+            # and reloading that dump re-triggers the has_inline-and-has_file error
+            # above on what was a perfectly valid config a moment ago.
+            self.normalization_stats_file = None
         elif self.channel_mean is None or self.channel_std is None:
             raise ValueError("set either channel_mean and channel_std, or normalization_stats_file")
 

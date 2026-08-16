@@ -34,7 +34,7 @@ script lives.
 | script | GPUs | batch_size | accum | effective batch | launches |
 |---|---|---|---|---|---|
 | `finetune_vae_2gpu.sbatch` | 2 | 16 | 1 | 32 | `scripts/finetune_vae.py` |
-| `finetune_vae_4gpu.sbatch` | 4 | 1 | 8 | 32 | `scripts/finetune_vae.py` |
+| `finetune_vae_4gpu.sbatch` | 4 | 8 | 1 | 32 | `scripts/finetune_vae.py` |
 | `train_dit.sbatch` | 4 | - | - | - | `scripts/train.py` |
 | `finetune_vae_debug.sbatch` | 1 | 1 | 1 | 1 | `scripts/finetune_vae.py` |
 
@@ -47,9 +47,14 @@ batch_size that still divides effective_batch=32 at 2 GPUs (accum=1) --
 adopted as the production default per `EXPERIMENTS.md` Open Question 23
 (closed 2026-08-16): job 21991 (batch_size=16) ran ~18.7% faster than job
 21989 (batch_size=1) for 18 epochs, with val_vrmse inside the "real effect"
-bar. `finetune_vae_4gpu.sbatch` is unchanged (batch_size=1, accum=8) --
-Open Question 23 wasn't run at 4 GPUs, so there's no result to justify
-moving it off the old default yet.
+bar.
+
+**`batch_size=8` on `finetune_vae_4gpu.sbatch` (2026-08-17):** same lever
+applied to the 4-GPU launcher -- the largest batch_size that still divides
+effective_batch=32 at 4 GPUs (accum=1). UNVALIDATED AT 4 GPUS: Open Question
+23 only measured batch_size=1 vs 16 at 2 GPUs; this carries the same
+reasoning over rather than a 4-GPU measurement of its own. Watch val_vrmse
+against the batch_size=1 baseline (job 21992, 0.076314) the same way.
 
 **Retired (2026-08-15): the 6-GPU variant.** `finetune_vae_6gpu.sbatch` is
 gone -- it targeted effective batch 30 (32 isn't divisible by 6 ranks), a

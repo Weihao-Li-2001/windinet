@@ -12,20 +12,31 @@
 # Submit with:   sbatch jobs/lundquist/finetune_vae_4gpu.sbatch
 # Watch with:    tail -f log_finetuning_vae/lundquist/wh_finetune_vae_<jobid>.log
 #
-# THE COUPLING (see vae_trainer.py:499). batch_size is 1 and the prepared
-# loader is sharded, so each rank sees ceil(3825/4) = 957 batches:
+# THE COUPLING (see vae_trainer.py:499). batch_size is 8 and the prepared
+# loader is sharded, so each rank sees ceil(3825/4) = 957 samples:
 #
-#     effective batch  = 4 ranks x 1 x accum 8            = 32
-#     steps_per_epoch  = ceil(957 / 8)                    = 120
-#     total_opt_steps  = 10 epochs x 120                  = 1200
+#     effective batch  = 4 ranks x 8 x accum 1             = 32
+#     steps_per_epoch  = ceil(957 / 8)                     = 120
+#     total_opt_steps  = 10 epochs x 120                   = 1200
 #
-# That is byte-identical to the outputs/vae_inflate4_more and vae_meaninit
-# runs, so val_vrmse from this job is directly comparable to their 0.10489 /
-# 0.10177. (The old 6-GPU launcher was not -- accum 5 -> batch 30, 1280
-# steps -- and has since been retired, see jobs/lundquist/README.md.)
+# Same step count as the old batch_size=1/accum=8 split (steps_per_epoch
+# depends only on batch_size x accum = 8 either way, see
+# finetune_vae_2gpu.sbatch's own note on this) -- only wall clock should
+# differ, from fewer/larger batched forward-backward calls instead of 8
+# small accumulation steps.
 #
-# The baseline config ships gradient_accumulation_steps: 8, so this
-# script patches it to 8 rather than forking another checked-in YAML. The
+# batch_size 8 (2026-08-17): mirrors finetune_vae_2gpu.sbatch's batch_size=16
+# change (2026-08-16) -- the largest batch_size that still divides
+# effective_batch=32 across 4 GPUs (accum=1). UNVALIDATED AT 4 GPUS: Open
+# Question 23 (EXPERIMENTS.md) only measured batch_size=1 vs 16 at 2 GPUs
+# (job 21989 vs 21991, ~18.7% faster, val_vrmse ~1.53% apart, judged inside
+# the "real effect" bar there) -- applied here on the same reasoning, not on
+# a 4-GPU measurement of its own. Watch val_vrmse against the batch_size=1
+# baseline (job 21992, 0.076314) the same way that comparison was made.
+#
+# The baseline config ships gradient_accumulation_steps: 8 and batch_size: 1;
+# this script's patch step overrides both (batch_size explicitly, accum via
+# patch_config_for_cluster) rather than forking another checked-in YAML. The
 # trainer writes the resolved config to output_dir/training_config.yaml, so
 # provenance is preserved.
 #
@@ -66,9 +77,10 @@ import sys, yaml
 from windinet.cluster_config import patch_config_for_cluster
 src, dst = sys.argv[1], sys.argv[2]
 cfg = yaml.safe_load(open(src))
+cfg["optimization"]["batch_size"] = 8  # production default, see header comment above
 patch_config_for_cluster(cfg, cluster="lundquist", num_processes=4, output_suffix="")
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
-print(f"4 GPUs x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; output_dir {cfg['output_dir']}")
+print(f"4 GPUs x batch_size {cfg['optimization']['batch_size']} x accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; output_dir {cfg['output_dir']}")
 PY
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"

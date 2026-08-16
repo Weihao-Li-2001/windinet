@@ -1442,7 +1442,15 @@ class VaeTrainer:
             return
         config_path = Path(self._config.output_dir) / "training_config.yaml"
         with open(config_path, "w") as f:
-            yaml.dump(self._config.model_dump(), f, default_flow_style=False, indent=2)
+            # mode="json": plain-YAML-safe types only (str/int/float/list/dict/None).
+            # model_dump()'s default python mode leaves enums (model.model_source,
+            # a LtxvModelVersion) as enum instances, which plain yaml.dump then
+            # writes out as a "!!python/object/apply:..." tag -- round-trips fine
+            # through yaml.load/unsafe_load, but every script that reads this file
+            # back as config input (scripts/latent_stats.py,
+            # scripts/latent_shift_metrics.py, ...) uses yaml.safe_load and would
+            # crash on that tag.
+            yaml.dump(self._config.model_dump(mode="json"), f, default_flow_style=False, indent=2)
         logger.info(f"Config saved: {config_path}")
 
     @staticmethod
