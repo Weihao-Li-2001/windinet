@@ -1156,6 +1156,61 @@ discontinuities. 5x spread, same model, same epoch.
     (`jobs/lundquist/finetune_vae_batchsize.sbatch`, the original 2-GPU
     script, remains available for a third cluster's read-out later.)
 
+    **Follow-up (2026-08-16): batch_size x accum grid at effective_batch >
+    32, sng_pvc.** The {1,2,4}-only ceiling above is a consequence of
+    holding `effective_batch` fixed at 32 -- deliberately, so every arm
+    shares the ledger's optimizer-step count/LR schedule. This follow-up
+    drops that constraint on purpose to see whether bigger micro-batches +
+    bigger effective_batch buy more throughput (or hit OOM) as `batch_size`
+    grows past 4 on 8 tiles, using `jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch`
+    (new script; `finetune_vae_batchsize.sbatch` is left untouched since it's
+    scoped to the effective_batch=32 comparison above). Seven arms, chosen so
+    each `effective_batch` value is reachable by 2-3 different
+    `(batch_size, accum)` splits -- lets speed be compared two ways: same
+    `batch_size` at different `effective_batch`, and same `effective_batch`
+    via a different split:
+    | batch_size | accum | effective_batch | warmup_steps (rescaled) |
+    |---|---|---|---|
+    | 4 | 2 | 64 | 100 |
+    | 4 | 4 | 128 | 50 |
+    | 8 | 1 | 64 | 100 |
+    | 8 | 2 | 128 | 50 |
+    | 8 | 4 | 256 | 25 |
+    | 16 | 1 | 128 | 50 |
+    | 16 | 2 | 256 | 25 |
+
+    **Why warmup_steps is rescaled, not left at the baseline's 200:** fewer
+    steps/epoch at a bigger `effective_batch` would otherwise inflate
+    warmup's share of training (unscaled 200-step warmup is ~5.6% of a
+    30-epoch run's ~3600 total steps at `effective_batch=32`, but ~44% of
+    the ~450 total steps at `effective_batch=256`) -- confounding "does
+    batch size/effective_batch change quality" with "the wsd schedule's
+    shape got wrecked". The launcher rescales
+    `warmup_steps' = round(200 x 32 / effective_batch)` per arm so every arm
+    keeps the same warmup *fraction*, preserving quality-comparability
+    across arms (unlike the OOM/wall-clock-only framing of the {1,2,4}
+    sweep above).
+    **Base config:** `finetune_vae_whole_structure_baseline_ep30.yaml` (the
+    current baseline, 30 epochs), not the archived 18ep config the
+    {1,2,4} sweep above used.
+    **Read-out:** per arm, (a) OOM or not, (b) final val_vrmse -- now
+    meaningful across arms since warmup is rescaled, (c) wall-clock, both
+    same-`batch_size`-different-`effective_batch` and
+    same-`effective_batch`-different-split comparisons.
+    **Launch:**
+    ```
+    BATCH_SIZE=4  ACCUM=2 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
+    BATCH_SIZE=4  ACCUM=4 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
+    BATCH_SIZE=8  ACCUM=1 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
+    BATCH_SIZE=8  ACCUM=2 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
+    BATCH_SIZE=8  ACCUM=4 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
+    BATCH_SIZE=16 ACCUM=1 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
+    BATCH_SIZE=16 ACCUM=2 sbatch jobs/sng_pvc/finetune_vae_batchsize_grid.sbatch
+    ```
+    **NOT YET LAUNCHED (2026-08-16)** -- row written before submission per
+    protocol point 2; this machine has no direct cluster access, submission
+    happens from sng_pvc's own login node.
+
 ### Epoch budget / schedule-shape sweep (Open Question 20, resolved 2026-08-14)
 
 **ANSWERED: epoch budget alone is what mattered.** All four arms ran the
