@@ -1,0 +1,75 @@
+job=21995 node=lundquist gpus=0
+config=configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml checkpoint=finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep40_kl1e7/checkpoints/vae_shockwave_best.safetensors test_h5=euler_mq_dataset/128x128_ds/test.h5 num_samples=64 output=log_finetuning_vae/lundquist/21995-latent_shift_metrics.json
+Device: cuda
+Encoding 64 sims from standalone test set 'euler_mq_dataset/128x128_ds/test.h5' 
+(of 500 total)
+
+z_before (zero-init, freshly-inflated, no finetuning == pretrained latent)
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+
+z_after (finetuned checkpoint)
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+[windinet] loaded inflated VAE checkpoint: finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep40_kl1e7/checkpoints/vae_shockwave_best.safetensors (epoch=40, step=4800)
+  loaded finetuned checkpoint (epoch=40): 
+finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep40_kl1e7/
+checkpoints/vae_shockwave_best.safetensors
+z_before shape: (64, 128, 14, 4, 4)  z_after shape: (64, 128, 14, 4, 4)
+
+Per-sample channel correlation (PhD-advisor-requested)
+  heatmaps written: 
+log_finetuning_vae/lundquist/21995-latent_shift_metrics_channel_corr_before.png,
+log_finetuning_vae/lundquist/21995-latent_shift_metrics_channel_corr_after.png, 
+log_finetuning_vae/lundquist/21995-latent_shift_metrics_channel_corr_diff.png
+
+Full report written to 
+log_finetuning_vae/lundquist/21995-latent_shift_metrics.json
+   Latent shift summary (zero-init z_before vs finetuned    
+                    z_after, on test.h5)                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+┃ metric                                ┃            value ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+│ mean drift |avg|                      │           0.6459 │
+│ mean drift |max|                      │           1.9989 │
+│ std ratio avg                         │           1.5061 │
+│ std ratio range                       │ [1.1233, 2.4824] │
+│ Wasserstein-1 avg                     │           0.6825 │
+│ off-diag corr before (pooled)         │           0.1678 │
+│ off-diag corr after (pooled)          │           0.2287 │
+│ off-diag corr before (per-sample avg) │           0.1270 │
+│ off-diag corr after (per-sample avg)  │           0.1443 │
+│ off-diag corr after (per-sample max)  │           0.6696 │
+│ median relative displacement          │           0.9900 │
+│ affine-fit residual                   │           0.6279 │
+│ linear CKA                            │           0.4770 │
+└───────────────────────────────────────┴──────────────────┘
+Top-5 channels by Wasserstein-1: [[114, np.float64(2.03834)], [48, 
+np.float64(1.991933)], [3, np.float64(1.846605)], [41, np.float64(1.725741)], 
+[125, np.float64(1.692018)]]
+END TIME: Sun Aug 16 19:56:01 CEST 2026
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json?filters=%7B%22label%22%3A%7B%22slurm_job_id%3D21995%22%3Atrue%7D%7D": dial unix /var/run/docker.sock: connect: permission denied

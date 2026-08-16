@@ -1,0 +1,44 @@
+job=21994 node=lundquist gpus=0
+config=finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep40_kl1e7/training_config.yaml checkpoint=finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep40_kl1e7/checkpoints/vae_shockwave_best.safetensors test_h5=euler_mq_dataset/128x128_ds/test.h5 num_samples=64 output=log_finetuning_vae/lundquist/21994-latent_shift_metrics.json
+Traceback (most recent call last):
+  File "/local/disk/hramachandran/work/wh_work/windinet/scripts/latent_shift_metrics.py", line 411, in <module>
+    app()
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1152, in __call__
+    raise e
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1135, in __call__
+    return get_command(self)(*args, **kwargs)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/click/core.py", line 1524, in __call__
+    return self.main(*args, **kwargs)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 708, in main
+    return _main(
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 188, in _main
+    rv = self.invoke(ctx)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/click/core.py", line 1308, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/click/core.py", line 877, in invoke
+    return callback(*args, **kwargs)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1514, in wrapper
+    return callback(**use_params)
+  File "/local/disk/hramachandran/work/wh_work/windinet/scripts/latent_shift_metrics.py", line 293, in main
+    cfg = VaeTrainerConfig(**yaml.safe_load(f))
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/__init__.py", line 125, in safe_load
+    return load(stream, SafeLoader)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/__init__.py", line 81, in load
+    return loader.get_single_data()
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/constructor.py", line 51, in get_single_data
+    return self.construct_document(node)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/constructor.py", line 60, in construct_document
+    for dummy in generator:
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/constructor.py", line 413, in construct_yaml_map
+    value = self.construct_mapping(node)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/constructor.py", line 218, in construct_mapping
+    return super().construct_mapping(node, deep=deep)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/constructor.py", line 143, in construct_mapping
+    value = self.construct_object(value_node, deep=deep)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/constructor.py", line 100, in construct_object
+    data = constructor(self, node)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/yaml/constructor.py", line 427, in construct_undefined
+    raise ConstructorError(None, None,
+yaml.constructor.ConstructorError: could not determine a constructor for the tag 'tag:yaml.org,2002:python/object/apply:windinet.inference.model_loader.LtxvModelVersion'
+  in "finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep40_kl1e7/training_config.yaml", line 78, column 17
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json?filters=%7B%22label%22%3A%7B%22slurm_job_id%3D21994%22%3Atrue%7D%7D": dial unix /var/run/docker.sock: connect: permission denied
