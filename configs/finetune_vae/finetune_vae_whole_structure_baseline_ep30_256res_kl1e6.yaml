@@ -123,6 +123,7 @@ checkpoints:
   best_metric: "val_vrmse"
   save_last_state: true
   keep_last_n: 1
+  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
 
 wandb:
   enabled: false

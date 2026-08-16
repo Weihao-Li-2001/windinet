@@ -204,6 +204,15 @@ class CheckpointsConfig(ConfigBaseModel):
             "Set false to keep only the best weights (no resume possible)."
         ),
     )
+    save_epochs: list[int] = Field(
+        default_factory=list,
+        description=(
+            "Epochs whose weights are always force-saved as "
+            "vae_shockwave_epoch{N:03d}_snapshot.safetensors, regardless of "
+            "save_best_only / keep_last_n pruning. Use to preserve a specific "
+            "epoch's weights for inspection even if it isn't the best or last epoch."
+        ),
+    )
 
 
 class WandbConfig(ConfigBaseModel):

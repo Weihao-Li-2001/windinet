@@ -981,6 +981,8 @@ class VaeTrainer:
                         saved_path = self._save_checkpoint(
                             epoch, global_opt_step, improved=improved
                         )
+                    if epoch in cfg.checkpoints.save_epochs:
+                        self._save_epoch_snapshot(epoch, global_opt_step)
                     ckpt_elapsed = time.time() - ckpt_t0
 
                     logger.info(
@@ -1148,10 +1150,8 @@ class VaeTrainer:
     # Checkpointing (safetensors, compatible with load_adapted_vae)
     # ------------------------------------------------------------------
 
-    def _save_checkpoint(self, epoch: int, step: int, *, improved: bool = True) -> Path:
-        save_dir = Path(self._config.output_dir) / "checkpoints"
-        save_dir.mkdir(parents=True, exist_ok=True)
-
+    def _build_checkpoint_payload(self, epoch: int, step: int) -> tuple[dict, dict]:
+        """Collect the weight tensors + metadata dict shared by every checkpoint save."""
         vae = self._unwrap_vae()
         decoder = self._get_decoder()
         tensors = {
@@ -1216,6 +1216,12 @@ class VaeTrainer:
             "epoch": str(epoch),
             "step": str(step),
         }
+        return tensors, metadata
+
+    def _save_checkpoint(self, epoch: int, step: int, *, improved: bool = True) -> Path:
+        save_dir = Path(self._config.output_dir) / "checkpoints"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        tensors, metadata = self._build_checkpoint_payload(epoch, step)
 
         ckpt_cfg = self._config.checkpoints
         if not ckpt_cfg.save_best_only:
@@ -1251,6 +1257,22 @@ class VaeTrainer:
         # Return the best weights when we have them: that is what downstream
         # (inference, DiT latent re-encoding) should consume.
         return self._best_ckpt_path or (save_dir / "vae_shockwave_last.safetensors")
+
+    def _save_epoch_snapshot(self, epoch: int, step: int) -> Path:
+        """Force-save this epoch's weights, bypassing save_best_only/keep_last_n pruning.
+
+        Driven by ``checkpoints.save_epochs`` -- for epochs an advisor/reviewer wants
+        preserved regardless of whether they turn out to be the best-metric epoch.
+        Weights-only, matching the best/ slot; no optimizer state is kept since these
+        snapshots are for inspection, not resuming.
+        """
+        save_dir = Path(self._config.output_dir) / "checkpoints"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        tensors, metadata = self._build_checkpoint_payload(epoch, step)
+        path = save_dir / f"vae_shockwave_epoch{epoch:03d}_snapshot.safetensors"
+        save_file(tensors, path, metadata=metadata)
+        logger.info(f"VAE epoch snapshot saved (checkpoints.save_epochs): {path.relative_to(self._config.output_dir)}")
+        return path
 
     def _prune_checkpoints(self) -> None:
         """Delete all but the newest keep_last_n per-epoch checkpoints."""
