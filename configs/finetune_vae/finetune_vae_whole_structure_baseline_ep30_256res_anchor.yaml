@@ -1,0 +1,127 @@
+# Latent-distribution anchor-loss experiment (2026-08-16), forked from
+# finetune_vae_whole_structure_baseline_ep30_256res.yaml (the KL=0 reference
+# arm of the 256res KL-weight sweep -- see that file's own header for the
+# lrz_ai timing/OOM caveats, both of which apply unchanged here).
+#
+# SINGLE VARIABLE vs that baseline: adds loss_weighting.weights.anchor,
+# turning on windinet.losses.latent_anchor_loss (moment-matching +
+# decorrelation regularizer on the RESCALED latents). Idea and exact loss
+# formula come from latent_space_shift_measure.md's "Reducing the shift:
+# the latent-distribution anchor loss" section (PhD-advisor-sourced
+# protocol) -- full encoder unfreeze is free to chase reconstruction into a
+# correlated / non-N(0,1) latent regime that reconstructs fine but is
+# harder for a downstream DiT to denoise; this loss keeps the encoder
+# inside the pretrained latent's distributional envelope while it
+# reorganizes within it.
+#
+# lambda=1e-2 is a first guess, NOT tuned: the doc suggests starting in the
+# 1e-3 to 1e-2 range (relative to a normalized reconstruction loss) and
+# reading the right value off scripts/latent_shift_metrics.py's diagnostics
+# (step3 channel-drift, step5/step5b correlation) rather than guessing --
+# increase until those return to pretrained-like values, but watch
+# val_vrmse at the same time: the right lambda is the largest one at which
+# reconstruction is still essentially unchanged from this baseline. Unlike
+# the KL loss (windinet.losses.kl_divergence, summed over C*T*H*W hence
+# needing ~1e-7-1e-5 weights), latent_anchor_loss is mean-reduced and
+# bounded like rmse/h1/ssim, so it lives on a comparable O(1) weight scale
+# -- 1e-2 is NOT analogous to this project's KL sweep points.
+#
+# Deliberately NOT combined with a nonzero KL weight in this first run --
+# one new variable at a time, same as every other single-axis experiment in
+# EXPERIMENTS.md.
+#
+# Usage:
+#   sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_2gpu.job \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res_anchor.yaml \
+#       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+#
+# After training, measure whether the anchor loss actually shrank the shift
+# with scripts/latent_shift_metrics.py against this run's best checkpoint
+# and test.h5, and compare against the no-anchor baseline's own metrics.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by jobs/lrz_ai/*.job's DATA_DIR
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable: unset (0.0, i.e. the baseline) -> 1e-2. See header for
+    # why this scale is not comparable to the KL sweep's 1e-7-1e-5 points.
+    anchor: 1.0e-2
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "latent-anchor-loss"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_256res_anchor"
+clean_output_dir: true

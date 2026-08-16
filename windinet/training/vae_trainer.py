@@ -473,18 +473,20 @@ class VaeTrainer:
         )
         return self._vae.decode(z, temb=temb, return_dict=True).sample
 
-    def _forward_pass(self, x: torch.Tensor) -> tuple[torch.Tensor, int, torch.Tensor, torch.Tensor]:
+    def _forward_pass(self, x: torch.Tensor) -> tuple[torch.Tensor, int, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Encode → decode through the VAE.
 
         Returns (reconstruction, original_frames, posterior_mean,
-        posterior_logvar) -- the latter two are _encode's raw distribution,
-        passed through for the optional KL loss; callers that don't need it
-        (e.g. _save_visualization) just discard them.
+        posterior_logvar, latents) -- posterior_mean/posterior_logvar are
+        _encode's raw distribution, passed through for the optional KL loss;
+        latents is the rescaled tensor, passed through for the optional
+        anchor loss (windinet.losses.latent_anchor). Callers that don't need
+        either (e.g. _save_visualization) just discard them.
         """
         orig_F = x.shape[2]
         latents, posterior_mean, posterior_logvar = self._encode(x)
         recon = self._decode(latents)
-        return recon[:, :, :orig_F], orig_F, posterior_mean, posterior_logvar
+        return recon[:, :, :orig_F], orig_F, posterior_mean, posterior_logvar, latents
 
     def _sync_grads(self) -> None:
         """Average trainable-parameter gradients across processes.
@@ -771,7 +773,7 @@ class VaeTrainer:
                         log_transform_channels=cfg.data.log_transform_channels,
                     )
                     with self._accelerator.autocast():
-                        recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
+                        recon, _, posterior_mean, posterior_logvar, latents = self._forward_pass(x)
                     # Match Accelerate's convert_outputs_to_fp32: losses (e.g. the
                     # SSIM conv) run in fp32, so cast the autocast output back.
                     recon = recon.float()
@@ -789,6 +791,7 @@ class VaeTrainer:
                         mlw_eps=cfg.loss.mlw_eps,
                         latent_mean=posterior_mean.float(),
                         latent_logvar=posterior_logvar.float(),
+                        latents=latents.float(),
                         compute_mlw=cfg.loss_weighting.weights.get("mlw", 0.0) != 0.0,
                     )
 
@@ -1044,7 +1047,7 @@ class VaeTrainer:
                 log_transform_channels=self._config.data.log_transform_channels,
             )
             with self._accelerator.autocast():
-                recon, _, posterior_mean, posterior_logvar = self._forward_pass(x)
+                recon, _, posterior_mean, posterior_logvar, latents = self._forward_pass(x)
             recon = recon.float()
             target = x[:, :, :orig_F]
             recon = recon[:, :, :orig_F]
@@ -1059,6 +1062,7 @@ class VaeTrainer:
                 mlw_eps=self._config.loss.mlw_eps,
                 latent_mean=posterior_mean.float(),
                 latent_logvar=posterior_logvar.float(),
+                latents=latents.float(),
                 compute_mlw=weights.get("mlw", 0.0) != 0.0,
             )
             # .get(name, 0.0): see the matching comment in train()'s backward
@@ -1112,7 +1116,7 @@ class VaeTrainer:
                 log_transform_channels=cfg.data.log_transform_channels,
             )
             with self._accelerator.autocast():
-                recon, _, _, _ = self._forward_pass(x)
+                recon, _, _, _, _ = self._forward_pass(x)
             recon = recon.float()
             target = denormalize_fields(
                 x[:, :, :orig_F],

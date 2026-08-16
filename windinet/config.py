@@ -528,8 +528,10 @@ REQUIRED_LOSS_NAMES = {"rmse", "h1", "ssim", "mlw"}
 # stay valid. Add one of these to loss_weighting.weights (fixed strategy) or
 # loss_names (gradnorm/softadapt) to opt in. "kl" additionally needs
 # VaeTrainer._encode's posterior mean/logvar to be non-None to actually do
-# anything -- see reconstruction_losses' docstring.
-OPTIONAL_LOSS_NAMES = {"h2", "pcc", "vrms", "kl"}
+# anything -- see reconstruction_losses' docstring. "anchor" (added
+# 2026-08-16, windinet.losses.latent_anchor) similarly needs the rescaled
+# latents, which VaeTrainer._forward_pass always supplies.
+OPTIONAL_LOSS_NAMES = {"h2", "pcc", "vrms", "kl", "anchor"}
 
 
 class LossWeightingConfig(ConfigBaseModel):

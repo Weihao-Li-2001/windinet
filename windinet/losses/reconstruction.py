@@ -23,6 +23,7 @@ from .mlw import mlw_loss
 from .pcc import pcc_loss
 from .vrms import vrms_loss
 from .kl_divergence import kl_divergence_loss
+from .latent_anchor import latent_anchor_loss
 
 
 def reconstruction_losses(
@@ -37,6 +38,7 @@ def reconstruction_losses(
     mlw_eps: float = 1e-6,
     latent_mean: torch.Tensor | None = None,
     latent_logvar: torch.Tensor | None = None,
+    latents: torch.Tensor | None = None,
     compute_mlw: bool = True,
 ) -> dict[str, torch.Tensor]:
     """
@@ -69,6 +71,12 @@ def reconstruction_losses(
         KL:
             Encoder posterior vs. standard-normal-prior divergence --
             opt-in, only computed if latent_mean/latent_logvar are given
+
+        Anchor:
+            Latent-distribution moment-matching + decorrelation regularizer
+            (windinet.losses.latent_anchor) -- opt-in, only computed if
+            `latents` (the rescaled latents) is given. See that module's
+            docstring for how this differs from KL.
 
     RMSE/H1/H2/SSIM/PCC/VRMS are always computed (cheap) and always present
     in the returned dict; whether they influence training is entirely up to
@@ -106,6 +114,10 @@ def reconstruction_losses(
             Encoder posterior log-variance (pre-rescale), for KL. None
             skips KL.
 
+        latents:
+            Rescaled latents (VaeTrainer._encode's first return value), for
+            the anchor loss. None skips it.
+
     Returns:
         Dictionary:
 
@@ -117,7 +129,8 @@ def reconstruction_losses(
             "mlw": Tensor,
             "pcc": Tensor,
             "vrms": Tensor,
-            "kl": Tensor,   # only if latent_mean/latent_logvar given
+            "kl": Tensor,       # only if latent_mean/latent_logvar given
+            "anchor": Tensor,   # only if latents given
         }
     """
 
@@ -201,6 +214,9 @@ def reconstruction_losses(
             latent_mean,
             latent_logvar,
         )
+
+    if latents is not None:
+        losses["anchor"] = latent_anchor_loss(latents)
 
 
     return losses
