@@ -88,7 +88,11 @@ export TOKENIZERS_PARALLELISM=false
 # open object (can't open file)" under this much concurrent access -- disable it.
 export HDF5_USE_FILE_LOCKING=FALSE
 
-BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+# Defaults to the current 128-res baseline (finetune_vae_whole_structure_
+# baseline_ep30.yaml, 30ep/1.0x-encoder-LR, val_vrmse 0.078662, job 524322)
+# -- was finetune_vae_baseline.yaml (frozen-trunk, superseded), now archived
+# to configs/finetune_vae/archive/done/, see EXPERIMENTS.md.
+BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml}
 DATA_ROOT_OVERRIDE=${2:-}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT

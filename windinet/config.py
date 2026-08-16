@@ -394,28 +394,12 @@ class VaeOptimizationConfig(ConfigBaseModel):
     """Optimization for VAE decoder finetuning."""
 
     learning_rate: float = Field(default=5e-5)
-    adapter_lr_multiplier: float = Field(
-        default=1.0,
-        gt=0.0,
-        description="Adapter LR = learning_rate * this. >1 trains the in/out adapters faster than the decoder.",
-    )
     min_learning_rate: float = Field(
         default=1e-6,
         description=(
             "LR floor for the decoder group at the end of decay. Applied as the ratio "
-            "min_learning_rate/learning_rate to every param group, so the "
-            "adapter_lr_multiplier ratio is preserved for the whole schedule."
-        ),
-    )
-    encoder_tail_lr_multiplier: float = Field(
-        default=0.1,
-        gt=0.0,
-        description=(
-            "adapter.unfreeze_encoder_tail and/or adapter.unfreeze_down_blocks only: LR for "
-            "every such extra unfrozen encoder module = learning_rate * this (one shared "
-            "param group). Kept below the decoder LR (unlike adapter_lr_multiplier, which is "
-            "typically >=1) because these weights carry a pretrained basis instead of being "
-            "freshly grown like encoder.conv_in."
+            "min_learning_rate/learning_rate to every param group, so each group's LR "
+            "multiplier is preserved for the whole schedule."
         ),
     )
     scheduler_type: Literal["cosine", "wsd", "constant"] = Field(
@@ -513,44 +497,6 @@ class VaeAdapterConfig(ConfigBaseModel):
         description="Init adapters as identity + zero residual (no tanh dead zone). Recommended for training from scratch.",
     )
     default_temb: float = Field(default=0.0)
-    unfreeze_encoder_tail: bool = Field(
-        default=False,
-        description=(
-            "Unfreeze the encoder's last non-downsampling stage -- down_blocks[-1] "
-            "(i.e. down_blocks[3]), mid_block, norm_out, conv_out -- alongside the "
-            "decoder. These already operate on the fully-compressed 4x4 grid, so "
-            "unfreezing them cannot change the encoder's spatial compression ratio, "
-            "only what the fixed 512->128 channel projection keeps before it reaches "
-            "the decoder. See unfreeze_down_blocks to also unfreeze (part of) the "
-            "actual spatial-downsampling stages, down_blocks[0:3]."
-        ),
-    )
-    unfreeze_down_blocks: list[int] = Field(
-        default_factory=list,
-        description=(
-            "Indices of the encoder's spatially-downsampling stages -- down_blocks[0] "
-            "(first, highest-resolution) through down_blocks[2] (last one that still "
-            "halves spatial resolution) -- to unfreeze alongside the decoder, in "
-            "addition to conv_in and (if set) unfreeze_encoder_tail. down_blocks[3] "
-            "does not itself downsample and is controlled separately by "
-            "unfreeze_encoder_tail, not this field. Any subset/order is allowed (e.g. "
-            "[0, 2] to skip down_blocks[1]) so head-vs-tail unfreezing experiments can "
-            "be composed freely; default empty keeps every downsampling stage frozen, "
-            "matching every prior run."
-        ),
-    )
-
-    @field_validator("unfreeze_down_blocks")
-    @classmethod
-    def validate_unfreeze_down_blocks(cls, values: list[int]) -> list[int]:
-        if any(v not in (0, 1, 2) for v in values):
-            raise ValueError(
-                "unfreeze_down_blocks entries must be 0, 1, or 2 -- down_blocks[3] is "
-                "controlled separately by unfreeze_encoder_tail"
-            )
-        if len(set(values)) != len(values):
-            raise ValueError("unfreeze_down_blocks must not contain duplicates")
-        return sorted(values)
 
 
 # The four losses every VAE finetuning config has always had to weight.

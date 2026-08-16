@@ -75,8 +75,6 @@ adapter:
   default_temb: 0.0
   # Whole-structure unfreeze: entire encoder trunk trainable, on top of the
   # always-trainable decoder + conv_in adapter.
-  unfreeze_down_blocks: [0, 1, 2]
-  unfreeze_encoder_tail: true
 
 resume_from: null
 resume_weights_only: false
@@ -96,7 +94,6 @@ optimization:
   # Reference LR for this baseline -- the upcoming sweep (EXPERIMENTS.md)
   # varies this single value against everything else held fixed.
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   # 0.3x decoder LR -- winner of the encoder-LR sweep (Open Question 6,
   # EXPERIMENTS.md, val_vrmse 0.08516 vs 0.1x's 0.08661). Was 0.1x
   # (inherited as-is from the head-vs-tail sweep this baseline was

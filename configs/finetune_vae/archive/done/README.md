@@ -1,5 +1,52 @@
 # Closed experiments
 
+**2026-08-16: `adapter.unfreeze_down_blocks`/`unfreeze_encoder_tail` and
+`optimization.adapter_lr_multiplier` were removed from the config schema**
+(hardcoded to whole-structure-unfreeze / 1.0x, since every current config
+already used those values -- see `windinet/training/vae_trainer.py`'s
+`_UNFROZEN_DOWN_BLOCKS`). Configs below that varied one of these three away
+from the new hardcoded value -- the head-vs-tail sweep arms (`_head0`,
+`_head01`, `_head012`, `_head01tail`, `_tail`, `_tail2`, `_tail3`) and the
+decoder/adapter-LR-multiplier sweep arms (`_adapterlr0p3x`, `_adapterlr3x`,
+`_declr0p5x`, `_declr2x`) -- **can no longer be loaded as-is**;
+`VaeTrainerConfig(...)` now rejects the now-unknown keys (`extra="forbid"`).
+This is intentional (a loud load failure, not a silent re-run under the
+wrong unfreeze set or multiplier) -- reproducing one of these exactly would
+need reverting to the commit before this removal, not just resubmitting the
+YAML. Every other file here had these fields at the now-hardcoded default
+already, so they were just stripped from the YAML (no behavior change,
+still loadable).
+
+**2026-08-16 (same day): `optimization.encoder_tail_lr_multiplier` also
+removed** -- decided going forward the encoder trunk and decoder always
+train at the same LR, no separate multiplier (0.3x is retired for good,
+not just at its current 1.0x value). This one had real, *published-result*
+variation in currently-active configs (unlike the three above, which were
+already uniform everywhere non-archived) -- moved straight here rather
+than editing in place, to keep each result attached to the exact settings
+that produced it:
+- **KL divergence weight sweep** (Open Question 22): `_kl1e5/1e6/1e8/3e7.yaml`
+- **Fresh-channel init, zeros vs mean** (Open Question 21): `_zerosinit.yaml`,
+  `_ep30_zerosinit.yaml`
+- **Cosine schedule extension** (rejected 2026-08-15): `_ep30_cosine.yaml`
+- **Epoch-budget schedule-shape sweep** (Open Question 20b/c/d):
+  `_ep30_lowfloor.yaml`, `_ep30_slowdecay.yaml`, `_ep30_slowdecay_lowfloor.yaml`
+- **256x256 resolution, old settings** (Open Question 4, superseded by
+  `finetune_vae_whole_structure_baseline_ep30_256res.yaml` in the active
+  configs): `_256res.yaml`
+- **Encoder-LR-at-30ep re-verification** (0.3x vs 1.0x tie confirmed,
+  motivated this whole removal): `_ep30_enclr1x.yaml` -- its winning
+  setting now lives in the active `finetune_vae_whole_structure_baseline_ep30.yaml`
+  itself, same treatment `enclr0p3x` got for the original 15-epoch sweep.
+
+All of these now fail to load (same `extra="forbid"` mechanism, same
+"loud failure over silent re-run" reasoning as above). `_ep40.yaml`,
+`_whole_structure_baseline_512res.yaml`, and
+`finetune_vae_overfit_1sim_wholestruct.yaml` (in the active configs
+directory, not here) also had `encoder_tail_lr_multiplier: 0.3` but never
+produced a citable result (incomplete/never-run/diagnostic respectively),
+so those were just stripped in place -- nothing to preserve.
+
 Configs in this folder have finished, their verdict is written into
 `EXPERIMENTS.md` (repo root), and no further runs against them are planned.
 They stay here (rather than getting deleted) because they are the record a
@@ -102,6 +149,27 @@ What's here:
   floor as real regressions -- neither adopted, both stay at weight 0.
   (GradNorm, the sixth arm of this batch, is filed under `known-bad/`
   instead -- it never converged, see that folder's README.)
+
+- **`finetune_vae_baseline.yaml`** (frozen-trunk, 15ep, val_vrmse 0.095396)
+  and **`finetune_vae_whole_structure_baseline.yaml`** (whole-structure
+  unfreeze, 18ep, 0.3x encoder LR, val_vrmse 0.08360, job 523577) --
+  archived 2026-08-16, per user decision. Both were superseded long ago
+  (frozen-trunk by the head-vs-tail sweep above; 18ep/0.3x by the
+  epoch-budget and encoder-LR-at-30ep sweeps, see "New reference baseline
+  (as of 2026-08-15)" in `EXPERIMENTS.md`) but stayed live as launcher
+  default-fallbacks and the batch-size sweep's base config. **The current
+  128-res baseline is `finetune_vae_whole_structure_baseline_ep30.yaml`** --
+  every generic launcher (`jobs/{sng_pvc,lundquist}/finetune_vae*.sbatch`,
+  `jobs/lrz_ai/finetune_vae_{1,2,4}gpu.job`) now defaults to it (or its
+  256-res counterpart on lrz_ai). `finetune_vae_whole_structure_baseline.yaml`
+  still has one live use: the batch-size sweep (Open Question 23,
+  `jobs/{sng_pvc,lrz_ai,lundquist}/finetune_vae_batchsize.{sbatch,job}`)
+  is deliberately pinned to it rather than the current baseline, since that
+  sweep is about wall-clock/OOM, not accuracy, and changing its base config
+  mid-sweep would confound the read-out. `finetune_vae_baseline.yaml` keeps
+  one live use too: the sng_pvc throughput/rendezvous diagnostics
+  (`finetune_vae_diag*.sbatch`) default to it as a cheap, fast config for
+  pure infra testing, unrelated to accuracy.
 
 If you want to relaunch one of these as a sanity check, the config still
 works as-is (`sbatch <job script> configs/finetune_vae/archive/done/<name>.yaml`)

@@ -54,7 +54,7 @@ BATCH_SIZE=${BATCH_SIZE:?"set BATCH_SIZE (1, 2, 4, 8, or 16), e.g. BATCH_SIZE=4 
 
 # Defaults to the ep18 whole-structure baseline (Open Question 23's test
 # subject); pass any other config as $1.
-BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml}
+BASE_CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_bs_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 

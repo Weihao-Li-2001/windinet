@@ -140,7 +140,6 @@ data:
 optimization:
   # Unchanged from attempt 4.
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   # NEW, only takes effect because adapter.unfreeze_encoder_tail is true.
   # 0.1x decoder LR = 5e-6, matching EXPERIMENTS.md Open Question 3's proposal
   # for the (much larger) full-trunk unfreeze. Kept low: the tail carries a

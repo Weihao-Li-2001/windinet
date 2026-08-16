@@ -37,6 +37,7 @@ def reconstruction_losses(
     mlw_eps: float = 1e-6,
     latent_mean: torch.Tensor | None = None,
     latent_logvar: torch.Tensor | None = None,
+    compute_mlw: bool = True,
 ) -> dict[str, torch.Tensor]:
     """
     Compute reconstruction loss components.
@@ -69,11 +70,16 @@ def reconstruction_losses(
             Encoder posterior vs. standard-normal-prior divergence --
             opt-in, only computed if latent_mean/latent_logvar are given
 
-    RMSE/H1/H2/SSIM/MLW/PCC/VRMS are always computed (cheap) and always
-    present in the returned dict; whether they influence training is
-    entirely up to loss_weighting.weights assigning them a nonzero weight
-    (see windinet/config.py LossWeightingConfig) -- same "always compute,
-    weight decides" convention MLW already used before this. KL is the one
+    RMSE/H1/H2/SSIM/PCC/VRMS are always computed (cheap) and always present
+    in the returned dict; whether they influence training is entirely up to
+    loss_weighting.weights assigning them a nonzero weight (see
+    windinet/config.py LossWeightingConfig). MLW is the one exception to
+    "always compute": it's the only term running an external wavelet
+    decomposition (noticeably heavier than the others), so `compute_mlw`
+    lets the caller skip it -- e.g. when loss_weighting.weights['mlw'] is
+    0.0, as every current config sets it, computing it is pure wasted work.
+    When skipped, losses['mlw'] is still present (a zero tensor) so the
+    returned dict's shape doesn't depend on the flag. KL is the other
     exception: it needs the raw encoder distribution, not pred/target, so
     it's only included when the caller has one to give (VaeTrainer.train /
     _evaluate, from VaeTrainer._encode's extra return values).
@@ -161,14 +167,18 @@ def reconstruction_losses(
     # Frequency / interface preservation
     # ------------------------------------
 
-    losses["mlw"] = mlw_loss(
-        pred,
-        target,
-        wavelet=wavelet,
-        beta=mlw_beta,
-        eps=mlw_eps,
-        spatial_level=spatial_level,
-        temporal_level=temporal_level,
+    losses["mlw"] = (
+        mlw_loss(
+            pred,
+            target,
+            wavelet=wavelet,
+            beta=mlw_beta,
+            eps=mlw_eps,
+            spatial_level=spatial_level,
+            temporal_level=temporal_level,
+        )
+        if compute_mlw
+        else pred.new_zeros(())
     )
 
 

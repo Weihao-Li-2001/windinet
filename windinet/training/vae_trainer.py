@@ -103,6 +103,18 @@ def vrmse_per_channel(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-
     return vrms_per_channel(pred.float(), target.float(), eps=eps)
 
 
+# Whole-structure unfreeze: every spatially-downsampling encoder stage
+# (down_blocks[0:3]) plus the tail (down_blocks[-1]+mid_block+norm_out+
+# conv_out) trains alongside the decoder, always. Was configurable
+# (adapter.unfreeze_down_blocks / adapter.unfreeze_encoder_tail) for the
+# head-vs-tail unfreeze sweep (Open Question 3, EXPERIMENTS.md); every
+# config since has used this exact combination, so it's hardcoded rather
+# than carried as dead config surface. Archived configs from that sweep
+# that unfroze a different subset can no longer be replayed as-is -- see
+# configs/finetune_vae/archive/{done,known-bad}/README.md.
+_UNFROZEN_DOWN_BLOCKS = [0, 1, 2]
+
+
 class VaeTrainer:
     def __init__(self, config: VaeTrainerConfig) -> None:
         self._config = config
@@ -222,27 +234,15 @@ class VaeTrainer:
                 "them remain valid and this VAE can be swapped in at inference."
             )
 
-        # Encoder tail: down_blocks[-1] + mid_block + norm_out + conv_out. These run
-        # entirely on the already-4x4 grid (down_blocks[-1] does not spatially
-        # downsample), so unfreezing them cannot change the compression ratio -- only
-        # what the 512->128 channel projection keeps.
-        #
-        # Encoder down_blocks[0:3]: the actual spatial-downsampling stages, selected
-        # individually via unfreeze_down_blocks so head-vs-tail unfreezing experiments
-        # can be composed freely (see windinet/config.py VaeAdapterConfig).
-        self._tail_unfrozen = adapter_cfg.unfreeze_encoder_tail
-        self._unfrozen_down_blocks = adapter_cfg.unfreeze_down_blocks
+        # Whole-structure unfreeze, always on -- see _UNFROZEN_DOWN_BLOCKS.
         extra_modules = self._get_encoder_extra_modules()
-        if extra_modules:
-            for module in extra_modules:
-                for p in module.parameters():
-                    p.requires_grad_(True)
-            parts = []
-            if self._unfrozen_down_blocks:
-                parts.append(f"down_blocks{self._unfrozen_down_blocks}")
-            if self._tail_unfrozen:
-                parts.append("tail (down_blocks[-1]+mid_block+norm_out+conv_out)")
-            logger.info(f"Encoder extra modules UNFROZEN: {' + '.join(parts)}")
+        for module in extra_modules:
+            for p in module.parameters():
+                p.requires_grad_(True)
+        logger.info(
+            f"Encoder extra modules UNFROZEN: down_blocks{_UNFROZEN_DOWN_BLOCKS} + "
+            "tail (down_blocks[-1]+mid_block+norm_out+conv_out)"
+        )
         self._encoder_extra_unfrozen = bool(extra_modules)
 
         if self._config.optimization.enable_gradient_checkpointing:
@@ -281,23 +281,20 @@ class VaeTrainer:
         return [encoder.down_blocks[-1], encoder.mid_block, encoder.norm_out, encoder.conv_out]
 
     def _get_encoder_downblock_modules(self) -> list[nn.Module]:
-        """down_blocks[0:3] selected by adapter.unfreeze_down_blocks (spatial downsampling stages)."""
+        """down_blocks[0:3] (spatial downsampling stages), see _UNFROZEN_DOWN_BLOCKS."""
         encoder = self._get_encoder()
-        return [encoder.down_blocks[i] for i in self._config.adapter.unfreeze_down_blocks]
+        return [encoder.down_blocks[i] for i in _UNFROZEN_DOWN_BLOCKS]
 
     def _get_encoder_extra_modules(self) -> list[nn.Module]:
-        """Every encoder module beyond conv_in made trainable by unfreeze_down_blocks / unfreeze_encoder_tail."""
-        modules = list(self._get_encoder_downblock_modules())
-        if self._config.adapter.unfreeze_encoder_tail:
-            modules += self._get_encoder_tail_modules()
-        return modules
+        """Every encoder module beyond conv_in made trainable (whole-structure unfreeze)."""
+        return self._get_encoder_downblock_modules() + self._get_encoder_tail_modules()
 
     def _collect_trainable_params(self) -> None:
         self._trainable_params = [p for p in self._vae.parameters() if p.requires_grad]
         vae = self._unwrap_vae()
         base_vae = vae.vae if isinstance(vae, AdaptedVAE) else vae
-        # In inflate mode the grown encoder.conv_in is intentionally trainable, and
-        # optionally the encoder tail (unfreeze_encoder_tail); everything else in the
+        # In inflate mode the grown encoder.conv_in is intentionally trainable, and so
+        # is the rest of the whole-structure-unfreeze set; everything else in the
         # encoder must still be frozen.
         conv_in_trainable = (
             sum(p.numel() for p in self._get_encoder_conv_in().parameters() if p.requires_grad)
@@ -313,9 +310,10 @@ class VaeTrainer:
         expected_encoder_trainable = conv_in_trainable + extra_trainable
         if encoder_trainable != expected_encoder_trainable:
             raise RuntimeError(
-                f"Only encoder.conv_in and the modules selected by unfreeze_down_blocks / "
-                f"unfreeze_encoder_tail may be trainable, but {encoder_trainable:,} encoder "
-                f"parameters are trainable ({expected_encoder_trainable:,} expected)"
+                f"Only encoder.conv_in and the whole-structure-unfreeze modules "
+                f"(_UNFROZEN_DOWN_BLOCKS + tail) may be trainable, but "
+                f"{encoder_trainable:,} encoder parameters are trainable "
+                f"({expected_encoder_trainable:,} expected)"
             )
 
         decoder_trainable = sum(p.numel() for p in self._get_decoder().parameters() if p.requires_grad)
@@ -596,7 +594,7 @@ class VaeTrainer:
         # group from its own base LR, preserving the ratio through warmup and
         # cosine annealing.
         base_lr = cfg.optimization.learning_rate
-        fast_lr = base_lr * cfg.optimization.adapter_lr_multiplier
+        fast_lr = base_lr  # adapter/conv_in LR == decoder LR, no separate multiplier
         vae = self._unwrap_vae()
         decoder_params = [p for p in self._get_decoder().parameters() if p.requires_grad]
         fast_params = []
@@ -612,12 +610,9 @@ class VaeTrainer:
         param_groups = [{"params": decoder_params, "lr": base_lr}]
         if fast_params:
             param_groups.append({"params": fast_params, "lr": fast_lr})
-            logger.info(
-                f"{fast_name} LR = {fast_lr:.2e} "
-                f"({cfg.optimization.adapter_lr_multiplier:g}x decoder LR {base_lr:.2e})"
-            )
+            logger.info(f"{fast_name} LR = {fast_lr:.2e} (== decoder LR)")
         if self._encoder_extra_unfrozen:
-            extra_lr = base_lr * cfg.optimization.encoder_tail_lr_multiplier
+            extra_lr = base_lr  # encoder extra LR == decoder LR, no separate multiplier
             extra_params = [
                 p
                 for module in self._get_encoder_extra_modules()
@@ -625,15 +620,8 @@ class VaeTrainer:
                 if p.requires_grad
             ]
             param_groups.append({"params": extra_params, "lr": extra_lr})
-            extra_desc = []
-            if self._unfrozen_down_blocks:
-                extra_desc.append(f"down_blocks{self._unfrozen_down_blocks}")
-            if self._tail_unfrozen:
-                extra_desc.append("tail")
-            logger.info(
-                f"encoder extra ({'+'.join(extra_desc)}) LR = {extra_lr:.2e} "
-                f"({cfg.optimization.encoder_tail_lr_multiplier:g}x decoder LR {base_lr:.2e})"
-            )
+            extra_desc = [f"down_blocks{_UNFROZEN_DOWN_BLOCKS}", "tail"]
+            logger.info(f"encoder extra ({'+'.join(extra_desc)}) LR = {extra_lr:.2e} (== decoder LR)")
         optimizer = torch.optim.AdamW(
             param_groups,
             lr=base_lr,
@@ -786,6 +774,7 @@ class VaeTrainer:
                         mlw_eps=cfg.loss.mlw_eps,
                         latent_mean=posterior_mean.float(),
                         latent_logvar=posterior_logvar.float(),
+                        compute_mlw=cfg.loss_weighting.weights.get("mlw", 0.0) != 0.0,
                     )
 
                     grad_norms = None
@@ -1053,6 +1042,7 @@ class VaeTrainer:
                 mlw_eps=self._config.loss.mlw_eps,
                 latent_mean=posterior_mean.float(),
                 latent_logvar=posterior_logvar.float(),
+                compute_mlw=weights.get("mlw", 0.0) != 0.0,
             )
             # .get(name, 0.0): see the matching comment in train()'s backward
             # total_loss -- an opt-in loss absent from this config's weights
@@ -1171,29 +1161,23 @@ class VaeTrainer:
                 f"encoder_conv_in.{k}": v.detach().cpu().contiguous()
                 for k, v in self._get_encoder_conv_in().state_dict().items()
             })
-        if self._unfrozen_down_blocks:
-            # NOTE: load_inflated_vae_checkpoint() (windinet/vae_adapter.py) does not
-            # yet restore these keys -- resuming a down-block-unfrozen run isn't wired
-            # up. Fine for a diagnostic (checkpoints disabled, resume_from: null);
-            # revisit before using unfreeze_down_blocks on a real training run.
-            for idx, module in zip(self._unfrozen_down_blocks, self._get_encoder_downblock_modules()):
-                tensors.update({
-                    f"encoder_down_block_{idx}.{k}": v.detach().cpu().contiguous()
-                    for k, v in module.state_dict().items()
-                })
-        if self._tail_unfrozen:
-            # NOTE: load_inflated_vae_checkpoint() (windinet/vae_adapter.py) does not
-            # yet restore these keys -- resuming a tail-unfrozen run isn't wired up.
-            # Fine for a diagnostic (checkpoints disabled, resume_from: null); revisit
-            # before using unfreeze_encoder_tail on a real training run.
-            for name, module in zip(
-                ("down_blocks_last", "mid_block", "norm_out", "conv_out"),
-                self._get_encoder_tail_modules(),
-            ):
-                tensors.update({
-                    f"encoder_tail.{name}.{k}": v.detach().cpu().contiguous()
-                    for k, v in module.state_dict().items()
-                })
+        # NOTE: load_inflated_vae_checkpoint() (windinet/vae_adapter.py) does not yet
+        # restore these encoder_down_block_*/encoder_tail.* keys -- resuming a run
+        # isn't wired up. Fine for a diagnostic (checkpoints disabled, resume_from:
+        # null); revisit before relying on resume for a real training run.
+        for idx, module in zip(_UNFROZEN_DOWN_BLOCKS, self._get_encoder_downblock_modules()):
+            tensors.update({
+                f"encoder_down_block_{idx}.{k}": v.detach().cpu().contiguous()
+                for k, v in module.state_dict().items()
+            })
+        for name, module in zip(
+            ("down_blocks_last", "mid_block", "norm_out", "conv_out"),
+            self._get_encoder_tail_modules(),
+        ):
+            tensors.update({
+                f"encoder_tail.{name}.{k}": v.detach().cpu().contiguous()
+                for k, v in module.state_dict().items()
+            })
 
         metadata = {
             "format": "ltx-inflated-io-v1" if self._inflated else "ltx-decoder-plus-adapters-v1",

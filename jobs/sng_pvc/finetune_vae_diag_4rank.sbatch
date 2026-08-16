@@ -75,7 +75,7 @@ export WANDB_MODE=offline
 export TOKENIZERS_PARALLELISM=false
 export HDF5_USE_FILE_LOCKING=FALSE
 
-BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+BASE_CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_baseline.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_diag4_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 

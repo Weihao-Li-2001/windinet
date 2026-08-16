@@ -93,7 +93,6 @@ data:
 
 optimization:
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   # NEW, only takes effect because adapter.unfreeze_encoder_tail is true.
   # 0.1x decoder LR = 5e-6, matching every prior tail-unfreeze run.
   encoder_tail_lr_multiplier: 0.1

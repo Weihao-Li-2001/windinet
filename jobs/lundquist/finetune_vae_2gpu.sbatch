@@ -47,10 +47,13 @@ cd /local/disk/hramachandran/work/wh_work/windinet
 # LTX base weights ship with the repo (pretrained/hub), not ~/.cache/huggingface.
 export HF_HUB_CACHE="${PWD}/pretrained/hub"
 
-# Defaults to the baseline config (EXPERIMENTS.md row 3); pass any other
+# Defaults to the current 128-res baseline (finetune_vae_whole_structure_
+# baseline_ep30.yaml, 30ep/1.0x-encoder-LR, val_vrmse 0.078662, job 524322)
+# -- was finetune_vae_baseline.yaml (frozen-trunk, superseded), now archived
+# to configs/finetune_vae/archive/done/, see EXPERIMENTS.md. Pass any other
 # config as $1, e.g.
 #   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch configs/finetune_vae/<your-config>.yaml
-BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_2gpu_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 

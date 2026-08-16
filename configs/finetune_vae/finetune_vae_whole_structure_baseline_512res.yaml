@@ -1,0 +1,115 @@
+# VAE finetuning config -- Open Question 4 (latent bandwidth / input
+# resolution) continued, EXPERIMENTS.md: 512x512_orig gives a 16x16 latent
+# grid instead of 256x256_ds's 8x8 (128x128_ds's 4x4 x4 again) -- one more
+# step up in latent bandwidth, same question.
+#
+# Single-variable follow-up to finetune_vae_whole_structure_baseline_ep18.yaml
+# (the most-validated current baseline, val_vrmse 0.08344, job 523486), same
+# pattern as finetune_vae_whole_structure_baseline_256res.yaml: only
+# `data.data_root` changes. Everything else (LR, schedule, loss weights,
+# epochs) held fixed so any val_vrmse delta is attributable to resolution,
+# not a confound.
+#
+# NO 512-RESOLUTION CHANNEL STATS EXIST YET (scripts/compute_channel_stats.py
+# has not been run against 512x512_orig/train.h5) -- normalization_stats_file
+# below points at euler_mq_256_only_train.yaml, the 256-resolution stats,
+# reused as an approximation per explicit instruction rather than left
+# uncomputed. These are almost certainly close (same underlying Euler_MQ
+# sims, just resampled), but not verified for 512x512_orig specifically --
+# if val_vrmse looks off relative to the 128/256 baselines, run
+# compute_channel_stats.sbatch against 512x512_orig/train.h5 and diff before
+# assuming it's a modeling problem, same caveat the 256res config carries
+# for its own (verified) stats file.
+#
+# data_root here is a placeholder -- the launcher REQUIRES an explicit
+# DATA_DIR override for this config, see Usage below. Known location so far
+# is lrz_ai only (confirmed 2026-08-16); not mirrored to sng_pvc's $SCRATCH
+# or lundquist's local disk.
+#
+# Usage:
+#   sbatch jobs/lrz_ai/finetune_vae_1gpu.job \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_512res.yaml \
+#       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/512x512_orig
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "mean"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by jobs/lrz_ai/*.job's DATA_DIR
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/512x512_orig/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 18
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "mean-init", "wsd", "18ep", "h1x2", "lr1x", "shockwave-cfd", "whole-structure-baseline", "512res"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_512res"
+clean_output_dir: true

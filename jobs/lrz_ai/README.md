@@ -21,11 +21,24 @@ in:
 **Submit from the repo root**, same as sng_pvc:
 
 ```bash
-sbatch jobs/lrz_ai/finetune_vae_1gpu.job                                    # baseline config
+sbatch jobs/lrz_ai/finetune_vae_1gpu.job                                    # 256res baseline (default since 2026-08-16)
 sbatch jobs/lrz_ai/finetune_vae_1gpu.job configs/finetune_vae/other.yaml    # or pass one
 sbatch jobs/lrz_ai/finetune_vae_2gpu.job                                    # 2-GPU variant
 sbatch jobs/lrz_ai/finetune_vae_4gpu.job                                    # 4-GPU variant
 ```
+
+**Default config/data changed 2026-08-16**: `finetune_vae_1gpu.job`/`2gpu.job`/
+`4gpu.job` now default to
+`finetune_vae_whole_structure_baseline_ep30_256res.yaml` against
+`256x256_ds` (256x256 is the fixed baseline resolution going forward) --
+previously the ancient 15-epoch frozen-trunk `finetune_vae_baseline.yaml`
+against `128x128_ds`. Their `--time=06:00:00` header has **not** been
+updated to match (still sized for the old queue-wait diagnostic default);
+override with `sbatch --time=<HH:MM:SS> ...` for a real 256res run until
+lrz_ai's actual per-epoch throughput and the partition's `MaxTime` are
+known -- see `finetune_vae_whole_structure_baseline_ep30_256res.yaml`'s own
+header. `finetune_vae_batchsize.job` is untouched (still defaults to the
+128-res whole-structure baseline, tied to Open Question 23's own design).
 
 `finetune_vae_2gpu.job`/`finetune_vae_4gpu.job` (added 2026-08-16) are the
 same script as `finetune_vae_1gpu.job` -- only the `#SBATCH --gres`/

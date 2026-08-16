@@ -1,12 +1,15 @@
 # CAPACITY DIAGNOSTIC -- overfit a SINGLE simulation (1 trajectory). Not a
 # training run. PhD-advisor-suggested follow-up to the 8-sim capacity
 # diagnostic (Open Question 12, finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml,
-# job 523504, val_vrmse 0.05867): what reconstruction loss can the CURRENT
-# whole-structure baseline (finetune_vae_whole_structure_baseline.yaml --
-# down_blocks[0,1,2] + encoder tail unfrozen, encoder_tail_lr_multiplier
-# 0.3x) reach when memorization only has to cover one trajectory instead of
-# eight? A floor here is the cleanest possible read of the architecture's
-# own capacity, with dataset diversity removed from the picture entirely.
+# job 523504, val_vrmse 0.05867): what reconstruction loss can the
+# whole-structure architecture (entire encoder trunk + decoder trainable,
+# same LR throughout -- see VaeTrainer's _UNFROZEN_DOWN_BLOCKS, hardcoded
+# since 2026-08-16, was finetune_vae_whole_structure_baseline.yaml's
+# down_blocks[0,1,2]+tail-unfrozen/encoder_tail_lr_multiplier 0.3x setup at
+# the time this diagnostic was written) reach when memorization only has to
+# cover one trajectory instead of eight? A floor here is the cleanest
+# possible read of the architecture's own capacity, with dataset diversity
+# removed from the picture entirely.
 #
 # SINGLE VARIABLE vs finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml:
 #   data.overfit_sims:    8 -> 1
@@ -64,8 +67,6 @@ adapter:
   default_temb: 0.0
   # Matches finetune_vae_whole_structure_baseline.yaml: entire encoder
   # trunk trainable, not just the tail.
-  unfreeze_down_blocks: [0, 1, 2]
-  unfreeze_encoder_tail: true
 
 resume_from: null
 resume_weights_only: false
@@ -86,8 +87,6 @@ data:
 optimization:
   # Unchanged from the 8-sim whole-structure diagnostic.
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
-  encoder_tail_lr_multiplier: 0.3
   min_learning_rate: 1e-6
   scheduler_type: "wsd"
   stable_fraction: 0.7

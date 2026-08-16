@@ -1,5 +1,18 @@
 # Known-bad -- do not reuse these numbers
 
+**2026-08-16: `adapter.unfreeze_down_blocks`/`unfreeze_encoder_tail` and
+`optimization.adapter_lr_multiplier` were removed from the config schema**
+(hardcoded to whole-structure-unfreeze / 1.0x, since every current config
+already used those values -- see `windinet/training/vae_trainer.py`'s
+`_UNFROZEN_DOWN_BLOCKS`). Configs below that varied `unfreeze_down_blocks`/
+`unfreeze_encoder_tail` away from `[0,1,2]`/`true` -- the head-vs-tail sweep
+arms (`_head0`, `_head01`, `_head012`, `_head01tail`, `_tail2`, `_tail3`) --
+**can no longer be loaded as-is**; `VaeTrainerConfig(...)` now rejects the
+now-unknown keys (`extra="forbid"`). This is intentional (a loud load
+failure, not a silent re-run under the wrong unfreeze set) -- reproducing
+one of these exactly would need reverting to the commit before this
+removal, not just resubmitting the YAML.
+
 Configs (and their output data, under
 `finetune_vae_outputs/sng_pvc/archive/known-bad/` and
 `finetune_vae_outputs/lundquist/archive/known-bad/`) in this folder produced

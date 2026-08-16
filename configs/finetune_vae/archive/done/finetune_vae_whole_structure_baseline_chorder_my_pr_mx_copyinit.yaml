@@ -40,8 +40,6 @@ adapter:
   channels: ["density", "momentum_y", "pressure", "momentum_x"]
   activation: "gelu"
   default_temb: 0.0
-  unfreeze_down_blocks: [0, 1, 2]
-  unfreeze_encoder_tail: true
 
 resume_from: null
 resume_weights_only: false
@@ -57,7 +55,6 @@ data:
 
 optimization:
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   encoder_tail_lr_multiplier: 0.3
   min_learning_rate: 1e-6
   scheduler_type: "wsd"

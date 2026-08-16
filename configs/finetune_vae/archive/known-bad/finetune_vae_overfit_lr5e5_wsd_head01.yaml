@@ -67,7 +67,6 @@ data:
 optimization:
   # Unchanged from attempts 4/5.
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   # Only takes effect because unfreeze_down_blocks/unfreeze_encoder_tail is
   # set: 0.1x decoder LR = 5e-6, matching attempt 5 and every other run in
   # this sweep (kept low -- these are pretrained-basis weights, not a

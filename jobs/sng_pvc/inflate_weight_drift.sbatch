@@ -41,7 +41,7 @@ echo "job=${SLURM_JOB_ID} node=$(hostname)"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
-CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml}
+CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline.yaml}
 CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
 OUTPUT_JSON="log_finetuning_vae/sng_pvc/${SLURM_JOB_ID}-weight_drift.json"
 

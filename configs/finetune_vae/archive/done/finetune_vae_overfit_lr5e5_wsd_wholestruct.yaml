@@ -117,8 +117,6 @@ adapter:
   # THE variable in this run, matching finetune_vae_whole_structure_baseline.yaml:
   # entire encoder trunk trainable, not just the tail (attempt 5/6) or
   # conv_in alone (attempt 4).
-  unfreeze_down_blocks: [0, 1, 2]
-  unfreeze_encoder_tail: true
 
 resume_from: null
 resume_weights_only: false
@@ -140,7 +138,6 @@ data:
 optimization:
   # Unchanged from attempts 4-6.
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   # Matches the CURRENT whole-structure baseline (post encoder-LR sweep,
   # Open Question 6) -- NOT the 0.1x the known-bad fullenc attempt used.
   encoder_tail_lr_multiplier: 0.3

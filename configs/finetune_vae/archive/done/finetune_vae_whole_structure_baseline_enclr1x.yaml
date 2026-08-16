@@ -38,8 +38,6 @@ adapter:
   channels: ["density", "momentum_x", "momentum_y", "pressure"]
   activation: "gelu"
   default_temb: 0.0
-  unfreeze_down_blocks: [0, 1, 2]
-  unfreeze_encoder_tail: true
 
 resume_from: null
 resume_weights_only: false
@@ -55,7 +53,6 @@ data:
 
 optimization:
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   # THE variable in this run: 0.1 -> 1.0 (absolute encoder LR 5e-6 -> 5e-5,
   # equal to the decoder LR -- no safety margin left).
   encoder_tail_lr_multiplier: 1.0

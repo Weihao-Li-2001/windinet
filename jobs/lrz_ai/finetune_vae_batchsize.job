@@ -52,7 +52,7 @@ export DATA_DIR=${2:-/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/
 
 # Base config to patch; override with:
 #   BATCH_SIZE=<N> sbatch jobs/lrz_ai/finetune_vae_batchsize.job configs/finetune_vae/<your-config>.yaml
-export BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml}
+export BASE_CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline.yaml}
 
 export BATCH_SIZE=${BATCH_SIZE:?"set BATCH_SIZE (1, 2, 4, 8, or 16), e.g. BATCH_SIZE=4 sbatch jobs/lrz_ai/finetune_vae_batchsize.job"}
 
@@ -113,11 +113,13 @@ patch_config_for_cluster(
     output_suffix=f"_bs{batch_size}",
 )
 yaml.safe_dump(cfg, open(os.environ["RUN_CONFIG"], "w"), sort_keys=False)
+gpus = int(os.environ["SLURM_GPUS_ON_NODE"])
+accum = cfg["optimization"]["gradient_accumulation_steps"]
+output_dir = cfg["output_dir"]
+data_root = cfg["data"]["data_root"]
 print(
-    f"{os.environ[\"SLURM_GPUS_ON_NODE\"]} GPUs x batch_size {batch_size} x accum "
-    f"{cfg[\"optimization\"][\"gradient_accumulation_steps\"]} -> effective batch "
-    f"{int(os.environ[\"SLURM_GPUS_ON_NODE\"]) * batch_size * cfg[\"optimization\"][\"gradient_accumulation_steps\"]}; "
-    f"output_dir={cfg[\"output_dir\"]} data_root={cfg[\"data\"][\"data_root\"]}"
+    f"{gpus} GPUs x batch_size {batch_size} x accum {accum} -> effective batch "
+    f"{gpus * batch_size * accum}; output_dir={output_dir} data_root={data_root}"
 )
 '
 OUT_DIR=$(python -c 'import os, yaml; print(yaml.safe_load(open(os.environ["RUN_CONFIG"]))["output_dir"])')

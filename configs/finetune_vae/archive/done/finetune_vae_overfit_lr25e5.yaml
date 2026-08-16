@@ -115,7 +115,6 @@ optimization:
   # header: attempt 2 tripped its own kill criterion (epoch 2 train_loss >
   # epoch 1's) at 5e-5 with batch_size 1 / accum 1.
   learning_rate: 2.5e-5
-  adapter_lr_multiplier: 1.0
   min_learning_rate: 1e-6
   # Constant, unchanged from attempt 2 -- this file isolates the LR
   # magnitude, not the schedule shape.

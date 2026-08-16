@@ -107,8 +107,6 @@ adapter:
   activation: "gelu"
   default_temb: 0.0
   # Whole-structure unfreeze, unchanged from the baseline.
-  unfreeze_down_blocks: [0, 1, 2]
-  unfreeze_encoder_tail: true
 
 resume_from: null
 resume_weights_only: false
@@ -124,7 +122,6 @@ data:
 optimization:
   # Unchanged from the baseline.
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   encoder_tail_lr_multiplier: 0.3
   min_learning_rate: 1e-6
   scheduler_type: "wsd"

@@ -60,6 +60,36 @@ verdict **after** it finishes.
   diffed against 1.0x**. Job 524322's own directory
   (`finetune_vae_whole_structure_baseline_ep30_enclr1x`) is the authoritative
   reproduction until the file itself is re-run under the new value.
+- **Old baselines archived (2026-08-16)**: `finetune_vae_baseline.yaml`
+  (frozen-trunk) and `finetune_vae_whole_structure_baseline.yaml`
+  (18ep/0.3x) both moved to `configs/finetune_vae/archive/done/` -- both
+  were superseded well before this (see the two entries above and "New
+  reference baseline (as of 2026-08-06/08)"), but kept lingering as
+  launcher default-fallbacks. **The baseline is
+  `finetune_vae_whole_structure_baseline_ep30.yaml`** (128-res) /
+  `finetune_vae_whole_structure_baseline_ep30_256res.yaml` (256-res, now
+  the fixed default resolution, not yet run anywhere). Every generic
+  launcher's default-fallback now points at one of these two. See
+  `configs/finetune_vae/archive/done/README.md` for the full list of what
+  still intentionally references the two archived files (the batch-size
+  sweep and the sng_pvc infra diagnostics) and why.
+- **`unfreeze_down_blocks`/`unfreeze_encoder_tail`/`adapter_lr_multiplier`/
+  `encoder_tail_lr_multiplier` removed from the config schema (2026-08-16)**:
+  whole-structure unfreeze and "everything trains at the decoder's LR, no
+  per-group multiplier" are permanent now, not swept variables -- hardcoded
+  in `VaeTrainer` (`_UNFROZEN_DOWN_BLOCKS`) instead of carried as config
+  surface. `encoder_tail_lr_multiplier` in particular is retired for good,
+  not just parked at its current 1.0x value -- 0.3x will not come back.
+  Every current (non-archived) config had these at the new hardcoded values
+  already, or was updated to match (`_ep40.yaml`, `_512res.yaml`,
+  `finetune_vae_overfit_1sim_wholestruct.yaml` -- none had a citable result
+  riding on the old value). Configs whose *published* result depended on a
+  different value (the 128-vs-partial-unfreeze sweep, the decoder/adapter-LR
+  sweep, and everything that ran at `encoder_tail_lr_multiplier: 0.3`) were
+  archived instead of edited, so each result stays attached to the exact
+  settings that produced it -- see `configs/finetune_vae/archive/done/README.md`
+  for the full list. Those configs no longer load (`extra="forbid"`); this
+  is intentional, not a bug.
 
 ## Fixed setup (identical in every 15-epoch run)
 
@@ -2183,15 +2213,29 @@ convergence, no NaN/blowup, sane per-channel spread), so this is not a
 reason to distrust the 0.05771 number -- just an unclosed loose end before
 leaning on it for a follow-up sweep at this resolution.
 
-**Not yet decided: promote 256x256 to the new default baseline resolution?**
-A -30.9% single-variable win this far past the noise floor is a strong
-candidate, but every open question answered so far (channel order,
-copy-init, decoder/adapter LR, loss weights, KL) was tuned *at 128
-resolution* against the 128-resolution baseline -- none of those tunings
-have been re-validated at 256. Promoting now would mean either re-running
-the already-closed sweeps at 256 (expensive) or carrying 128-tuned
-hyperparameters forward on faith. Flagging for a PhD-advisor decision rather
-than promoting unilaterally.
+**DECIDED 2026-08-16: 256x256 is the fixed baseline resolution going
+forward**, superseding 128x128. This was flagged here as a PhD-advisor
+decision rather than something to promote unilaterally -- note the caveat
+below still stands: every closed sweep so far (channel order, copy-init,
+decoder/adapter LR, loss weights, KL) was tuned *at 128 resolution*, none
+re-validated at 256. The decision is about which resolution new work
+targets by default, not a claim that the 128-tuned hyperparameters are
+confirmed optimal at 256 -- that re-validation is still open.
+
+**What changed as a result:** `jobs/lrz_ai/finetune_vae_1gpu.job`/
+`2gpu.job`/`4gpu.job` now default to
+`finetune_vae_whole_structure_baseline_ep30_256res.yaml` against
+`256x256_ds` instead of the old frozen-trunk 128-res `finetune_vae_baseline.yaml`
+default (see `jobs/lrz_ai/README.md`). **Not changed:** `windinet/cluster_config.py`'s
+`CLUSTER_DEFAULTS["sng_pvc"]`/`["lundquist"]` still default to `128x128_ds`
+-- unlike lrz_ai's per-script `DATA_DIR` fallback (only affects lrz_ai
+launches lacking an explicit override), those two are the literal
+`data.data_root` used by *every* sng_pvc/lundquist config that doesn't pass
+its own override, including every still-open 128-res sweep in this ledger
+(the batch-size sweep above, KL, epoch-budget follow-ups, etc.). Flipping
+them would silently repoint all of those at 256x256_ds/wrong stats unless
+each config's launch command is individually re-audited first -- left alone
+until that audit happens or is explicitly requested.
 
 Launch (already run, kept for reference):
 ```
@@ -2200,7 +2244,25 @@ sbatch jobs/sng_pvc/finetune_vae.sbatch \
     "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
 ```
 
-### Decoder LR / adapter LR multiplier sweep (Open Question 9, new 2026-08-08)
+**Follow-up prepped 2026-08-16, NOT YET LAUNCHED:** the 0.05771 result above
+is pinned to the *stale* 18ep/0.3x-encoder-LR baseline -- both have since
+moved (30 epochs, Open Question 20; 1.0x encoder LR, "New reference
+baseline (as of 2026-08-15)"). `finetune_vae_whole_structure_baseline_ep30_256res.yaml`
+re-derives 256res as a single-variable change against the *current*
+baseline (`_ep30.yaml`, val_vrmse 0.078662, job 524322) instead. Per the
+VAE wrap-up plan's item 3, this is meant for **lrz_ai** (256x256_ds
+confirmed there 2026-08-16:
+`/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds`
+-- this config has never been run on lrz_ai, only the old 18ep/0.3x version
+on sng_pvc), gated on two unknowns this machine can't resolve: (1) the
+lrz_ai partition's actual `MaxTime` (`scontrol show partition
+lrz-hgx-h100-94x4`, not checked yet) and (2) lrz_ai's real per-epoch
+throughput at 2 GPUs, which the in-flight queue-wait/wall-clock diagnostic
+job (`jobs/lrz_ai/README.md`) will supply once it finishes -- do not launch
+against `finetune_vae_2gpu.job`'s default `--time=06:00:00` (sized for that
+short diagnostic, not a real run); the config's own header carries the full
+timing writeup and the calibrated launch command once those two numbers are
+in.
 
 **THE QUESTION:** two of the whole-structure baseline's LR-bearing
 components have never been independently tuned -- the decoder's own

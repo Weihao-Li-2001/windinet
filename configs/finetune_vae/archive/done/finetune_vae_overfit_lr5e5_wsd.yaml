@@ -122,7 +122,6 @@ optimization:
   # Unchanged from attempt 2 -- this file isolates the schedule shape, not
   # the LR magnitude.
   learning_rate: 5e-5
-  adapter_lr_multiplier: 1.0
   min_learning_rate: 1e-6
   # CHANGED from attempt 2's "constant": wsd (warmup-stable-decay), matching
   # the baseline's proven-converging schedule. See header for why.

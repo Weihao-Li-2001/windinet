@@ -45,7 +45,7 @@ Reports, per latent channel, both:
     directly interpretable form.
 
 Usage:
-    python scripts/latent_stats.py configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml \\
+    python scripts/latent_stats.py configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline.yaml \\
         --checkpoint $SCRATCH/windinet/finetune_vae_outputs/sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors \\
         --num-samples 32 \\
         --output latent_stats_whole_structure_baseline.json

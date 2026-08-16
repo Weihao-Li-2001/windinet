@@ -127,7 +127,7 @@ DIAG_WORKERS=${DIAG_WORKERS:-}          # empty = leave cluster default (2)
 DIAG_EPOCHS=${DIAG_EPOCHS:-2}            # epoch1=warmup, epoch2=clean reading
 echo "DIAG_TAG=${DIAG_TAG} DIAG_WORKERS=${DIAG_WORKERS:-<default>} DIAG_EPOCHS=${DIAG_EPOCHS} nodes=${SLURM_JOB_NUM_NODES}"
 
-BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_baseline.yaml}
+BASE_CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_baseline.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_diag2node_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 

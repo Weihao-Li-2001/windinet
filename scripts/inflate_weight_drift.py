@@ -36,9 +36,9 @@ finetuning means training successfully specialized the fresh channel --
 if the visual artifact still persists in that case, more training is
 unlikely to be the fix. Low own_drift means the weights are still close to
 their init regardless of anything else -- that DOES point at "insufficient
-training" (or a too-low LR on that slot, see `encoder_tail_lr_multiplier`
--- note `decoder.conv_out` is not scaled by that multiplier, it trains at
-the full decoder LR).
+training" (every trainable slot, including this one, now trains at the
+full decoder LR -- no reduced-LR multiplier exists anymore, see
+VaeTrainer's param-group setup).
 
 Checks both `encoder.conv_in` (input side, only informative if
 `freeze_conv_in: false`) and `decoder.conv_out` (output side -- what
@@ -46,7 +46,7 @@ directly produces the visually-inspected reconstruction).
 
 Usage:
     python scripts/inflate_weight_drift.py \\
-        configs/finetune_vae/finetune_vae_whole_structure_baseline.yaml \\
+        configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline.yaml \\
         --checkpoint $SCRATCH/windinet/finetune_vae_outputs/sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors \\
         --output weight_drift_whole_structure_baseline.json
 
