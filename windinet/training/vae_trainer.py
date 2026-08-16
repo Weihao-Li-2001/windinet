@@ -666,32 +666,66 @@ class VaeTrainer:
         # by all groups: with base 5e-5 / adapter 5e-4 / eta_min 1e-6 both groups
         # converge onto 1e-6 and the intended 10x silently becomes 1x by the end.)
         sched_type = cfg.optimization.scheduler_type
-        floor = cfg.optimization.min_learning_rate / base_lr
-        decay_steps = max(1, total_opt_steps - warmup_steps)
-        if sched_type == "wsd":
-            stable_steps = int(round(decay_steps * cfg.optimization.stable_fraction))
-        elif sched_type == "constant":
-            stable_steps = decay_steps
-        else:  # cosine: decay immediately after warmup
-            stable_steps = 0
-        anneal_steps = max(1, decay_steps - stable_steps)
 
-        def lr_factor(step: int) -> float:
-            if step < warmup_steps:
-                w = cfg.optimization.warmup_start_factor
-                return w + (1.0 - w) * (step / max(1, warmup_steps))
-            t = step - warmup_steps
-            if t < stable_steps:
-                return 1.0
-            p = min(1.0, (t - stable_steps) / anneal_steps)
-            return floor + (1.0 - floor) * 0.5 * (1.0 + math.cos(math.pi * p))
+        def set_warmup_lr(step: int) -> None:
+            w = cfg.optimization.warmup_start_factor
+            factor = w + (1.0 - w) * (step / max(1, warmup_steps))
+            for pg, base in zip(optimizer.param_groups, warmup_base_lrs):
+                pg["lr"] = base * factor
 
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_factor)
-        logger.info(
-            f"LR schedule '{sched_type}': {total_opt_steps} steps "
-            f"({warmup_steps} warmup, {stable_steps} stable, {anneal_steps} anneal), "
-            f"peak {base_lr:.2e} -> floor {cfg.optimization.min_learning_rate:.2e}"
-        )
+        if sched_type == "warmup_plateau":
+            # Fixed warmup, then a plateau watcher on the same metric that already
+            # gates "is this the best checkpoint" (cfg.checkpoints.best_metric):
+            # the stable/decay boundary is discovered from this run's own val curve
+            # instead of being fixed in advance as a step-count ratio. All param
+            # groups currently share one base LR (see the comments above), so a
+            # single scalar min_lr/factor applied uniformly is correct; if a group
+            # is ever given a different base LR this would need to scale per-group
+            # like the wsd/cosine branch below does via `floor`.
+            warmup_base_lrs = [pg["lr"] for pg in optimizer.param_groups]
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode="min",
+                factor=cfg.optimization.plateau_factor,
+                patience=cfg.optimization.plateau_patience,
+                threshold=cfg.optimization.plateau_threshold,
+                min_lr=cfg.optimization.min_learning_rate,
+            )
+            set_warmup_lr(0)
+            logger.info(
+                f"LR schedule 'warmup_plateau': {warmup_steps} warmup steps, then "
+                f"ReduceLROnPlateau(factor={cfg.optimization.plateau_factor}, "
+                f"patience={cfg.optimization.plateau_patience}) on "
+                f"{cfg.checkpoints.best_metric}, peak {base_lr:.2e} -> floor "
+                f"{cfg.optimization.min_learning_rate:.2e}"
+            )
+        else:
+            floor = cfg.optimization.min_learning_rate / base_lr
+            decay_steps = max(1, total_opt_steps - warmup_steps)
+            if sched_type == "wsd":
+                stable_steps = int(round(decay_steps * cfg.optimization.stable_fraction))
+            elif sched_type == "constant":
+                stable_steps = decay_steps
+            else:  # cosine: decay immediately after warmup
+                stable_steps = 0
+            anneal_steps = max(1, decay_steps - stable_steps)
+
+            def lr_factor(step: int) -> float:
+                if step < warmup_steps:
+                    w = cfg.optimization.warmup_start_factor
+                    return w + (1.0 - w) * (step / max(1, warmup_steps))
+                t = step - warmup_steps
+                if t < stable_steps:
+                    return 1.0
+                p = min(1.0, (t - stable_steps) / anneal_steps)
+                return floor + (1.0 - floor) * 0.5 * (1.0 + math.cos(math.pi * p))
+
+            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_factor)
+            logger.info(
+                f"LR schedule '{sched_type}': {total_opt_steps} steps "
+                f"({warmup_steps} warmup, {stable_steps} stable, {anneal_steps} anneal), "
+                f"peak {base_lr:.2e} -> floor {cfg.optimization.min_learning_rate:.2e}"
+            )
 
         # Restore optimizer/scheduler/loss-weights/RNG when resuming. Done after
         # both are built (load_state_dict needs the target objects) and after
@@ -850,7 +884,14 @@ class VaeTrainer:
                             self._accelerator.clip_grad_norm_(self._trainable_params, cfg.optimization.max_grad_norm)
 
                         optimizer.step()
-                        scheduler.step()
+                        if sched_type == "warmup_plateau":
+                            # ReduceLROnPlateau is stepped once per epoch below, with
+                            # the epoch's monitored val metric; only the warmup ramp
+                            # is per-step here.
+                            if (global_opt_step + 1) < warmup_steps:
+                                set_warmup_lr(global_opt_step + 1)
+                        else:
+                            scheduler.step()
                         optimizer.zero_grad(set_to_none=True)
                         global_opt_step += 1
 
@@ -921,6 +962,19 @@ class VaeTrainer:
                 val_metrics = self._evaluate(eval_loader, device)
                 eval_elapsed = time.time() - eval_t0
 
+                # val_metrics is already identical across ranks (all-reduced inside
+                # _evaluate above), so every rank can derive `monitored` and step the
+                # plateau scheduler from it directly -- keeps each rank's optimizer
+                # LR in sync without an extra broadcast. Must also run unconditionally
+                # (not gated on IS_MAIN_PROCESS) for the same reason as _evaluate.
+                monitored = (
+                    val_metrics["vrmse"]
+                    if cfg.checkpoints.best_metric == "val_vrmse"
+                    else val_metrics["total_loss"]
+                )
+                if sched_type == "warmup_plateau" and global_opt_step >= warmup_steps:
+                    scheduler.step(monitored)
+
                 if IS_MAIN_PROCESS:
                     avg_loss = running_loss / max(count, 1)
                     lr = optimizer.param_groups[0]["lr"]
@@ -969,11 +1023,6 @@ class VaeTrainer:
                         self._save_visualization(vis_loader, device, epoch)
                     vis_elapsed = time.time() - vis_t0
 
-                    monitored = (
-                        val_metrics["vrmse"]
-                        if cfg.checkpoints.best_metric == "val_vrmse"
-                        else val_metrics["total_loss"]
-                    )
                     improved = monitored < self._best_metric_value
                     if improved:
                         self._best_metric_value = monitored

@@ -411,14 +411,17 @@ class VaeOptimizationConfig(ConfigBaseModel):
             "multiplier is preserved for the whole schedule."
         ),
     )
-    scheduler_type: Literal["cosine", "wsd", "constant"] = Field(
+    scheduler_type: Literal["cosine", "wsd", "constant", "warmup_plateau"] = Field(
         default="cosine",
         description=(
             "LR schedule after warmup. 'cosine' anneals to the floor over the whole run. "
             "'wsd' holds the peak LR for stable_fraction of the post-warmup steps, then "
             "cosine-anneals to the floor -- a flat val curve during the stable phase is "
             "evidence of a real plateau rather than an exhausted schedule. 'constant' "
-            "never decays."
+            "never decays. 'warmup_plateau' holds the peak LR after warmup and decays by "
+            "plateau_factor whenever checkpoints.best_metric stops improving for "
+            "plateau_patience epochs -- the stable/decay split is discovered from this "
+            "run's own validation curve instead of fixed in advance."
         ),
     )
     stable_fraction: float = Field(
@@ -426,6 +429,25 @@ class VaeOptimizationConfig(ConfigBaseModel):
         gt=0.0,
         le=1.0,
         description="wsd only: fraction of post-warmup steps held at peak LR before decay.",
+    )
+    plateau_factor: float = Field(
+        default=0.5,
+        gt=0.0,
+        lt=1.0,
+        description="warmup_plateau only: multiply LR by this factor on each plateau event.",
+    )
+    plateau_patience: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "warmup_plateau only: epochs with no improvement in checkpoints.best_metric "
+            "before the LR is decayed."
+        ),
+    )
+    plateau_threshold: float = Field(
+        default=1e-4,
+        gt=0.0,
+        description="warmup_plateau only: minimum relative improvement to reset patience.",
     )
     epochs: int = Field(default=10)
     batch_size: int = Field(default=1)
