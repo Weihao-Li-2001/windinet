@@ -4,6 +4,57 @@ Single source of truth for what has been run, what it showed, and what is still
 open. Every new run gets a row here **before** it is launched (hypothesis) and a
 verdict **after** it finishes.
 
+## Table of contents
+
+Navigation only -- nothing below was reworded or reordered to build this list.
+
+- [Fixed setup (identical in every 15-epoch run)](#fixed-setup-identical-in-every-15-epoch-run)
+- [Weight provenance](#weight-provenance)
+  - [DiT (stage 2, not yet run)](#dit-stage-2-not-yet-run)
+- [Ledger](#ledger)
+- [In flight](#in-flight)
+  - [Capacity diagnostic (Open Question 2) -- RESOLVED: partial](#capacity-diagnostic-open-question-2----resolved-partial)
+  - [Attempt 5 -- encoder tail unfreeze, DONE](#attempt-5----encoder-tail-unfreeze-done)
+  - [Attempt 6 -- tail unfreeze + slower decay, DONE](#attempt-6----tail-unfreeze-slower-decay-done)
+  - [Encoder head-vs-tail unfreeze sweep (Open Question 3, generalized)](#encoder-head-vs-tail-unfreeze-sweep-open-question-3-generalized)
+  - [Full-data follow-ups: tail unfreeze and schedule shape, DONE](#full-data-follow-ups-tail-unfreeze-and-schedule-shape-done)
+- [Established](#established)
+- [NOT established (previously treated as if it were)](#not-established-previously-treated-as-if-it-were)
+- [The bandwidth ceiling](#the-bandwidth-ceiling)
+- [Open questions, in priority order](#open-questions-in-priority-order) -- numbered
+  list, 23 questions, no anchors of their own (line numbers are approximate,
+  for editor "go to line" -- use the linked write-up section where one exists):
+  1. Seed noise floor -- **ANSWERED ~1.1%** -- [Seed noise floor sweep](#seed-noise-floor-sweep-open-question-1-configs-written-2026-08-06) (~line 460)
+  2. Latent vs. objective bottleneck -- **ANSWERED: partial** -- [Capacity diagnostic](#capacity-diagnostic-open-question-2----resolved-partial) (~line 467)
+  3. Does unfreezing (part of) the encoder help -- **ANSWERED: whole trunk wins** -- [Head-vs-tail unfreeze sweep](#encoder-head-vs-tail-unfreeze-sweep-open-question-3-generalized) (~line 475)
+  4. Does more latent bandwidth help -- **ANSWERED: yes, largest single-variable gain** -- [256x256 resolution](#256x256-resolution-open-question-4-resolved-2026-08-11) (~line 488)
+  5. Was `stable_fraction 0.7`'s decay length right for full data -- **ANSWERED: yes** (inline only, ~line 500)
+  6. Encoder-LR sweep on the whole-structure baseline -- **ANSWERED: 0.3x wins** (later retired to 1.0x, see baseline history above) (inline only, ~line 507)
+  7. Was 15 epochs enough for the whole-structure baseline -- **ANSWERED: no, real gain from more epochs** (inline only, ~line 621)
+  8. Does channel order matter -- **ANSWERED: yes** -- [Channel-order sweep](#channel-order-sweep-open-question-8-new-2026-08-06), [v2 + copy-init](#channel-order-sweep-v2-copy-init-extension-open-questions-810-revisited-resolved-2026-08-12) (~line 736)
+  9. Decoder LR / conv_in adapter LR multiplier -- **ANSWERED: baseline values already near-optimal** (inline only, ~line 757)
+  10. Does copy-init from a paired sibling channel beat mean-init -- **ANSWERED: no, null result** -- [Copy-init](#copy-init-for-a-physically-paired-momentum-channel-open-question-10-new-2026-08-08), [v2 revisit](#channel-order-sweep-v2-copy-init-extension-open-questions-810-revisited-resolved-2026-08-12) (~line 779)
+  11. Does log-compressing density help -- **ANSWERED: borderline, inside noise floor** -- [Log-density experiment](#log-density-experiment-open-question-11-new-2026-08-08) (~line 800)
+  12. 8-sim memorization ceiling under whole-structure unfreeze -- **ANSWERED: ceiling doesn't move** -- [Capacity diagnostic re-run](#capacity-diagnostic-re-run-under-whole-structure-unfreeze-open-question-12-new-2026-08-08) (~line 821)
+  13. RMSE-only loss ablation -- **ANSWERED: worse, h1/ssim are net-positive** -- [RMSE-only loss ablation](#rmse-only-loss-ablation-open-question-13-new-2026-08-08) (~line 846)
+  14. Does `h2` (curvature loss) help on top of `h1` -- **ANSWERED: no, slightly worse** -- [H2 loss term](#h2-loss-term-open-question-14-resolved-2026-08-12) (~line 861)
+  15. GradNorm vs. hand-tuned fixed weights -- **ANSWERED: no, unstable + 5x cost** -- [GradNorm loss weighting](#gradnorm-loss-weighting-open-question-15-resolved-2026-08-12) (~line 870)
+  16. h1 weight 50->100 retest -- **ANSWERED: no effect** -- [Existing-loss weight retests](#existing-loss-weight-retests-h1x2-ssimx2-mlw-open-questions-161718-resolved-2026-08-12) (~line 882)
+  17. ssim weight 0.15->0.3 -- **ANSWERED: no effect** -- same section as Q16 (~line 887)
+  18. mlw weight 0.0->1e-4 retest -- **ANSWERED: still net-negative** -- same section as Q16 (~line 891)
+  19. KL divergence weight on vs. off -- **ANSWERED: regularizes at no cost** -- [KL divergence weight](#kl-divergence-weight-open-question-19-resolved-2026-08-12) (~line 896)
+  20. Epoch budget 18->30 + schedule shape -- **ANSWERED: epoch budget alone drove the gain** -- [Epoch budget / schedule-shape sweep](#epoch-budget-schedule-shape-sweep-open-question-20-resolved-2026-08-14) (~line 909)
+  21. Fresh-channel init, zeros vs. mean -- **ANSWERED (quantitative half): zeros costs the fresh channel** -- [Fresh-channel init](#fresh-channel-init-zeros-vs-mean-open-question-21-resolved-2026-08-14) (~line 951)
+  22. KL divergence weight sweep, where does it saturate -- **ANSWERED: nowhere in range tested** -- [KL divergence weight sweep](#kl-divergence-weight-sweep-open-question-22-resolved-2026-08-14) (~line 1013)
+  23. Does per-GPU micro-batch size change results or just wall-clock/feasibility -- **IN PROGRESS** (inline only, ~line 1070); batch_size x accum grid follow-up beyond effective_batch=32, sng_pvc (inline only, ~line 1159)
+- [sng_pvc throughput diagnostic](#sng_pvc-throughput-diagnostic)
+- [Eval parallelization fix, CONFIRMED WORKING (2026-08-06)](#eval-parallelization-fix-confirmed-working-2026-08-06)
+- [New loss components (H2/PCC/VRMS/KL), opt-in, NOT ENABLED anywhere yet (2026-08-06)](#new-loss-components-h2pccvrmskl-opt-in-not-enabled-anywhere-yet-2026-08-06)
+- [Per-channel VRMSE, active by default (2026-08-08)](#per-channel-vrmse-active-by-default-2026-08-08)
+- [Canonical normalization-stats file, `normalization_stats_file` (2026-08-08)](#canonical-normalization-stats-file-normalization_stats_file-2026-08-08)
+- [Where things live](#where-things-live)
+- [Protocol going forward](#protocol-going-forward)
+
 - **Task**: LTX-Video 0.9.x VAE adapted to 4-channel Euler CFD fields
   (density, momentum_x, momentum_y, pressure), 128x128, inflate mode.
 - **Metric**: `val_vrmse` on 675 held-out sims (fixed seed + randperm, identical
