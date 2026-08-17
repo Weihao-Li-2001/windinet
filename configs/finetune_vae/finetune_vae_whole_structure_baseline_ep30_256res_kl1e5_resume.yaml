@@ -5,7 +5,7 @@
 # implied by "New best checkpoint (epoch 29...)") then was CANCELLED DUE TO
 # TIME LIMIT partway through epoch 30's training loop -- killed before
 # epoch 30 reached its own eval/checkpoint phase, so
-# checkpoints/vae_shockwave_best.safetensors + its .state.pt are still
+# checkpoints/vae_shockwave_last.safetensors + its .state.pt are still
 # exactly epoch 29's, untouched/uncorrupted. This resumes from there to
 # finish the single remaining epoch.
 #
@@ -59,7 +59,7 @@ adapter:
 # THE variable: resume from epoch 29's checkpoint, restoring optimizer/
 # scheduler/step state too (resume_weights_only: false) so training
 # continues at epoch 30 instead of restarting the schedule.
-resume_from: "/mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5/checkpoints/vae_shockwave_best.safetensors"
+resume_from: "/mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5/checkpoints/vae_shockwave_last.safetensors"
 resume_weights_only: false
 
 data:
