@@ -31,7 +31,8 @@
 # 48 keeps the request inside a fair-share, socket-safe footprint.
 #
 # Submit from the repo root so the #SBATCH -o/-e paths above resolve:
-#   sbatch jobs/lrz_ai/finetune_vae_2gpu.job [configs/finetune_vae/<your-config>.yaml]
+#   sbatch jobs/lrz_ai/finetune_vae_2gpu.job [configs/finetune_vae/<your-config>.yaml] [DATA_DIR]
+#   BATCH_SIZE=<n> sbatch jobs/lrz_ai/finetune_vae_2gpu.job ...   # override, see BATCH_SIZE note below
 #
 # To read the queue wait once this lands, from Submit to Start:
 #   sacct -j <jobid> -X -o JobID,Submit,Start,Elapsed,State
@@ -45,21 +46,27 @@
 #
 # $2 (optional) overrides DATA_DIR, same as finetune_vae_1gpu.job.
 #
-# batch_size 16 (2026-08-16): the largest batch_size that still divides
-# effective_batch=32 across 2 GPUs (accum=1) -- adopted as lrz_ai's
-# production default (chosen over 1/4-GPU) on the strength of lundquist's
-# batch_size=16 result at the same GPU count (job 21991, ~18.7% faster than
-# batch_size=1 with val_vrmse inside the 2.2% "real effect" bar) -- H100's
-# 80GB is comfortably more headroom than the A6000 that result came from, so
-# batch_size=16 is not expected to OOM here, but this is not yet
-# lrz_ai-confirmed; check the .err log on the first production run. See
-# EXPERIMENTS.md's "Open Question 23" section for the full readout.
-# CAVEAT: the 16-fits-fine reasoning above is from 128res (A6000, 48GB).
-# This script's own BASE_CONFIG default is 256res (4x the pixels/sample, so
-# meaningfully more memory per sample) and 256res has never been run on
-# lrz_ai or at batch_size>1 anywhere -- if the 256res default OOMs at
-# batch_size=16, drop it (pass BATCH_SIZE via a config override, or edit the
-# line below) before assuming something else is broken.
+# BATCH_SIZE (2026-08-17, was hardcoded to 16): now an overridable env var,
+# default 4 -- e.g. `BATCH_SIZE=8 sbatch jobs/lrz_ai/finetune_vae_2gpu.job ...`.
+# batch_size=16 (accum=1, the largest value that still divides
+# effective_batch=32 across 2 GPUs) was adopted 2026-08-16 on the strength of
+# lundquist's own batch_size=16 result (job 21991, ~18.7% faster than
+# batch_size=1, val_vrmse inside the 2.2% "real effect" bar) -- but that
+# result is from 128res on an A6000 (48GB). This script's own BASE_CONFIG
+# default is 256res (4x the pixels/sample), and batch_size=16 there
+# **CONFIRMED OOM, not just a caveat**: jobs 5750941/5750942 (2026-08-16,
+# `_256res`/`_256res_kl1e7`) both completed epoch 1 fine, then died on a CUDA
+# OOM early in epoch 2 (`memory allocation failed ... free: ~1.7GB, total:
+# ~93GB` -- i.e. nearly the entire 94GB H100 was already consumed by then,
+# not a marginal miss). See EXPERIMENTS_archive.md's "Open questions 1-22"
+# item 23 and infra.md's batch_size table for the full sweep this was meant
+# to extend.
+# batch_size=4 (accum=4) is a conservative 4x-memory-headroom default,
+# chosen without a confirmed-safe 256res data point -- **not yet
+# lrz_ai-confirmed either**, check the .err log on the first run under this
+# default and lower further (2, then 1) if it still OOMs. Callers who know
+# they're running 128res (where 16 has no confirmed problem) can pass
+# `BATCH_SIZE=16` explicitly to recover the old default's throughput.
 
 echo "Directory where err and out file are logged: ${SLURM_SUBMIT_DIR}"
 
@@ -68,6 +75,10 @@ export DATA_DIR=${2:-/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/
 
 # Base config to patch; override with: sbatch jobs/lrz_ai/finetune_vae_2gpu.job configs/finetune_vae/<your-config>.yaml
 export BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res.yaml}
+
+# Per-GPU micro-batch size; override with BATCH_SIZE=<n> sbatch ... -- see the
+# BATCH_SIZE note above for why 4, not 16, is the default now.
+export BATCH_SIZE=${BATCH_SIZE:-4}
 
 # Rendezvous settings
 export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
@@ -116,7 +127,7 @@ python -c '
 import os, yaml
 from windinet.cluster_config import patch_config_for_cluster
 cfg = yaml.safe_load(open(os.environ["BASE_CONFIG"]))
-cfg["optimization"]["batch_size"] = 16
+cfg["optimization"]["batch_size"] = int(os.environ["BATCH_SIZE"])
 patch_config_for_cluster(cfg, cluster="lrz_ai", num_processes=int(os.environ["SLURM_GPUS_ON_NODE"]), output_suffix="")
 yaml.safe_dump(cfg, open(os.environ["RUN_CONFIG"], "w"), sort_keys=False)
 print("batch_size=" + str(cfg["optimization"]["batch_size"]) + " accum=" + str(cfg["optimization"]["gradient_accumulation_steps"]) + " output_dir=" + cfg["output_dir"] + " data_root=" + cfg["data"]["data_root"])
@@ -157,7 +168,7 @@ srun \
   --container-image="/dss/dsshome1/09/ge26qux3/windinet1.sqsh" \
   --container-mounts=$HOME:$HOME,$RESULT_DIR:/mnt/result,$DATA_DIR:/mnt/data \
   --container-workdir="$HOME/work_wh/windinet" \
-  --export=ALL,MASTER_PORT,MASTER_ADDR,WORLD_SIZE,CUDA_VISIBLE_DEVICES,BASE_CONFIG \
+  --export=ALL,MASTER_PORT,MASTER_ADDR,WORLD_SIZE,CUDA_VISIBLE_DEVICES,BASE_CONFIG,BATCH_SIZE \
   bash "${INNER_SCRIPT}"
 
 end_time=$(date +%s)

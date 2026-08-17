@@ -33,6 +33,25 @@ Nothing below was reworded when it moved; content is verbatim from
     | lundquist (2 GPU) | 1, 16 | `batch_size=16`: **-18.7%** wall-clock (job 21991 vs 21989, 6.66h vs 8.19h/18ep) | +1.53% (above the 1.1% floor, inside the 2.2% "real effect" bar) | adopt 16 |
     | lrz_ai (1 GPU) | none completed | -- (all 5 arms crashed on an f-string `SyntaxError` in the launcher, fixed 2026-08-16 but never resubmitted) | -- | production value (16, 2-GPU) extrapolated from lundquist, not lrz_ai-confirmed |
 
+    **Update (2026-08-17): the "not lrz_ai-confirmed" caveat above resolved
+    negatively at 256res, not positively.** `jobs/lrz_ai/finetune_vae_2gpu.job`
+    hardcoded `batch_size=16` (its own header already flagged this as an
+    extrapolation from lundquist's 128res/A6000 result, untested at this
+    script's own 256res default) -- two of five 256res launches at that
+    setting (jobs 5750941/5750942, plain/`_kl1e7`) completed epoch 1 fine
+    then hit a CUDA OOM early in epoch 2 (free memory down to ~1.7GB out of
+    ~93GB total by then). The other three 256res arms in that same batch
+    (`_kl1e6`, `_kl1e5`, `_anchor`) *did* complete 26-29 epochs at
+    `batch_size=16` without incident, so this isn't "16 is unsafe at 256res"
+    across the board -- more likely fragmentation/accumulation that some
+    runs hit and others didn't by epoch 2. Fixed by making `BATCH_SIZE` an
+    overridable env var (default dropped to 4, a conservative 4x-headroom
+    guess, itself not yet confirmed) instead of hardcoding 16 -- see that
+    script's own header. lrz_ai's production `batch_size` therefore still
+    has no clean confirmed number at 256res; 16 remains the confirmed value
+    at 128res only (via the lundquist extrapolation, still not lrz_ai-run
+    directly).
+
     `lundquist`'s eval time (~66s/epoch) was identical regardless of
     `batch_size` -- the entire wall-clock difference is in the train phase,
     consistent with fewer/bigger forward-backward passes being the
