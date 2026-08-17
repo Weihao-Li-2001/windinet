@@ -238,13 +238,22 @@ _DIVERGING_CMAP = LinearSegmentedColormap.from_list(
 )
 
 
-def _save_corr_heatmap(matrix: torch.Tensor, title: str, path: Path) -> None:
+def _save_corr_heatmap(matrix: torch.Tensor, title: str, path: Path, vlim: float | None = None) -> None:
+    """vlim=None (before/after): fixed +/-1, the full Pearson-r range -- an honest
+    absolute reference, but a real shift of a few tenths near 0 (LTX's pretraining
+    decorrelates these channels close to 0 to begin with) is visually invisible
+    against it. vlim=<float> (diff): auto-scaled to the actual data instead --
+    a difference of correlations lives in a much narrower band than +/-1, and
+    forcing it onto that same wide scale was making every diff plot look flat
+    regardless of whether the underlying shift was real.
+    """
+    v = 1.0 if vlim is None else vlim
     fig, ax = plt.subplots(figsize=(7, 6))
-    im = ax.imshow(matrix.numpy(), cmap=_DIVERGING_CMAP, vmin=-1, vmax=1)
+    im = ax.imshow(matrix.numpy(), cmap=_DIVERGING_CMAP, vmin=-v, vmax=v)
     ax.set_title(title)
     ax.set_xlabel("latent channel")
     ax.set_ylabel("latent channel")
-    fig.colorbar(im, ax=ax, label="Pearson r")
+    fig.colorbar(im, ax=ax, label="Pearson r" if vlim is None else "Pearson r shift (after - before)")
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -362,9 +371,16 @@ def main(
         "after": output_path.with_name(f"{output_path.stem}_channel_corr_after.png"),
         "diff": output_path.with_name(f"{output_path.stem}_channel_corr_diff.png"),
     }
+    # Auto-scale the diff plot to its own actual (off-diagonal) range instead of
+    # the before/after +/-1 scale -- see _save_corr_heatmap's docstring. Floored
+    # so a near-perfectly-flat diff still renders as a visible (blank-ish) plot
+    # instead of imshow choking on vmin==vmax==0.
+    diff_vlim = max(corr_diff[offdiag_mask].abs().max().item(), 1e-3)
     _save_corr_heatmap(corr_before, "Mean per-sample channel correlation -- before (pretrained)", heatmap_paths["before"])
     _save_corr_heatmap(corr_after, "Mean per-sample channel correlation -- after (finetuned)", heatmap_paths["after"])
-    _save_corr_heatmap(corr_diff, "Channel correlation shift (after - before)", heatmap_paths["diff"])
+    _save_corr_heatmap(
+        corr_diff, "Channel correlation shift (after - before)", heatmap_paths["diff"], vlim=diff_vlim
+    )
     step5b["heatmaps"] = {k: str(v) for k, v in heatmap_paths.items()}
     console.print(f"  heatmaps written: {', '.join(str(p) for p in heatmap_paths.values())}")
 
