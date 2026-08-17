@@ -1,0 +1,129 @@
+# Resume of finetune_vae_whole_structure_baseline_ep30_256res_kl1e6.yaml --
+# NOT a new experiment, no variable changes vs that config except resuming.
+#
+# Job 5750943 (lrz_ai, 2 GPU) ran that config to epoch 29/30 (val_vrmse
+# 0.034315, "New best checkpoint (epoch 29...)") then was CANCELLED DUE TO
+# TIME LIMIT partway through epoch 30's training loop -- killed before
+# epoch 30 reached its own eval/checkpoint phase, so
+# checkpoints/vae_shockwave_best.safetensors + its .state.pt are still
+# exactly epoch 29's, untouched/uncorrupted. This resumes from there to
+# finish the single remaining epoch.
+#
+# Correctness note (2026-08-17): resume_from now restores the full
+# whole-structure-unfreeze trainable set (decoder + encoder.conv_in +
+# encoder_down_block_{0,1,2} + encoder_tail bundle), not just
+# decoder/conv_in -- see windinet/vae_adapter.py's
+# load_inflated_vae_checkpoint docstring. Before this fix, resuming a
+# whole-structure config like this one would have silently reset the
+# unfrozen down_blocks/tail weights to their pretrained init while the
+# optimizer/schedule state kept going -- do not resume with an older
+# checkout.
+#
+# clean_output_dir: false (only change vs the original config, besides
+# resume_from/resume_weights_only) -- keeps the existing checkpoints/ and
+# visualizations/ from epochs 1-29 in place instead of wiping output_dir
+# before this last epoch. Note metrics.csv will still only cover the
+# epoch(s) this resumed process itself runs (epoch 30) -- VaeTrainer.train()
+# accumulates metrics_history in-memory per process, not reloaded from an
+# existing metrics.csv on resume -- the full epoch 1-29 curve stays
+# available in log_finetuning_vae/lrz_ai/5750943-windinet_2gpu.out.
+#
+# Usage (2 GPU, resume_from points at the checkpoint's path as seen inside
+# the lrz_ai container -- /mnt/result is $RESULT_DIR, the same DSS
+# directory finetune_vae_2gpu.job always mounts there):
+#   sbatch --time=01:00:00 jobs/lrz_ai/finetune_vae_2gpu.job \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res_kl1e6_resume.yaml \
+#       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+# THE variable: resume from epoch 29's checkpoint, restoring optimizer/
+# scheduler/step state too (resume_weights_only: false) so training
+# continues at epoch 30 instead of restarting the schedule.
+resume_from: "/mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e6/checkpoints/vae_shockwave_best.safetensors"
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by jobs/lrz_ai/*.job's DATA_DIR
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    kl: 1.0e-6
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "kl-divergence", "kl-sweep", "resume"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_256res_kl1e6"
+# THE other variable: false, not true -- resuming into the same output_dir
+# must not wipe the checkpoints/visualizations already there. Safe either
+# way per resume_from's own docstring (both files are read into memory
+# before any clean happens), but false also preserves visualizations/ and
+# avoids deleting anything unnecessarily.
+clean_output_dir: false

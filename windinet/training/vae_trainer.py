@@ -1237,10 +1237,9 @@ class VaeTrainer:
                 f"encoder_conv_in.{k}": v.detach().cpu().contiguous()
                 for k, v in self._get_encoder_conv_in().state_dict().items()
             })
-        # NOTE: load_inflated_vae_checkpoint() (windinet/vae_adapter.py) does not yet
-        # restore these encoder_down_block_*/encoder_tail.* keys -- resuming a run
-        # isn't wired up. Fine for a diagnostic (checkpoints disabled, resume_from:
-        # null); revisit before relying on resume for a real training run.
+        # load_inflated_vae_checkpoint() (windinet/vae_adapter.py) restores these
+        # encoder_down_block_*/encoder_tail.* keys on resume_from, same as
+        # decoder.*/encoder_conv_in.* -- see that function's docstring.
         for idx, module in zip(_UNFROZEN_DOWN_BLOCKS, self._get_encoder_downblock_modules()):
             tensors.update({
                 f"encoder_down_block_{idx}.{k}": v.detach().cpu().contiguous()

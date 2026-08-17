@@ -354,8 +354,10 @@ def load_inflated_vae_checkpoint(
     """Load a finetuned inflate-mode checkpoint into an already-inflated VAE.
 
     The checkpoint is the ``ltx-inflated-io-v1`` safetensors written by
-    ``VaeTrainer._save_checkpoint``: it holds the finetuned ``decoder.*`` and the
-    grown ``encoder_conv_in.*`` weights. ``vae`` must already have been passed
+    ``VaeTrainer._save_checkpoint``: it holds the finetuned ``decoder.*``, the
+    grown ``encoder_conv_in.*`` weights, and -- when whole-structure unfreeze
+    produced them -- ``encoder_down_block_<idx>.*``/``encoder_tail.<name>.*``.
+    All present groups are restored. ``vae`` must already have been passed
     through :func:`inflate_vae_io_channels` so the conv shapes match. Returns the
     checkpoint metadata dict.
     """
@@ -370,19 +372,44 @@ def load_inflated_vae_checkpoint(
             f"got format={fmt!r} at {ckpt_path}"
         )
 
+    # encoder_down_block_<idx>.* -> per-index state dicts; encoder_tail.<name>.*
+    # -> per-name state dicts. Both are written unconditionally by
+    # VaeTrainer._build_checkpoint_payload for the whole-structure-unfreeze
+    # modules (_UNFROZEN_DOWN_BLOCKS + the tail bundle); restoring them here
+    # (not just decoder.*/encoder_conv_in.*) is what makes resume_from a
+    # correct continuation for that unfreeze mode instead of silently
+    # reverting those modules to their pretrained-frozen init.
     decoder_sd, conv_in_sd = {}, {}
+    down_block_sds: dict[int, dict[str, torch.Tensor]] = {}
+    tail_sds: dict[str, dict[str, torch.Tensor]] = {}
     for key in f.keys():
         tensor = f.get_tensor(key)
         if key.startswith("decoder."):
             decoder_sd[key[len("decoder."):]] = tensor
         elif key.startswith("encoder_conv_in."):
             conv_in_sd[key[len("encoder_conv_in."):]] = tensor
+        elif key.startswith("encoder_down_block_"):
+            idx_str, _, sub_key = key[len("encoder_down_block_"):].partition(".")
+            down_block_sds.setdefault(int(idx_str), {})[sub_key] = tensor
+        elif key.startswith("encoder_tail."):
+            name, _, sub_key = key[len("encoder_tail."):].partition(".")
+            tail_sds.setdefault(name, {})[sub_key] = tensor
 
     if not decoder_sd:
         raise ValueError(f"no decoder.* weights found in {ckpt_path}")
     _strict_load(vae.decoder, decoder_sd, "decoder")
     if conv_in_sd:
         _strict_load(vae.encoder.conv_in, conv_in_sd, "encoder.conv_in")
+    for idx, sd in down_block_sds.items():
+        _strict_load(vae.encoder.down_blocks[idx], sd, f"encoder.down_blocks[{idx}]")
+    tail_attr = {
+        "down_blocks_last": lambda encoder: encoder.down_blocks[-1],
+        "mid_block": lambda encoder: encoder.mid_block,
+        "norm_out": lambda encoder: encoder.norm_out,
+        "conv_out": lambda encoder: encoder.conv_out,
+    }
+    for name, sd in tail_sds.items():
+        _strict_load(tail_attr[name](vae.encoder), sd, f"encoder_tail.{name}")
     vae.to(device=device, dtype=dtype)
 
     if verbose:
