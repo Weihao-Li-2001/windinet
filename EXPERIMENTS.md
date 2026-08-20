@@ -71,16 +71,84 @@ superseding 128x128 (Open Question 4's -30.9% win was real but is pinned to
 now-superseded 18-epoch/0.3x-encoder-LR/mean-init settings, not this
 baseline). `finetune_vae_whole_structure_baseline_ep30_256res.yaml`
 re-derives the comparison as a single-variable step off *this* baseline, but
-**has not completed anywhere yet** -- its lrz_ai launch (job 5750941)
-crashed on a CUDA OOM in epoch 2 (`batch_size=16` may be too large at this
-resolution; the config's own header already flagged this as untested). Two
-KL-weight sibling arms at 256res (`_kl1e6`, `_kl1e5`) got close (epoch
-29-30/30) before hitting lrz_ai's 12h Slurm time limit and have resume
-configs prepared (`_kl1e6_resume.yaml`, `_kl1e5_resume.yaml`); a third,
-`_anchor` (a latent-distribution anchor-loss experiment, unrelated to the KL
-sweep), is at epoch 26/30 with its own resume config
-(`_anchor_resume.yaml`). None of the four have a completed 30-epoch result
-yet.
+**still has not completed anywhere as a standalone (no-anchor, no-KL) run**
+-- its only lrz_ai launch (job 5750941, `BATCH_SIZE=16`) crashed on a CUDA
+OOM in epoch 2, and no one has resubmitted it since the `BATCH_SIZE`
+env-var fix (5ae27cf, 2026-08-17).
+
+Status of the three sibling arms as of the 2026-08-20 pull (correcting the
+previous update, which was written from a stale local view):
+- **`_anchor`** (latent-distribution anchor-loss experiment, unrelated to
+  the KL sweep) -- **completed all 30 epochs** via resume job 5752185
+  (2026-08-18): **val_vrmse 0.054342** (`finetune_vae_outputs/lrz_ai/..._anchor/metrics/metrics.csv`),
+  a real ~31% drop from the 128res baseline's confirmed 0.078662. This is
+  the only 256res arm with a full result, but it conflates two changes
+  (resolution *and* the anchor loss) against the 128res baseline, so it
+  cannot yet be attributed to resolution alone.
+- **`_kl1e6` / `_kl1e5`** -- **still incomplete, blocked on a resume-time
+  OOM** that recurred even after the `BATCH_SIZE` fix: both have now had
+  two resume attempts each (5752177->5752187 for kl1e6, 5752178->5752188
+  for kl1e5), and every one died on a CUDA OOM before epoch 30. The
+  committed `metrics.csv` for both only has an epoch-1 row, but the
+  `.out` logs of the latest attempts show real progress not yet
+  committed: kl1e5 reached epoch 3 (val_vrmse 0.0791) before dying mid
+  epoch 4; kl1e6 reached epoch 3 (val_vrmse 0.1767) before the same. Root
+  cause not yet diagnosed -- possibly a resume-specific memory spike
+  (optimizer-state reload), since the same `BATCH_SIZE=16` ran anchor's
+  resume to completion without incident.
+
+**Planned runs, 2026-08-20 (written before launch, per protocol #2 below):**
+three coordinated 256res experiments, decided with a **15h `--time`
+request per arm** (raised from an initial 10h plan -- see the time-budget
+note below for why). All fresh launches, `clean_output_dir: true`
+(protocol #6 -- none resume the stuck kl1e6/kl1e5 attempts above; those
+attempts' partial progress is abandoned in favor of a clean single-variable
+run under current settings).
+
+- **Experiment 1** -- ep30 256res KL sweep, all 4 arms already have configs
+  (this is a clean relaunch of the existing sweep, not new files):
+  `..._ep30_256res.yaml` (kl=0), `..._kl1e7.yaml`, `..._kl1e6.yaml`,
+  `..._kl1e5.yaml`.
+- **Experiment 2** -- new 20-epoch sibling sweep, 4 new configs
+  (`..._ep20_256res.yaml` + `_kl1e7`/`_kl1e6`/`_kl1e5` siblings). Originally
+  sized to fit inside 10h without a resume (~8-8.7h estimated at
+  BATCH_SIZE=16's rate, per-epoch cost doesn't depend on epoch count --
+  BATCH_SIZE=4 below is somewhat slower, no confirmed 256res number for it
+  yet); now also requesting 15h along with the other two experiments for a
+  uniform `--time`, well clear of the estimate either way.
+- **Experiment 3** -- anchor-loss KL arm 2/2: new
+  `..._ep30_256res_anchor_kl1e7.yaml` (kl=1e-7 on top of the anchor loss).
+  Arm 1/2 (anchor, kl=0) is already complete -- see above.
+
+**`BATCH_SIZE=4` uniformly across all 9 arms above** (2026-08-20 user
+preference: memory headroom over speed, rather than mixing batch sizes
+across siblings). Two of Experiment 1's arms (kl=0, kl1e7) confirmed OOM'd
+at `BATCH_SIZE=16` in epoch 2 (jobs 5750941/5750942); the other two
+(kl1e6, kl1e5) and the anchor kl=0 arm all ran clean at 16 through 29-30
+epochs, so 16 was likely fine for them too -- but 4 is used everywhere
+here for consistency and to avoid re-hitting the confirmed OOM on the two
+arms that need it.
+
+**Time-budget note:** anchor's real ~24-26 min/epoch x 30 epochs ~=
+12-13h at BATCH_SIZE=16 -- and every arm in this plan runs at BATCH_SIZE=4
+instead (see below), which is somewhat slower still (no confirmed 256res
+number for 4 specifically). An initial 10h/arm plan was raised to **15h**
+2026-08-20 specifically to give the five 30-epoch arms (Experiments 1 and
+3) real margin over that ~12-13h-at-best estimate instead of banking on a
+resume; Experiment 2's 20-epoch arms (~8-8.7h at BATCH_SIZE=16's pace) get
+the same 15h for a uniform `--time` across all 9 arms, not because they
+need it. **This is a resolution effect, not a KL effect** -- Open Question
+4's clean resolution-only comparison (sng_pvc, no KL/anchor) already
+measured 256res at ~2.2x 128res's per-epoch cost, and the anchor run's own
+~24-26 min/epoch carries no KL term either, so the per-epoch cost driving
+this budget is inherent to 256res itself, not something a different KL
+weight would change.
+
+Read-out for Experiment 1: val_vrmse vs. the 128res baseline (0.078662)
+and the anchor+256res combined result (0.054342) -- isolates the
+resolution-only effect. Kill criterion: same OOM-in-epoch-2 pattern as job
+5750941 on the kl=0/kl1e7 arms (already mitigated by `BATCH_SIZE=4` above,
+so a recurrence would mean 4 isn't safe either and needs lowering to 2).
 
 ## Fixed setup
 
