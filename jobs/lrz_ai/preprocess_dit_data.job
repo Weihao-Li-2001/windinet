@@ -1,0 +1,118 @@
+#!/bin/bash
+#SBATCH -J windinet_preprocess_dit
+###-------------------------------------
+#SBATCH -p lrz-hgx-h100-94x4
+###------------------------------------
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=24
+#SBATCH --time=04:00:00
+#SBATCH --gres=gpu:1  #gpus per node
+#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
+#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+
+# Encode step for the DiT pipeline (lrz_ai, H100, enroot/pyxis container).
+# scripts/preprocess_dataset.py is a single-process encode loop (no DDP/
+# accelerate inside it -- see its own main(), which just runs a for loop over
+# the dataset on one device), so this is a 1-GPU job, unlike the VAE
+# finetuning jobs. It is also resumable: it skips any sample whose
+# latent+scalar .pt pair already exists, so re-submitting after a time-limit
+# kill continues instead of restarting.
+#
+# Submit from the repo root so the #SBATCH -o/-e paths above resolve:
+#   VAE_CHECKPOINT=/mnt/result/<vae_run>/checkpoints/vae_shockwave_best.safetensors \
+#     sbatch jobs/lrz_ai/preprocess_dit_data.job [DATA_DIR] [OUTPUT_NAME]
+#
+# VAE_CHECKPOINT is REQUIRED, no default: this is the "encode with the
+# weights" step -- point it at whichever 256res VAE checkpoint wins out of
+# the arms in EXPERIMENTS.md's 2026-08-20 plan (or any other finished VAE
+# run). The path must be as seen INSIDE the container, i.e. under
+# /mnt/result/... (the $RESULT_DIR mount below), not the raw DSS path and
+# not the finetune_vae_outputs/lrz_ai/ git mirror (checkpoints/ is excluded
+# from that mirror on purpose -- see finetune_vae_1gpu.job's own header --
+# so the real weights only ever live under $RESULT_DIR).
+#
+# $1 (optional) overrides DATA_DIR, same convention/paths as
+# finetune_vae_1gpu.job's own $2 (128x128_ds / 256x256_ds / 512x512_orig
+# under the same DSS datasets root). Defaults to 256x256_ds, matching every
+# arm in the current VAE plan.
+#
+# $2 (optional) overrides OUTPUT_NAME, the subdirectory under
+# $RESULT_DIR/dit_preprocessed/ this run's latents land in. Defaults to the
+# VAE run's own directory name (parsed out of VAE_CHECKPOINT), so pointing
+# at a different VAE checkpoint naturally produces a differently-named
+# latent set instead of silently overwriting a previous encode.
+#
+# --eval-sims 675 --split-seed 42 below reproduces the VAE runs' own
+# held-out split exactly (see preprocess_dataset.py's own docstring) so the
+# DiT's validation.data_root scores the same simulations the VAE was judged
+# on -- required for the VAE val_vrmse and DiT val_loss to be comparable.
+#
+# --vae-config is left unset: _resolve_normalization auto-discovers
+# <checkpoint's run dir>/training_config.yaml, which is exactly where every
+# finetune_vae_*.job run writes it. Only pass --vae-config explicitly if
+# VAE_CHECKPOINT is not in that <run>/checkpoints/<file>.safetensors layout.
+
+echo "Directory where err and out file are logged: ${SLURM_SUBMIT_DIR}"
+
+if [ -z "${VAE_CHECKPOINT:-}" ]; then
+    echo "error: VAE_CHECKPOINT is required -- point it at the winning VAE run's checkpoint" >&2
+    echo "  (path as seen inside the container, e.g. /mnt/result/<run>/checkpoints/vae_shockwave_best.safetensors)" >&2
+    exit 1
+fi
+
+export RESULT_DIR=/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline
+export DATA_DIR=${1:-/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds}
+
+# Derive a default OUTPUT_NAME from VAE_CHECKPOINT's run directory
+# (.../<run>/checkpoints/<file>.safetensors -> <run>) unless $2 overrides it.
+DEFAULT_OUTPUT_NAME=$(basename "$(dirname "$(dirname "${VAE_CHECKPOINT}")")")
+export OUTPUT_NAME=${2:-${DEFAULT_OUTPUT_NAME}}
+
+echo "VAE_CHECKPOINT: ${VAE_CHECKPOINT}"
+echo "DATA_DIR: ${DATA_DIR}"
+echo "OUTPUT_NAME: ${OUTPUT_NAME}"
+
+INNER_SCRIPT="${HOME}/.windinet_lrz_ai_preprocess_${SLURM_JOB_ID}.sh"
+trap 'rm -f "${INNER_SCRIPT}"' EXIT
+cat > "${INNER_SCRIPT}" <<'INNER'
+set -eo pipefail
+eval "$(conda shell.bash hook)"
+conda activate windinet
+export PYTHONPATH="$(pwd):$PYTHONPATH"
+
+OUT_DIR="/mnt/result/dit_preprocessed/${OUTPUT_NAME}"
+
+printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
+    "${VAE_CHECKPOINT}" "${OUT_DIR}" >> log_finetuning_vae/lrz_ai/INDEX.tsv
+
+python scripts/preprocess_dataset.py /mnt/data/train.h5 \
+    --output-dir "${OUT_DIR}" \
+    --inflate-checkpoint "${VAE_CHECKPOINT}" \
+    --eval-sims 675 \
+    --split-seed 42
+
+# Mirror just the manifests (small, git-trackable) back onto the repo
+# checkout -- NOT latents/ or val/latents/ (the bulk of the output, meant to
+# stay on DSS and be read by the DiT training job via the same /mnt/result
+# mount, not duplicated into git).
+LOCAL_DIR="finetune_vae_outputs/lrz_ai/dit_preprocessed/${OUTPUT_NAME}"
+mkdir -p "${LOCAL_DIR}"
+cp "${OUT_DIR}/normalization.json" "${LOCAL_DIR}/"
+[ -f "${OUT_DIR}/split_manifest.json" ] && cp "${OUT_DIR}/split_manifest.json" "${LOCAL_DIR}/"
+echo "Mirrored manifests to ${LOCAL_DIR}"
+INNER
+
+start_time=$(date +%s)
+echo "Job started at: $(date)"
+
+srun \
+  --container-image="/dss/dsshome1/09/ge26qux3/windinet1.sqsh" \
+  --container-mounts=$HOME:$HOME,$RESULT_DIR:/mnt/result,$DATA_DIR:/mnt/data \
+  --container-workdir="$HOME/work_wh/windinet" \
+  --export=ALL,VAE_CHECKPOINT,OUTPUT_NAME \
+  bash "${INNER_SCRIPT}"
+
+end_time=$(date +%s)
+echo "Job finished at: $(date)"
+echo "Total runtime: $((end_time - start_time)) seconds"
