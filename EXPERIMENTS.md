@@ -150,6 +150,40 @@ resolution-only effect. Kill criterion: same OOM-in-epoch-2 pattern as job
 5750941 on the kl=0/kl1e7 arms (already mitigated by `BATCH_SIZE=4` above,
 so a recurrence would mean 4 isn't safe either and needs lowering to 2).
 
+**Experiment 4, planned 2026-08-20 (written before launch, per protocol
+#2): cosine-schedule x peak-LR sub-sweep at 256res/20ep/no-KL.** 3 new
+arms, `..._ep20_256res_cosine_lr5e5.yaml` / `_lr1e4.yaml` / `_lr1e5.yaml`,
+`BATCH_SIZE=4`/`--time=15:00:00` same as every arm above. Forked from
+Experiment 2's kl=0 reference (`..._ep20_256res.yaml`, wsd schedule).
+
+Cosine was already tested once and rejected: `..._ep30_cosine.yaml`
+(archived, job 524309), 128res/30ep/same 5e-5 peak LR as its wsd baseline,
+lost by +3.64% (clears the 2.2% noise bar). Root cause identified, not
+just correlated: wsd holds flat at peak LR through epoch 21
+(`stable_fraction 0.7` of 30 epochs) while cosine starts decaying
+immediately after warmup and is already down to 1.46e-05 by epoch 20 --
+cosine simply spends far less of the budget at/near peak LR. Re-testing
+cosine at the *same* peak LR would very likely just reconfirm that loss.
+This sub-sweep asks a different, not-yet-tested question instead: can a
+**higher** peak LR compensate for cosine's shorter effective high-LR
+window? `_lr5e5` (peak unchanged) is this sub-sweep's own same-LR
+wsd-vs-cosine isolation, now at 256res/20ep/no-KL instead of the original
+128res/30ep -- re-derives whether the earlier verdict still holds in this
+regime. `_lr1e4` (2x peak, the highest learning rate anywhere in this
+project's ledger) and `_lr1e5` (0.2x peak) bracket it on either side.
+
+**Read-out:** all three vs. `..._ep20_256res.yaml`'s own val_vrmse (once
+that arm finishes) and against each other, bar 2.2%. If `_lr1e4` beats
+`_lr5e5` and closes the gap to (or beats) the wsd reference, higher peak
+LR is a real compensation mechanism for cosine's early decay -- promotable
+as a genuine alternative to wsd, not just a rejected retest.
+
+**Kill criterion:** usual (epoch 2 train_loss above epoch 1's) for
+`_lr5e5`/`_lr1e5`. `_lr1e4` gets NO extra latitude (unlike the KL sweep's
+logvar-clamp blip allowance) -- at 2x the highest LR ever run here, a
+rough epoch 1-2 is a real instability signal to treat seriously, not a
+known-benign artifact.
+
 ## Fixed setup
 
 Architecture/data facts that don't depend on which sweep is running. Trainable

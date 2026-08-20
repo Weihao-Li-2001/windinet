@@ -1,0 +1,110 @@
+# VAE finetuning config -- cosine-schedule sub-sweep at 256res/20ep/no-KL,
+# arm 3/3 (peak LR 1e-5, 0.2x the baseline's 5e-5). See
+# finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr5e5.yaml (arm
+# 1/3, the reference) for the full "why re-test cosine" rationale -- this
+# file's only difference from that one is optimization.learning_rate.
+#
+# WHY THIS ARM: the low end of the 3-point sweep (5e-5, 1e-4 in the second
+# arm, 1e-5 here). Tests the opposite direction from arm 2: does cosine's
+# immediate decay actually want a LOWER peak (since it never holds a
+# plateau, maybe a gentler peak avoids an early-training overshoot that a
+# held-plateau schedule can tolerate but a straight-into-decay one cannot).
+# min_learning_rate stays 1e-6, so the floor-to-peak ratio here (1e-6/1e-5
+# = 0.1) is much shallower than the other two arms' (1e-6/5e-5 = 0.02,
+# 1e-6/1e-4 = 0.01) -- worth reading the actual per-step LR trace, not just
+# the peak number, when comparing this arm's curve shape to its siblings.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr5e5.yaml:
+#   optimization.learning_rate: 5e-5 -> 1e-5
+#
+# BATCH_SIZE=4, --time=15:00:00: same convention as every other 256res arm
+# in EXPERIMENTS.md's 2026-08-20 plan.
+#
+# Usage:
+#   BATCH_SIZE=4 sbatch --time=15:00:00 jobs/lrz_ai/finetune_vae_2gpu.job \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr1e5.yaml \
+#       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by jobs/lrz_ai/*.job's DATA_DIR
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  # THE variable: 5e-5 -> 1e-5. Sweep arm 3/3, see header.
+  learning_rate: 1e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "cosine"
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr0.2x", "shockwave-cfd", "whole-structure-baseline", "256res", "schedule-shape", "lr-sweep"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr1e5"
+clean_output_dir: true
