@@ -1,0 +1,178 @@
+# 4-GPU wall-clock canary, forked from finetune_vae_whole_structure_baseline_ep30_256res.yaml
+# (job 5755508, val_vrmse 0.051084, confirmed 12.37h on 2GPU/BATCH_SIZE=4).
+# SINGLE VARIABLE: output_dir only, appended "_4gpu_canary" so
+# patch_config_for_cluster's output_suffix="" (jobs/lrz_ai/finetune_vae_4gpu.job
+# doesn't take a suffix arg) can't collide with job 5755508's output_dir --
+# that run's `clean_output_dir: true` would otherwise wipe its own
+# checkpoint on $RESULT_DIR (not mirrored to git) before this canary even
+# starts. Everything else byte-identical to the baseline, including
+# batch_size: 1 (this script doesn't have finetune_vae_2gpu.job's BATCH_SIZE
+# env-var override, so it trains at whatever optimization.batch_size says
+# here -- 1, accum=8 at 4 GPUs to hold effective_batch=32).
+#
+# Purpose: does 4-GPU wall-clock actually beat 2-GPU's confirmed 12.37h at
+# 256res? 128res's own 2GPU-vs-4GPU comparison (jobs 5750235/5750205, same
+# batch_size=1) measured ~1.88x train-time speedup and a similar eval-time
+# ratio going 2->4 GPUs -- extrapolating that ratio onto the confirmed
+# 256res/2GPU per-epoch numbers (train=1235s eval=195s) gives train~658s
+# eval~104s, i.e. ~810s/epoch with viz+ckpt unchanged (~48s) -> ~6.8h for 30
+# epochs. Not confirmed at this resolution/GPU count combination -- treat as
+# an estimate, not a promise. Requesting 4 GPUs may also queue longer than
+# 2, so this is purely a wall-clock experiment, not yet a production-default
+# candidate.
+#
+# Original file's header below, unchanged (this fork inherits it verbatim):
+#
+# VAE finetuning config -- 256x256 resolution (Open Question 4) re-run
+# against the CURRENT reference baseline, not the stale one.
+#
+# `finetune_vae_whole_structure_baseline_256res.yaml` (the existing 256res
+# config) was written against the baseline as it stood on 2026-08-10: 18
+# epochs, encoder_tail_lr_multiplier 0.3x. Both of those have since moved --
+# 18->30 epochs (Open Question 20) and 0.3x->1.0x encoder LR (Open Question
+# 6 re-verified at 30 epochs, 2026-08-15) are now what
+# `finetune_vae_whole_structure_baseline_ep30.yaml` means by "the baseline"
+# (see EXPERIMENTS.md "New reference baseline (as of 2026-08-15)"). Per the
+# wrap-up plan's item 3 (train new baselines at 256x256/512x512), this file
+# re-derives the 256res comparison against that current baseline instead of
+# leaving the -30.9% result (job 523757) attached to two now-superseded
+# settings.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep30.yaml (30
+# epochs, 1.0x encoder LR, confirmed val_vrmse 0.078662, job 524322):
+#   data.data_root / data.normalization_stats_file -> 256x256_ds
+# Everything else (LR, schedule, loss weights, epochs, encoder LR)
+# UNCHANGED, same pattern the original 256res config used against its own
+# baseline.
+#
+# STATS: normalization_stats_file points at euler_mq_256_only_train.yaml,
+# same file the original 256res config uses -- already in the repo, not
+# re-derived here. Its own caveat still applies: not independently
+# cross-checked against a full compute_channel_stats.py scan of
+# 256x256_ds/train.h5 (unlike the 128-resolution numbers), though the
+# original 256res run's smooth convergence gave no reason to distrust it.
+#
+# TIMING, NOT YET RUN ANYWHERE: no direct lrz_ai/256res measurement exists.
+# Best available anchor is sng_pvc's own 128->256res ratio: job 523757
+# (256res, old 18ep/0.3x config) measured ~45.5 min/epoch vs job 523909
+# (128res, current ep30 config) at ~21.5 min/epoch -- 256res costs ~2.1x the
+# 128res per-epoch time on that cluster. lrz_ai's own 128res whole-structure
+# 2-GPU rate is itself not directly measured (Open Question 23's lundquist
+# 2-GPU whole-structure runs landed 25.3-27.3 min/epoch on A6000s; H100
+# should beat that, but by an unknown margin) -- applying the ~2.1x
+# multiplier to even an optimistic lrz_ai 128res guess (~15-20 min/epoch)
+# puts 256res around ~32-42 min/epoch, i.e. **~16-21h for 30 epochs -- likely
+# OVER a 12h budget.** Check the actual per-epoch rate after epoch 1-2 and
+# be ready to cut `optimization.epochs` short (or cancel and resubmit with a
+# longer `--time` if the partition allows one) rather than lose a
+# near-complete run to a hard kill. Confirm the partition's actual `MaxTime`
+# first (`scontrol show partition lrz-hgx-h100-94x4`, not yet checked from
+# this repo) -- if it's below 12h, request that instead.
+#
+# BATCH_SIZE=16 (jobs/lrz_ai/finetune_vae_2gpu.job's production default,
+# 2026-08-16) IS ALSO UNTESTED AT 256RES: that value was extrapolated from a
+# 128res result (lundquist, A6000, job 21991) -- 256res quadruples the
+# per-sample pixel count, so it may not fit in H100 memory at this
+# resolution even though 128res almost certainly does. If this is the first
+# 256res arm submitted, treat an early OOM here as the answer for this
+# combination, not a bug (same convention as Open Question 23) -- but since
+# four arms share this same launcher/batch_size, consider submitting one
+# arm first to confirm it doesn't OOM before submitting the other three.
+#
+# Usage (jobs/lrz_ai/finetune_vae_2gpu.job already defaults to this exact
+# file and DATA_DIR, see its own header -- shown explicitly here anyway):
+#   sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_2gpu.job \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30_256res.yaml \
+#       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+#
+# UPDATE (2026-08-16): inflate_init "mean" -> "zeros", syncing to the
+# current baseline (`finetune_vae_whole_structure_baseline_ep30.yaml`'s own
+# 2026-08-16 update) -- this file was forked before that change and had
+# fallen behind it. See that file's own header for the PhD advisor's
+# rationale and Open Question 21's per-channel caveat (zeros costs the
+# fresh pressure channel ~4.3-4.7% val_vrmse, offset by momentum_x
+# improving by coincidence in the aggregate metric).
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by jobs/lrz_ai/*.job's DATA_DIR
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 30
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "30ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "epoch-budget", "256res"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep30_256res_4gpu_canary"
+clean_output_dir: true
