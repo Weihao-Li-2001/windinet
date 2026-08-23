@@ -27,7 +27,7 @@ checkpoints:
   save_epochs:
   - 15
   save_last_state: true
-clean_output_dir: false
+clean_output_dir: true
 data:
   channel_mean:
   - 0.9050976477108856
@@ -79,10 +79,10 @@ model:
   load_checkpoint: null
   model_source: LTXV_2B_0.9.6_DEV
 optimization:
-  batch_size: 16
+  batch_size: 4
   enable_gradient_checkpointing: true
   epochs: 30
-  gradient_accumulation_steps: 1
+  gradient_accumulation_steps: 4
   learning_rate: 5.0e-05
   max_grad_norm: 5.0
   min_learning_rate: 1.0e-06
@@ -96,7 +96,7 @@ optimization:
   warmup_steps: 200
   weight_decay: 0.0
 output_dir: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e6
-resume_from: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e6/checkpoints/vae_shockwave_best.safetensors
+resume_from: null
 resume_weights_only: false
 seed: 42
 visualization:
@@ -125,4 +125,3 @@ wandb:
   - 256res
   - kl-divergence
   - kl-sweep
-  - resume

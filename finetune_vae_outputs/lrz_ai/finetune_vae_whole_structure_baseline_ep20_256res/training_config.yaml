@@ -71,7 +71,6 @@ loss_weighting:
   weight_lr: 0.025
   weights:
     h1: 50.0
-    kl: 1.0e-05
     mlw: 0.0
     rmse: 1.0
     ssim: 0.15
@@ -81,7 +80,7 @@ model:
 optimization:
   batch_size: 4
   enable_gradient_checkpointing: true
-  epochs: 30
+  epochs: 20
   gradient_accumulation_steps: 4
   learning_rate: 5.0e-05
   max_grad_norm: 5.0
@@ -95,7 +94,7 @@ optimization:
   warmup_start_factor: 0.01
   warmup_steps: 200
   weight_decay: 0.0
-output_dir: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5
+output_dir: /mnt/result/finetune_vae_whole_structure_baseline_ep20_256res
 resume_from: null
 resume_weights_only: false
 seed: 42
@@ -118,10 +117,9 @@ wandb:
   - inflate
   - zeros-init
   - wsd
-  - 30ep
+  - 20ep
   - lr1x
   - shockwave-cfd
   - whole-structure-baseline
   - 256res
-  - kl-divergence
   - kl-sweep

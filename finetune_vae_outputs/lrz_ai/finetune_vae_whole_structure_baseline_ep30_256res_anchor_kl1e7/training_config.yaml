@@ -70,8 +70,9 @@ loss_weighting:
   temperature: 0.1
   weight_lr: 0.025
   weights:
+    anchor: 0.01
     h1: 50.0
-    kl: 1.0e-05
+    kl: 1.0e-07
     mlw: 0.0
     rmse: 1.0
     ssim: 0.15
@@ -95,7 +96,7 @@ optimization:
   warmup_start_factor: 0.01
   warmup_steps: 200
   weight_decay: 0.0
-output_dir: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5
+output_dir: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_anchor_kl1e7
 resume_from: null
 resume_weights_only: false
 seed: 42
@@ -123,5 +124,5 @@ wandb:
   - shockwave-cfd
   - whole-structure-baseline
   - 256res
+  - latent-anchor-loss
   - kl-divergence
-  - kl-sweep
