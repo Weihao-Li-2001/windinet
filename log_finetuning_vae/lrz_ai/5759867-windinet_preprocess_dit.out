@@ -1,0 +1,63 @@
+Directory where err and out file are logged: /dss/dsshome1/09/ge26qux3/work_wh/windinet
+VAE_CHECKPOINT: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5/checkpoints/vae_shockwave_best.safetensors
+DATA_DIR: /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
+OUTPUT_NAME: finetune_vae_whole_structure_baseline_ep30_256res_kl1e5
+Job started at: Mon Aug 24 08:25:59 AM CEST 2026
+INFO     [rank 0] Found 4500 samples in                preprocess_dataset.py:194
+         /mnt/data/train.h5                                                     
+INFO     [rank 0] Split (seed=42): 3825 train, 675 val preprocess_dataset.py:214
+         ->                                                                     
+         /mnt/result/dit_preprocessed/finetune_vae_who                          
+         le_structure_baseline_ep30_256res_kl1e5/val                            
+INFO     [rank 0] Loading inflated VAE                 preprocess_dataset.py:228
+         (LTXV_2B_0.9.6_DEV) + checkpoint                                       
+         /mnt/result/finetune_vae_whole_structure_base                          
+         line_ep30_256res_kl1e5/checkpoints/vae_shockw                          
+         ave_best.safetensors...                                                
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+WARNING  [rank 0] Warning: You are sending unauthenticated requests _http.py:951
+         to the HF Hub. Please set a HF_TOKEN to enable higher rate             
+         limits and faster downloads.                                           
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+[windinet] loaded inflated VAE checkpoint: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5/checkpoints/vae_shockwave_best.safetensors (epoch=30, step=3600)
+INFO     [rank 0] Channel normalization from           preprocess_dataset.py:238
+         /mnt/result/finetune_vae_whole_structure_base                          
+         line_ep30_256res_kl1e5/training_config.yaml:                           
+         mean=[0.9050976477108856,                                              
+         0.004045365949982484, -0.0019089379638760548,                          
+         0.9031908053900578], std=[0.6618199912434938,                          
+         0.5335233432828087, 0.5268940723644505,                                
+         0.8053303341374023], clip=5.0                                          
+INFO     [rank 0] Latent space fingerprint:            preprocess_dataset.py:249
+         3d8875dfd4c54604                                                       
+Encoding ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4500/4500 1:04:50 0:00:00
+INFO     [rank 0] Done: 4500 processed, 0 skipped      preprocess_dataset.py:357
+INFO     [rank 0] Latents:                             preprocess_dataset.py:358
+         /mnt/result/dit_preprocessed/finetune_vae_who                          
+         le_structure_baseline_ep30_256res_kl1e5/laten                          
+         ts                                                                     
+INFO     [rank 0] Scalars:                             preprocess_dataset.py:359
+         /mnt/result/dit_preprocessed/finetune_vae_who                          
+         le_structure_baseline_ep30_256res_kl1e5/scala                          
+         rs                                                                     
+INFO     [rank 0] Held-out split (675 sims):           preprocess_dataset.py:361
+         /mnt/result/dit_preprocessed/finetune_vae_who                          
+         le_structure_baseline_ep30_256res_kl1e5/val                            
+INFO     [rank 0] Split manifest:                      preprocess_dataset.py:362
+         /mnt/result/dit_preprocessed/finetune_vae_who                          
+         le_structure_baseline_ep30_256res_kl1e5/split                          
+         _manifest.json                                                         
+Mirrored manifests to finetune_vae_outputs/lrz_ai/dit_preprocessed/finetune_vae_whole_structure_baseline_ep30_256res_kl1e5
+Job finished at: Mon Aug 24 09:32:08 AM CEST 2026
+Total runtime: 3969 seconds
