@@ -1,0 +1,107 @@
+# ShockWaveNet (DiT) training config -- lrz_ai variant of configs/shockwavenet.yaml.
+#
+# WHY A SEPARATE FILE instead of editing configs/shockwavenet.yaml in place:
+# that file is sng_pvc/lundquist's working config, with paths hardcoded to
+# their own filesystems (jobs/sng_pvc/train_dit.sbatch, jobs/lundquist/
+# train_dit.sbatch both point at it directly, no per-cluster patching step
+# the way finetune_vae's job scripts have via windinet.cluster_config).
+# Editing it for lrz_ai's /mnt/result container-mount paths would break
+# those two clusters' launches. This file is lrz_ai-only.
+#
+# data.preprocessed_data_root / validation.data_root below are PLACEHOLDERS
+# ("__PREPROCESSED_ROOT__") -- jobs/lrz_ai/train_dit.job substitutes the real
+# path (from its PREPROCESSED_NAME argument) before launch. Edit them by hand
+# here only if you are running scripts/train.py directly, not through the
+# job script.
+#
+# 256x256 SEQUENCE-LENGTH CAVEAT (2026-08-20, UNTESTED): the comments this
+# file inherited from configs/shockwavenet.yaml were sized for 128x128 VAE
+# latents (14 frames x 4x4 = 224 tokens, ~31GB estimated at batch_size=4).
+# Every VAE arm in EXPERIMENTS.md's current plan is 256x256 (8x8 latent
+# grid), so a real DiT run here has 14x8x8 = 896 tokens -- 4x the sequence
+# length, and transformer attention cost scales roughly with the square of
+# that. optimization.batch_size/gradient_accumulation_steps and
+# enable_gradient_checkpointing below are conservative guesses (batch_size 1,
+# gradient checkpointing ON), NOT a confirmed-safe combination -- check the
+# actual peak GPU memory after the first few steps of a real run and adjust,
+# the same way the 256res VAE arms had to be recalibrated for OOM risk.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 10000
+  # Effective batch = batch_size * grad_acc * num_processes. 1 * 16 * 2 = 32,
+  # matching the VAE runs' own effective batch (not load-bearing, just a
+  # consistent choice) -- RECOMPUTE checkpoints.interval below if you change
+  # any of these three or the GPU count jobs/lrz_ai/train_dit.job requests.
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  # ON (unlike configs/shockwavenet.yaml's 128res "false"): at 896 tokens
+  # instead of 224, activation memory is the more likely constraint. Try
+  # turning this off once a real run confirms there's headroom -- it costs
+  # speed, not correctness.
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  # Placeholder -- see header. As seen inside the container, i.e. under the
+  # /mnt/result mount jobs/lrz_ai/train_dit.job sets up, matching where
+  # jobs/lrz_ai/preprocess_dit_data.job writes its output
+  # (/mnt/result/dit_preprocessed/<OUTPUT_NAME>).
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  # Same held-out split the VAE runs use (preprocess_dit_data.job passes
+  # --eval-sims 675 --split-seed 42), so DiT and VAE val metrics are
+  # measured on the same simulations.
+  data_root: "__PREPROCESSED_ROOT__/val"
+  # Validate every 5th "epoch" (checkpoints.interval x 5) rather than every
+  # one, same reasoning as configs/shockwavenet.yaml: a full held-out pass
+  # is not free, don't pay for it every checkpoint.
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  # One epoch = 3825 train sims / effective_batch 32 = ~120 optimizer steps
+  # (batch_size 1 x grad_acc 16 x 2 GPUs -- see optimization's own comment).
+  interval: 120
+  keep_last_n: 5
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lrz_ai", "256res", "kl1e5"]
+
+seed: 42
+output_dir: "/mnt/result/shockwave_dit_kl1e5"
