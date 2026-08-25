@@ -30,7 +30,11 @@ class ModelConfig(ConfigBaseModel):
     load_checkpoint: str | Path | None = Field(
         default=None,
         description="Path to a checkpoint file or directory to load from. "
-        "If a directory is provided, the latest checkpoint will be used.",
+        "If a directory is provided, the latest checkpoint will be used. Also acts as "
+        "the resume trigger: if a sibling '<stem>.state.pt' exists next to the loaded "
+        "safetensors (written by LtxvTrainer._save_checkpoint), its optimizer/scheduler/"
+        "global_step/RNG are restored too, so training continues rather than restarting "
+        "the LR schedule -- see resume_weights_only to opt out.",
     )
 
     # noinspection PyNestedDecorators
@@ -717,6 +721,16 @@ class LtxvTrainerConfig(ConfigBaseModel):
 
     seed: int = Field(default=42)
     output_dir: str = Field(default="outputs")
+    resume_weights_only: bool = Field(
+        default=False,
+        description=(
+            "Load only the weights from model.load_checkpoint and ignore its sibling "
+            "'<stem>.state.pt' (optimizer, scheduler, global_step, RNG). Required for a "
+            "warm restart: restoring the state would also restore the finished cosine "
+            "schedule and the step counter, so a new learning_rate/steps would be "
+            "silently overridden and training would continue at the old run's final LR."
+        ),
+    )
 
     # noinspection PyNestedDecorators
     @field_validator("output_dir")

@@ -121,6 +121,10 @@ class TrainingStats(BaseModel):
 class LtxvTrainer:
     def __init__(self, trainer_config: LtxvTrainerConfig) -> None:
         self._config = trainer_config
+        # Resume bookkeeping, read into memory in __init__ (before train() may
+        # touch output_dir) so resuming into the same output_dir is safe.
+        self._resume_global_step = 0
+        self._resume_state: dict | None = None
         self._print_config(trainer_config)
         self._setup_accelerator()
         self._load_models()
@@ -343,7 +347,15 @@ class LtxvTrainer:
             live = Live(Panel(train_progress), refresh_per_second=2)
 
         self._transformer.train()
-        self._global_step = 0
+        self._global_step = self._resume_global_step
+        if self._global_step >= cfg.optimization.steps:
+            raise ValueError(
+                f"resume global_step {self._global_step} >= configured optimization.steps "
+                f"{cfg.optimization.steps}; increase optimization.steps to train further."
+            )
+        if self._global_step > 0 and IS_MAIN_PROCESS:
+            logger.info(f"Resuming training at global_step {self._global_step}")
+        remaining_opt_steps = cfg.optimization.steps - self._global_step
 
         compilation_time = None
         peak_mem_during_training = start_mem
@@ -353,12 +365,13 @@ class LtxvTrainer:
             task = train_progress.add_task(
                 "Training",
                 total=cfg.optimization.steps,
+                completed=self._global_step,
                 loss=0.0,
                 lr=cfg.optimization.learning_rate,
                 step_time=0.0,
             )
 
-            for step in range(cfg.optimization.steps * cfg.optimization.gradient_accumulation_steps):
+            for step in range(remaining_opt_steps * cfg.optimization.gradient_accumulation_steps):
                 try:
                     batch = next(data_iter)
                 except StopIteration:
@@ -734,6 +747,72 @@ class LtxvTrainer:
                 scalar_state_dict = load_file(scalar_checkpoint)
                 self._scalar_embedding.load_state_dict(scalar_state_dict)
 
+        self._load_resume_state(checkpoint_path)
+
+    @staticmethod
+    def _state_file_for(ckpt_path: str | Path) -> Path:
+        p = Path(ckpt_path)
+        # model_weights_step_00500.safetensors -> model_weights_step_00500.state.pt
+        return p.parent / (p.stem + ".state.pt")
+
+    def _load_resume_state(self, checkpoint_path: Path) -> None:
+        """Read the sibling training-state file into memory.
+
+        The optimizer/scheduler are only rebuilt inside ``train``; here we just
+        stash the loaded dict and the step to resume from.
+        """
+        if self._config.resume_weights_only:
+            logger.info(
+                "resume_weights_only=true: loaded the checkpoint's weights but ignoring its "
+                "training state. Optimizer, LR schedule and step counter start fresh, so the "
+                "configured learning_rate/steps take effect (warm restart)."
+            )
+            return
+        state_path = self._state_file_for(checkpoint_path)
+        if not state_path.exists():
+            logger.warning(
+                f"model.load_checkpoint set but no training-state file at {state_path}; "
+                "model weights will be warm-started, but optimizer/scheduler/step counter "
+                "will start fresh (step 0)."
+            )
+            return
+        state = torch.load(state_path, map_location="cpu", weights_only=False)
+        self._resume_state = state
+        self._resume_global_step = int(state.get("global_step", 0))
+        logger.info(
+            f"Loaded training state from {state_path}: resuming at global_step "
+            f"{self._resume_global_step}"
+        )
+
+    def _apply_resume_state(self) -> None:
+        """Restore optimizer/scheduler/RNG from the stashed state.
+
+        Called after both optimizer and scheduler are built (load_state_dict needs
+        the target objects) and after train()'s own set_seed, so the restored RNG
+        wins over the fresh seed.
+        """
+        state = self._resume_state
+        if state is None:
+            return
+        if "optimizer" in state:
+            self._optimizer.load_state_dict(state["optimizer"])
+        if state.get("scheduler") is not None and self._lr_scheduler is not None:
+            self._lr_scheduler.load_state_dict(state["scheduler"])
+        rng = state.get("rng")
+        if rng is not None:
+            import random as _random
+
+            import numpy as _np
+
+            if rng.get("python") is not None:
+                _random.setstate(rng["python"])
+            if rng.get("numpy") is not None:
+                _np.random.set_state(rng["numpy"])
+            if rng.get("torch") is not None:
+                torch.set_rng_state(rng["torch"])
+            if rng.get("cuda") is not None and torch.cuda.is_available():
+                torch.cuda.set_rng_state_all(rng["cuda"])
+
     def _find_scalar_checkpoint(self, model_checkpoint: Path) -> Path | None:
         stem = model_checkpoint.stem
         if "_step_" not in stem:
@@ -797,6 +876,7 @@ class LtxvTrainer:
         optimizer = self._accelerator.prepare(optimizer)
         lr_scheduler = self._create_scheduler(optimizer)
         self._optimizer, self._lr_scheduler = optimizer, lr_scheduler
+        self._apply_resume_state()
 
     def _create_scheduler(self, optimizer: torch.optim.Optimizer) -> LRScheduler | None:
         scheduler_type = self._config.optimization.scheduler_type
@@ -1011,17 +1091,45 @@ class LtxvTrainer:
             save_file(unwrapped_scalar.state_dict(), scalar_path)
             logger.info(f"Scalar embedding weights for step {self._global_step} saved")
 
+        self._save_training_state(self._state_file_for(saved_weights_path))
+
         self._checkpoint_paths.append(saved_weights_path)
         self._cleanup_checkpoints()
         return saved_weights_path
+
+    def _save_training_state(self, state_path: Path) -> None:
+        """Persist optimizer/scheduler/RNG next to the model checkpoint.
+
+        Written as ``<stem>.state.pt`` alongside the safetensors so that
+        ``model.load_checkpoint=<that safetensors>`` can restore an exact
+        continuation. The model weights themselves live in the safetensors
+        (loaded separately), so they are intentionally not duplicated here.
+        """
+        import numpy as np
+
+        rng = {
+            "python": random.getstate(),
+            "numpy": np.random.get_state(),
+            "torch": torch.get_rng_state(),
+            "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        }
+        state = {
+            "global_step": self._global_step,
+            "optimizer": self._optimizer.state_dict(),
+            "scheduler": self._lr_scheduler.state_dict() if self._lr_scheduler is not None else None,
+            "rng": rng,
+        }
+        torch.save(state, state_path)
+        logger.info(f"Training state saved: {state_path.relative_to(self._config.output_dir)}")
 
     def _cleanup_checkpoints(self) -> None:
         if 0 < self._config.checkpoints.keep_last_n < len(self._checkpoint_paths):
             checkpoints_to_remove = self._checkpoint_paths[: -self._config.checkpoints.keep_last_n]
             for old_checkpoint in checkpoints_to_remove:
-                if old_checkpoint.exists():
-                    old_checkpoint.unlink()
-                    logger.debug(f"Removed old checkpoint: {old_checkpoint}")
+                for f in (old_checkpoint, self._state_file_for(old_checkpoint)):
+                    if f.exists():
+                        f.unlink()
+                        logger.debug(f"Removed old checkpoint: {f}")
             self._checkpoint_paths = self._checkpoint_paths[-self._config.checkpoints.keep_last_n :]
 
     def _save_epoch_log(self) -> None:
