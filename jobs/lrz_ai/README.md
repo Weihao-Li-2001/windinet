@@ -25,6 +25,8 @@ sbatch jobs/lrz_ai/finetune_vae_1gpu.job                                    # 25
 sbatch jobs/lrz_ai/finetune_vae_1gpu.job configs/finetune_vae/other.yaml    # or pass one
 sbatch jobs/lrz_ai/finetune_vae_2gpu.job                                    # 2-GPU variant
 sbatch jobs/lrz_ai/finetune_vae_4gpu.job                                    # 4-GPU variant
+sbatch jobs/lrz_ai/train_dit.job <PREPROCESSED_NAME>                        # DiT training, 2 GPU
+sbatch jobs/lrz_ai/train_dit_4gpu.job <PREPROCESSED_NAME>                   # DiT training, 4 GPU, --time=10:00:00 (2026-08-26, user-chosen ceiling, uncalibrated)
 ```
 
 **Default config/data changed 2026-08-16**: `finetune_vae_1gpu.job`/`2gpu.job`/
