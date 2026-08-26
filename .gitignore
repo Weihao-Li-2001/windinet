@@ -247,6 +247,12 @@ checkpoints/
 # they came from is the durable record and stays tracked.
 log_finetuning_vae/**/*.png
 
+# One-off latent_shift_metrics.py comparison export (2026-08-17, jobs
+# 21995/21997) -- not written by a tracked script, not referenced in
+# EXPERIMENTS.md/EXPERIMENTS_archive.md, and regenerable by rerunning that
+# script against those two checkpoints if ever needed again.
+log_finetuning_vae/latent_shift_comparison.csv
+
 # In-repo HuggingFace cache for the LTX-Video base weights (~8.4 GB).
 # The weights themselves stay out of git; pretrained/README.md explains how to
 # get them (rsync from another checkout, or let the loader re-download).
