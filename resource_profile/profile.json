@@ -1,0 +1,841 @@
+{
+  "answers": [
+    [
+      "Average number of processes",
+      "One MPI/DDP rank per GPU or XPU tile, plus 4 dataloader worker processes per rank. Production jobs run 2-8 ranks on a single node (10-40 OS processes); the average across the 4 job types in use is [bold]5.5 ranks / 23.5 processes[/bold], and the largest configuration is 8 ranks / 40 processes. Multi-node is supported by the launchers but not yet in production use."
+    ],
+    [
+      "Average job memory (total over all nodes)",
+      "Both stages run on a single node. VAE finetuning at 8 ranks: [bold]~66 GB host RAM[/bold] and [bold]~181 GB device memory[/bold], scaled from a measured 2-rank run (16.41 GB host, 45.19 GB device). DiT training at the same width: [bold]~159 GB host[/bold] and [bold]~380 GB device[/bold]. Smaller 2-GPU jobs -- the lrz_ai default -- are what was measured directly: 16.41 GB host and 45.19 GB device for the VAE, 39.81 GB / 94.44 GB for the DiT. Device memory scales essentially linearly with rank count (data parallelism, full model replica per rank); host RAM scales slightly sublinearly."
+    ],
+    [
+      "Maximum memory per process",
+      "[bold]8,421 MB[/bold] host RSS per training rank for VAE finetuning (batch 4), rising to [bold]14,228 MB[/bold] for a DiT rank. On the device: 23,136 MB per VAE rank and 48,662 MB per DiT rank. The DiT figure was reserved on a 48 GB card, so it is an upper bound rather than a proven floor -- the irreducible part is ~31 GB of fp32 weights + gradients + AdamW moments for the 1.9B transformer, so a 40 GB-class GPU is the practical minimum and 48 GB is what has actually been exercised. Dataloader workers add a few hundred MB each."
+    ],
+    [
+      "Total data transferred to/from",
+      "[bold]90 GB inbound[/bold] once at project setup (82.00 GB of Euler-MQ HDF5 + 8.23 GB of pretrained LTX-Video weights), then only incremental git pulls. [bold]25 GB outbound[/bold] over the campaign: the launchers mirror back diagnostics only (`rsync --exclude=checkpoints/`), so weights leave the site only for the handful of runs promoted to a reference baseline. Resident on project storage: [bold]408 GB[/bold] (20 runs' checkpoints dominate; a 256x256 dataset copy would add ~328 GB)."
+    ],
+    [
+      "Frequency and size of data output/input",
+      "Input: the full 82.00 GB dataset is streamed once per epoch (17.16 MB compressed per simulation, 25.25 MB decompressed), i.e. ~82 GB/epoch and 2.40 TB over a 30-epoch run. Output: a 13.94 GB checkpoint (weights + optimizer state) every 1 epoch(s) into a fixed set of slots, plus 12 PNG panels of ~448.47 kB and one metrics-CSV append per epoch. The DiT stage writes a 7.17 GB checkpoint every 60 steps (166 writes, 1.16 TB of traffic) while reading a 261.63 MB latent corpus that stays in page cache. I/O is bursty, not continuous: checkpoint writes are the only large events."
+    ],
+    [
+      "Files and sizes in a typical production run",
+      "One VAE run leaves 368 files / 18.74 GB: 2 checkpoints of 4.65 GB each, one 9.29 GB optimizer-state file, 360 PNGs of ~448.47 kB, and a handful of small CSV/YAML/log files. Preprocessing adds 9,000 small `.pt` files (57.77 kB and 1.77 kB) totalling 261.63 MB -- the only large *file count* in the project. The DiT run keeps a rolling window of 5 x 7.17 GB. Whole campaign (20 VAE runs + 1 DiT run): ~16,376 files, 410.90 GB."
+    ],
+    [
+      "Same answers at higher resolution",
+      "Process counts, file counts and checkpoint sizes are unchanged -- the trainable parameter count is fixed by the architecture, not the input resolution, so Q1 and Q6's file inventory carry over verbatim. What scales is data volume (with pixel count) and device memory (not linearly). [bold]256x256[/bold]: dataset 319.95 GB (3.9x), so ~320 GB/epoch and 9.37 TB per 30-epoch run; latents grow to 231.07 kB each (1,015.45 MB corpus); per-rank device 30.48 GB live at batch 4. [bold]512x512[/bold]: dataset 1.23 TB (15.4x), so ~1259 GB/epoch and 36.89 TB per 30-epoch run; latents grow to 924.28 kB each (3.97 GB corpus); per-rank device 29.69 GB live at batch 1, and batch 4 OOMs on a 48 GB card. Host RAM is essentially flat across all three."
+    ]
+  ],
+  "resolution_scaling": [
+    {
+      "resolution": "128x128",
+      "latent_grid": "4x4x14",
+      "tokens": 224,
+      "latent_bytes": 59154,
+      "train_bytes": 88046215631,
+      "per_sim_bytes": 19565825,
+      "uncompressed_bytes": 119144448000,
+      "per_epoch_bytes": 88046215631,
+      "device_per_rank": 25144852480,
+      "device_live_per_rank": 23138930176,
+      "host_per_rank": 7761305600,
+      "measured_batch": 4,
+      "oom_arms": [],
+      "oom_batches": [],
+      "latent_corpus_bytes": 266193000
+    },
+    {
+      "resolution": "256x256",
+      "latent_grid": "8x8x14",
+      "tokens": 896,
+      "latent_bytes": 236616,
+      "train_bytes": 343542910606,
+      "per_sim_bytes": 76342869,
+      "uncompressed_bytes": 476577792000,
+      "per_epoch_bytes": 343542910606,
+      "device_per_rank": 39455817728,
+      "device_live_per_rank": 32722282496,
+      "host_per_rank": 8039469056,
+      "measured_batch": 4,
+      "oom_arms": [],
+      "oom_batches": [],
+      "latent_corpus_bytes": 1064772000
+    },
+    {
+      "resolution": "512x512",
+      "latent_grid": "16x16x14",
+      "tokens": 3584,
+      "latent_bytes": 946464,
+      "train_bytes": 1352064077213,
+      "per_sim_bytes": 300458683,
+      "uncompressed_bytes": 1906311168000,
+      "per_epoch_bytes": 1352064077213,
+      "device_per_rank": 39036387328,
+      "device_live_per_rank": 31876356608,
+      "host_per_rank": 7790870528,
+      "measured_batch": 1,
+      "oom_arms": [
+        "VAE 512x512 (batch 4)"
+      ],
+      "oom_batches": [
+        4
+      ],
+      "latent_corpus_bytes": 4259088000
+    }
+  ],
+  "activation_scaling": {
+    "weights_bytes": 2507052544,
+    "rows": [
+      {
+        "resolution": 128,
+        "latent_shape": [
+          1,
+          128,
+          14,
+          4,
+          4
+        ],
+        "peak_bytes": 3679567872,
+        "activation_bytes": 1172515328
+      },
+      {
+        "resolution": 256,
+        "latent_shape": [
+          1,
+          128,
+          14,
+          8,
+          8
+        ],
+        "peak_bytes": 5130830336,
+        "activation_bytes": 2623777792
+      },
+      {
+        "resolution": 512,
+        "latent_shape": [
+          1,
+          128,
+          14,
+          16,
+          16
+        ],
+        "peak_bytes": 12942574080,
+        "activation_bytes": 10435521536
+      }
+    ],
+    "returncode": 0
+  },
+  "hf_sizes_live": true,
+  "dataset": {
+    "path": "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5",
+    "n_sims": 4500,
+    "fields": [
+      "density",
+      "momentum_x",
+      "momentum_y",
+      "pressure"
+    ],
+    "frames": 101,
+    "height": 128,
+    "width": 128,
+    "dtype": "float32",
+    "itemsize": 4,
+    "gammas": [
+      1.1299999952,
+      1.2200000286,
+      1.2999999523,
+      1.3300000429,
+      1.3650000095,
+      1.3999999762,
+      1.4040000439,
+      1.4529999495,
+      1.5970000029,
+      1.7599999905
+    ],
+    "backing_files": {
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.130_128.hdf5": 8664483674,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.220_128.hdf5": 8769788390,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.300_128.hdf5": 8815532112,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.330_128.hdf5": 8787716731,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.365_128.hdf5": 8719951265,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.400_128.hdf5": 8767402838,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.404_128.hdf5": 8823267171,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.453_128.hdf5": 8826710838,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.597_128.hdf5": 8886615071,
+      "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train_subsets/train_gamma1.760_128.hdf5": 8984747541
+    },
+    "index_file_bytes": 520339,
+    "logical_bytes_per_sim": 26476544,
+    "stored_bytes_per_sim": 17991239,
+    "logical_bytes": 119144448000,
+    "stored_bytes": 88046735970,
+    "compression_ratio": 1.3531955124446164
+  },
+  "job_shapes": [
+    {
+      "name": "VAE finetune (production)",
+      "cluster": "sng_pvc",
+      "launcher": "jobs/sng_pvc/finetune_vae.sbatch",
+      "nodes": 1,
+      "ranks_per_node": 8,
+      "cpus_per_task": null,
+      "dataloader_workers": 4,
+      "batch_size": 4,
+      "grad_accum": 1,
+      "wall_limit": "12:00:00",
+      "ranks": 8,
+      "os_processes": 40,
+      "effective_batch": 32
+    },
+    {
+      "name": "DiT training (production)",
+      "cluster": "sng_pvc",
+      "launcher": "jobs/sng_pvc/train_dit.sbatch",
+      "nodes": 1,
+      "ranks_per_node": 8,
+      "cpus_per_task": null,
+      "dataloader_workers": 2,
+      "batch_size": 4,
+      "grad_accum": 4,
+      "wall_limit": "24:00:00",
+      "ranks": 8,
+      "os_processes": 24,
+      "effective_batch": 128
+    },
+    {
+      "name": "VAE finetune (H100, 2 GPU)",
+      "cluster": "lrz_ai",
+      "launcher": "jobs/lrz_ai/finetune_vae_2gpu.job",
+      "nodes": 1,
+      "ranks_per_node": 2,
+      "cpus_per_task": 48,
+      "dataloader_workers": 4,
+      "batch_size": 16,
+      "grad_accum": 1,
+      "wall_limit": "08:00:00",
+      "ranks": 2,
+      "os_processes": 10,
+      "effective_batch": 32
+    },
+    {
+      "name": "VAE finetune (H100, 4 GPU)",
+      "cluster": "lrz_ai",
+      "launcher": "jobs/lrz_ai/finetune_vae_4gpu.job",
+      "nodes": 1,
+      "ranks_per_node": 4,
+      "cpus_per_task": 92,
+      "dataloader_workers": 4,
+      "batch_size": 1,
+      "grad_accum": 8,
+      "wall_limit": "06:00:00",
+      "ranks": 4,
+      "os_processes": 20,
+      "effective_batch": 32
+    }
+  ],
+  "probes": {
+    "VAE finetune (batch 1)": {
+      "peak_tree_rss_bytes": 17758945280,
+      "peak_process_rss_bytes": 7926960128,
+      "peak_tree_pss_bytes": 12993752064,
+      "peak_process_pss_bytes": 7435051008,
+      "peak_process_uss_bytes": 7351074816,
+      "peak_tree_gpu_bytes": 47735373824,
+      "peak_process_gpu_bytes": 23867686912,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 7180136656,
+      "mean_process_count": 2.8,
+      "samples": 177,
+      "seconds": 122.3,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs1_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs1_probe_config.yaml",
+      "attempted_batch_size": 1,
+      "torch_max_allocated_per_rank": 23113927168,
+      "torch_max_reserved_per_rank": 23297261568,
+      "torch_ranks_reporting": 2,
+      "batch_size": 1,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "checkpoint_bytes": 4988124904,
+      "state_bytes": 9976413298,
+      "checkpoint_path": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "best_checkpoint": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "panel_bytes": 474492,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs1_run"
+    },
+    "VAE finetune (batch 4)": {
+      "peak_tree_rss_bytes": 17622360064,
+      "peak_process_rss_bytes": 8830504960,
+      "peak_tree_pss_bytes": 12330834944,
+      "peak_process_pss_bytes": 8740032512,
+      "peak_process_uss_bytes": 8656015360,
+      "peak_tree_gpu_bytes": 48519708672,
+      "peak_process_gpu_bytes": 24259854336,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 7521686356,
+      "mean_process_count": 2.8,
+      "samples": 197,
+      "seconds": 119.7,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs4_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs4_probe_config.yaml",
+      "attempted_batch_size": 4,
+      "torch_max_allocated_per_rank": 23128468992,
+      "torch_max_reserved_per_rank": 23689428992,
+      "torch_ranks_reporting": 2,
+      "batch_size": 4,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "checkpoint_bytes": 4988124904,
+      "state_bytes": 9976413298,
+      "checkpoint_path": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs4_run/checkpoints/vae_shockwave_best.safetensors",
+      "best_checkpoint": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs4_run/checkpoints/vae_shockwave_best.safetensors",
+      "panel_bytes": 459232,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs4_run"
+    },
+    "_activation_scaling": {
+      "weights_bytes": 2507052544,
+      "rows": [
+        {
+          "resolution": 128,
+          "latent_shape": [
+            1,
+            128,
+            14,
+            4,
+            4
+          ],
+          "peak_bytes": 3679567872,
+          "activation_bytes": 1172515328
+        },
+        {
+          "resolution": 256,
+          "latent_shape": [
+            1,
+            128,
+            14,
+            8,
+            8
+          ],
+          "peak_bytes": 5130830336,
+          "activation_bytes": 2623777792
+        },
+        {
+          "resolution": 512,
+          "latent_shape": [
+            1,
+            128,
+            14,
+            16,
+            16
+          ],
+          "peak_bytes": 12942574080,
+          "activation_bytes": 10435521536
+        }
+      ],
+      "returncode": 0
+    },
+    "VAE 128x128 (batch 1)": {
+      "peak_tree_rss_bytes": 17329537024,
+      "peak_process_rss_bytes": 7519956992,
+      "peak_tree_pss_bytes": 11301030912,
+      "peak_process_pss_bytes": 7429519360,
+      "peak_process_uss_bytes": 7345541120,
+      "peak_tree_gpu_bytes": 48138027008,
+      "peak_process_gpu_bytes": 24069013504,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 7145131058,
+      "mean_process_count": 2.7,
+      "samples": 181,
+      "seconds": 108.3,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs1_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs1_probe_config.yaml",
+      "attempted_batch_size": 1,
+      "torch_max_allocated_per_rank": 22904909312,
+      "torch_max_reserved_per_rank": 23498588160,
+      "torch_ranks_reporting": 2,
+      "batch_size": 1,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "checkpoint_bytes": 4988124904,
+      "state_bytes": 9976413298,
+      "checkpoint_path": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "best_checkpoint": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "panel_bytes": 461646,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs1_run"
+    },
+    "VAE 128x128 (batch 4)": {
+      "peak_tree_rss_bytes": 17919057920,
+      "peak_process_rss_bytes": 7761305600,
+      "peak_tree_pss_bytes": 11878071296,
+      "peak_process_pss_bytes": 7670976512,
+      "peak_process_uss_bytes": 7587053568,
+      "peak_tree_gpu_bytes": 50289704960,
+      "peak_process_gpu_bytes": 25144852480,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 7420173104,
+      "mean_process_count": 2.8,
+      "samples": 183,
+      "seconds": 111.2,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs4_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs4_probe_config.yaml",
+      "attempted_batch_size": 4,
+      "torch_max_allocated_per_rank": 23138930176,
+      "torch_max_reserved_per_rank": 24574427136,
+      "torch_ranks_reporting": 2,
+      "batch_size": 4,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "checkpoint_bytes": 4988124904,
+      "state_bytes": 9976413298,
+      "checkpoint_path": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs4_run/checkpoints/vae_shockwave_best.safetensors",
+      "best_checkpoint": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs4_run/checkpoints/vae_shockwave_best.safetensors",
+      "panel_bytes": 460082,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs4_run"
+    },
+    "VAE 256x256 (batch 1)": {
+      "peak_tree_rss_bytes": 20399742976,
+      "peak_process_rss_bytes": 7519694848,
+      "peak_tree_pss_bytes": 11710139392,
+      "peak_process_pss_bytes": 7403413504,
+      "peak_process_uss_bytes": 7341834240,
+      "peak_tree_gpu_bytes": 48662315008,
+      "peak_process_gpu_bytes": 24331157504,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 7133243722,
+      "mean_process_count": 2.8,
+      "samples": 198,
+      "seconds": 118.7,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs1_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs1_probe_config.yaml",
+      "attempted_batch_size": 1,
+      "torch_max_allocated_per_rank": 23139126784,
+      "torch_max_reserved_per_rank": 23760732160,
+      "torch_ranks_reporting": 2,
+      "batch_size": 1,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "checkpoint_bytes": 4988124904,
+      "state_bytes": 9976413298,
+      "checkpoint_path": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "best_checkpoint": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "panel_bytes": 1165334,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs1_run"
+    },
+    "VAE 256x256 (batch 4)": {
+      "peak_tree_rss_bytes": 21255831552,
+      "peak_process_rss_bytes": 8039469056,
+      "peak_tree_pss_bytes": 14608538624,
+      "peak_process_pss_bytes": 7863592960,
+      "peak_process_uss_bytes": 7773777920,
+      "peak_tree_gpu_bytes": 78911635456,
+      "peak_process_gpu_bytes": 39455817728,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 7744943507,
+      "mean_process_count": 3.2,
+      "samples": 218,
+      "seconds": 134.8,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs4_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs4_probe_config.yaml",
+      "attempted_batch_size": 4,
+      "torch_max_allocated_per_rank": 32722282496,
+      "torch_max_reserved_per_rank": 38885392384,
+      "torch_ranks_reporting": 2,
+      "batch_size": 4,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "checkpoint_bytes": 4988124904,
+      "state_bytes": 9976413298,
+      "checkpoint_path": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs4_run/checkpoints/vae_shockwave_best.safetensors",
+      "best_checkpoint": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs4_run/checkpoints/vae_shockwave_best.safetensors",
+      "panel_bytes": 1200577,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs4_run"
+    },
+    "VAE 512x512 (batch 1)": {
+      "peak_tree_rss_bytes": 22605594624,
+      "peak_process_rss_bytes": 7790870528,
+      "peak_tree_pss_bytes": 11322330112,
+      "peak_process_pss_bytes": 7674878976,
+      "peak_process_uss_bytes": 7613427712,
+      "peak_tree_gpu_bytes": 78072774656,
+      "peak_process_gpu_bytes": 39036387328,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 7927021259,
+      "mean_process_count": 3.3,
+      "samples": 239,
+      "seconds": 149.8,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs1_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs1_probe_config.yaml",
+      "attempted_batch_size": 1,
+      "torch_max_allocated_per_rank": 31876356608,
+      "torch_max_reserved_per_rank": 38465961984,
+      "torch_ranks_reporting": 2,
+      "batch_size": 1,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "checkpoint_bytes": 4988124904,
+      "state_bytes": 9976413298,
+      "checkpoint_path": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "best_checkpoint": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs1_run/checkpoints/vae_shockwave_best.safetensors",
+      "panel_bytes": 1483187,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs1_run"
+    },
+    "VAE 512x512 (batch 4)": {
+      "peak_tree_rss_bytes": 26420957184,
+      "peak_process_rss_bytes": 7920185344,
+      "peak_tree_pss_bytes": 13474078720,
+      "peak_process_pss_bytes": 6512181248,
+      "peak_process_uss_bytes": 5508591616,
+      "peak_tree_gpu_bytes": 98788442112,
+      "peak_process_gpu_bytes": 49394221056,
+      "peak_process_count": 11,
+      "mean_tree_rss_bytes": 8532661769,
+      "mean_process_count": 5.4,
+      "samples": 53,
+      "seconds": 36.2,
+      "returncode": 1,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs4_probe.log",
+      "config": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs4_probe_config.yaml",
+      "attempted_batch_size": 4,
+      "torch_max_allocated_per_rank": 41876036608,
+      "torch_max_reserved_per_rank": 48853155840,
+      "torch_ranks_reporting": 2,
+      "batch_size": 4,
+      "resolution_px": null,
+      "resolution": "128x128",
+      "error": "inet/windinet/losses/reconstruction.py\", line 158, in reconstruction_losses\n[rank0]:     losses[\"h2\"] = h2_seminorm_loss(\n[rank0]:   File \"/local/disk/hramachandran/work/wh_work/windinet/windinet/losses/h2_semi_norm.py\", line 86, in h2_seminorm_loss\n[rank0]:     target_dxx, target_dyy = spatial_second_derivatives(target)\n[rank0]:   File \"/local/disk/hramachandran/work/wh_work/windinet/windinet/losses/h2_semi_norm.py\", line 46, in spatial_second_derivatives\n[rank0]:     dyy = x[..., :-2, :] - 2 * x[..., 1:-1, :] + x[..., 2:, :]\n[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.57 GiB. GPU 0 has a total capacity of 47.54 GiB of which 1.53 GiB is free. Including non-PyTorch memory, this process has 46.00 GiB memory in use. Of the allocated memory 39.00 GiB is allocated by PyTorch, and 6.48 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)\n[rank0]:[W826 18:09:25.089780151 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())\nW0826 18:09:27.338110 2738593 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2738673 closing signal SIGTERM\nE0826 18:09:27.452557 2738593 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 0 (pid: 2738672) of binary: /local/disk/hramachandran/miniconda/envs/windinet/bin/python\nTraceback (most recent call last):\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/runpy.py\", line 196, in _run_module_as_main\n    return _run_code(code, main_globals, None,\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/runpy.py\", line 86, in _run_code\n    exec(code, run_globals)\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py\", line 1415, in <module>\n    main()\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py\", line 1411, in main\n    launch_command(args)\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py\", line 1396, in launch_command\n    multi_gpu_launcher(args)\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py\", line 1023, in multi_gpu_launcher\n    distrib_run.run(args)\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py\", line 883, in run\n    elastic_launch(\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py\", line 139, in __call__\n    return launch_agent(self._config, self._entrypoint, list(args))\n  File \"/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py\", line 270, in launch_agent\n    raise ChildFailedError(\ntorch.distributed.elastic.multiprocessing.errors.ChildFailedError: \n============================================================\n/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/_probe_mem_shim.py FAILED\n------------------------------------------------------------\nFailures:\n  <NO_OTHER_FAILURES>\n------------------------------------------------------------\nRoot Cause (first observed failure):\n[0]:\n  time      : 2026-08-26_18:09:27\n  host      : lundquist.maas\n  rank      : 0 (local_rank: 0)\n  exitcode  : 1 (pid: 2738672)\n  error_file: <N/A>\n  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html\n============================================================\n"
+    },
+    "Latent preprocessing": {
+      "peak_tree_rss_bytes": 8136577024,
+      "peak_process_rss_bytes": 8136577024,
+      "peak_tree_pss_bytes": 8049182720,
+      "peak_process_pss_bytes": 8049182720,
+      "peak_process_uss_bytes": 7964577792,
+      "peak_tree_gpu_bytes": 3609198592,
+      "peak_process_gpu_bytes": 3609198592,
+      "peak_process_count": 1,
+      "mean_tree_rss_bytes": 1225895223,
+      "mean_process_count": 1.0,
+      "samples": 23,
+      "returncode": 0,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/preprocess_probe.log",
+      "latent_bytes": 59154,
+      "scalar_bytes": 1810,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/preprocessed",
+      "latent_shape": [
+        224,
+        128
+      ],
+      "latent_dtype": "torch.bfloat16",
+      "latent_num_frames": 14,
+      "latent_height": 4,
+      "latent_width": 4
+    },
+    "DiT training": {
+      "peak_tree_rss_bytes": 42741866496,
+      "peak_process_rss_bytes": 14918918144,
+      "peak_tree_pss_bytes": 22038349824,
+      "peak_process_pss_bytes": 14807513088,
+      "peak_process_uss_bytes": 14750789632,
+      "peak_tree_gpu_bytes": 101405687808,
+      "peak_process_gpu_bytes": 51025805312,
+      "peak_process_count": 7,
+      "mean_tree_rss_bytes": 13989583778,
+      "mean_process_count": 2.8,
+      "samples": 88,
+      "seconds": 60.8,
+      "returncode": 0,
+      "ranks": 2,
+      "log": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/dit_probe.log",
+      "torch_max_allocated_per_rank": 48611047424,
+      "torch_max_reserved_per_rank": 50459574272,
+      "torch_ranks_reporting": 2,
+      "checkpoint_bytes": 7693623008,
+      "scalar_checkpoint_bytes": 17243376,
+      "output_dir": "/local/disk/hramachandran/work/wh_work/.windinet_profile_probe/dit_run"
+    }
+  },
+  "q1": {
+    "mean_ranks": 5.5,
+    "mean_os_processes": 23.5,
+    "workers": 4
+  },
+  "q2q3": {
+    "job_host_bytes": 170967465984,
+    "job_device_bytes": 408206442496,
+    "max_process_bytes": 14918918144,
+    "notes": [
+      "[bold]VAE finetune at production width[/bold] (8 ranks, jobs/sng_pvc/finetune_vae.sbatch): host 65.65 GB, device 180.75 GB -- scaled from the 2-rank measurement above.",
+      "Max per process: [bold]8,421 MB[/bold] host RSS, 23,136 MB device, per training rank. Dataloader workers are much smaller (they hold one decompressed sim each).",
+      "[bold]DiT training at production width[/bold] (8 ranks): host 159.23 GB, device 380.17 GB (48,662 MB per rank -- fp32 weights + grads + AdamW moments for the 1.9B transformer dominate)."
+    ]
+  },
+  "q4": {
+    "rows": [
+      {
+        "direction": "IN",
+        "item": "Euler-MQ dataset (4,500 sims, 10 HDF5 shards)",
+        "bytes": 88046735970,
+        "when": "once, staged to project storage"
+      },
+      {
+        "direction": "IN",
+        "item": "LTX-Video 2B pretrained weights (HF hub cache)",
+        "bytes": 8834602085,
+        "when": "once per machine"
+      },
+      {
+        "direction": "IN",
+        "item": "Source checkout (git)",
+        "bytes": 31457280,
+        "when": "once, then incremental pulls"
+      },
+      {
+        "direction": "OUT",
+        "item": "Diagnostics mirror -- panels, metrics, configs, logs (20 runs)",
+        "bytes": 3317130400,
+        "when": "rsync at the end of each run (checkpoints/ excluded by the launchers)"
+      },
+      {
+        "direction": "OUT",
+        "item": "Promoted VAE checkpoints archived off-cluster",
+        "bytes": 14964374712,
+        "when": "only for runs that become a reference baseline"
+      },
+      {
+        "direction": "OUT",
+        "item": "Final DiT checkpoint + sample rollouts",
+        "bytes": 8217911008,
+        "when": "once at the end of the DiT run"
+      }
+    ],
+    "inbound_bytes": 96912795335,
+    "outbound_bytes": 26499416120,
+    "resident_rows": [
+      {
+        "item": "Dataset, resolutions in use (4,500 sims at 128x128; a 256x256 copy is ~4x)",
+        "bytes": 88046735970
+      },
+      {
+        "item": "VAE checkpoints, 20 concurrent/archived runs x (weights + optimizer state)",
+        "bytes": 299290764040
+      },
+      {
+        "item": "Preprocessed latents (4,500 pairs)",
+        "bytes": 274338000
+      },
+      {
+        "item": "DiT checkpoint rolling window",
+        "bytes": 38468115040
+      },
+      {
+        "item": "Diagnostics (20 runs)",
+        "bytes": 3317130400
+      },
+      {
+        "item": "Pretrained weight cache",
+        "bytes": 8834602085
+      }
+    ],
+    "resident_bytes": 438231685535
+  },
+  "q5": {
+    "rows": [
+      {
+        "stream": "HDF5 read (VAE train+eval)",
+        "frequency": "every epoch, 30 epochs; 3,825 train + 675 eval sims",
+        "size": "17.16 MB/sim compressed, 25.25 MB decompressed",
+        "aggregate": "82.00 GB/epoch, 2.40 TB per run"
+      },
+      {
+        "stream": "VAE checkpoint write",
+        "frequency": "every 1 epoch(s)",
+        "size": "4.65 GB weights + 9.29 GB optimizer state",
+        "aggregate": "418.10 GB written over the run into 2 rewritten slots"
+      },
+      {
+        "stream": "Reconstruction panels",
+        "frequency": "every 1 epoch(s), rank 0",
+        "size": "448.47 kB x 12 PNGs",
+        "aggregate": "157.66 MB"
+      },
+      {
+        "stream": "Latent preprocessing (one-off, between stages)",
+        "frequency": "once per VAE checkpoint promoted to DiT training",
+        "size": "reads 82.00 GB, writes 57.77 kB + 1.77 kB per sim",
+        "aggregate": "261.63 MB of latents for 4,500 sims"
+      },
+      {
+        "stream": "Latent read (DiT train)",
+        "frequency": "every step; 16 samples/step x 10,000 steps",
+        "size": "57.77 kB",
+        "aggregate": "8.81 GB of reads, but the whole 261.63 MB corpus fits in page cache"
+      },
+      {
+        "stream": "DiT checkpoint write",
+        "frequency": "every 60 optimizer steps (166 writes)",
+        "size": "7.17 GB",
+        "aggregate": "1.16 TB of write traffic; 35.83 GB resident (keep_last_n=5)"
+      },
+      {
+        "stream": "Slurm stdout/stderr",
+        "frequency": "continuous",
+        "size": "~1 line/step",
+        "aggregate": "< 5 MB per job"
+      }
+    ]
+  },
+  "q6": {
+    "stages": {
+      "Stage 1 -- VAE finetuning, one run (30 epochs, finetune_vae_whole_structure_baseline_ep30.yaml)": [
+        {
+          "kind": "visualizations/epoch_####/<sim>/frame_####.png",
+          "per_run_count": 360,
+          "bytes_each": 459232,
+          "cadence": "3 sims x 4 frames every 1 epoch(s)",
+          "note": "rank 0 only",
+          "total_bytes": 165323520
+        },
+        {
+          "kind": "checkpoints/vae_shockwave_*.safetensors",
+          "per_run_count": 2,
+          "bytes_each": 4988124904,
+          "cadence": "rewritten every 1 epoch(s) (best slot only on improvement)",
+          "note": "",
+          "total_bytes": 9976249808
+        },
+        {
+          "kind": "checkpoints/vae_shockwave_*.state.pt",
+          "per_run_count": 1,
+          "bytes_each": 9976413298,
+          "cadence": "rewritten every 1 epoch(s) (best slot only on improvement)",
+          "note": "optimizer + scheduler + RNG, for resume_from",
+          "total_bytes": 9976413298
+        },
+        {
+          "kind": "metrics/metrics.csv",
+          "per_run_count": 1,
+          "bytes_each": 9000,
+          "cadence": "appended once per epoch",
+          "note": "",
+          "total_bytes": 9000
+        },
+        {
+          "kind": "metrics/loss_curves.png",
+          "per_run_count": 1,
+          "bytes_each": 120000,
+          "cadence": "rewritten once per epoch",
+          "note": "",
+          "total_bytes": 120000
+        },
+        {
+          "kind": "training_config.yaml",
+          "per_run_count": 1,
+          "bytes_each": 4000,
+          "cadence": "once at startup",
+          "note": "",
+          "total_bytes": 4000
+        },
+        {
+          "kind": "slurm .out/.err logs",
+          "per_run_count": 2,
+          "bytes_each": 200000,
+          "cadence": "streamed",
+          "note": "",
+          "total_bytes": 400000
+        }
+      ],
+      "Stage 2 -- Latent preprocessing, 4,500 sims": [
+        {
+          "kind": "latents/<sim_id>.pt",
+          "per_run_count": 4500,
+          "bytes_each": 59154,
+          "total_bytes": 266193000,
+          "cadence": "one per simulation, written once",
+          "note": ""
+        },
+        {
+          "kind": "scalars/<sim_id>.pt",
+          "per_run_count": 4500,
+          "bytes_each": 1810,
+          "total_bytes": 8145000,
+          "cadence": "one per simulation, written once",
+          "note": ""
+        },
+        {
+          "kind": "normalization.json + split_manifest.json",
+          "per_run_count": 2,
+          "bytes_each": 150000,
+          "total_bytes": 300000,
+          "cadence": "once",
+          "note": ""
+        }
+      ],
+      "Stage 3 -- DiT training, one run (10,000 steps)": [
+        {
+          "kind": "checkpoints/model_weights_step_#####.safetensors",
+          "per_run_count": 5,
+          "bytes_each": 7693623008,
+          "cadence": "written every 60 optimizer steps (166 writes over 10000 steps), pruned to keep_last_n=5",
+          "note": "166 writes total -- 1189 GB of write traffic even though only the retained window persists",
+          "total_bytes": 38468115040
+        },
+        {
+          "kind": "checkpoints/scalar_embedding_step_#####.safetensors",
+          "per_run_count": 5,
+          "bytes_each": 17243376,
+          "cadence": "alongside each transformer checkpoint",
+          "note": "",
+          "total_bytes": 86216880
+        },
+        {
+          "kind": "latent_provenance.json",
+          "per_run_count": 1,
+          "bytes_each": 1000,
+          "cadence": "once at startup",
+          "note": "",
+          "total_bytes": 1000
+        },
+        {
+          "kind": "epoch_log.json",
+          "per_run_count": 1,
+          "bytes_each": 33200,
+          "cadence": "appended per logged epoch",
+          "note": "",
+          "total_bytes": 33200
+        },
+        {
+          "kind": "slurm .out/.err logs",
+          "per_run_count": 2,
+          "bytes_each": 400000,
+          "cadence": "streamed",
+          "note": "",
+          "total_bytes": 800000
+        }
+      ]
+    },
+    "total_files": 9384,
+    "total_bytes": 58948323746,
+    "write_traffic_bytes": 1726077565388,
+    "n_runs": 20,
+    "campaign_files": 16376,
+    "campaign_bytes": 441200196640
+  }
+}

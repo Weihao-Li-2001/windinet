@@ -1,0 +1,47 @@
+job=22371 node=lundquist gpus=0
+VAE_CHECKPOINT: finetune_vae_outputs/lundquist/finetune_vae_dit_smoketest_source/checkpoints/vae_shockwave_best.safetensors
+DATA_ROOT: /local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5
+OUTPUT_NAME: smoketest -> dit_preprocessed/smoketest
+INFO     Found 24 samples in                           preprocess_dataset.py:194
+         /local/disk/hramachandran/work/wh_work/windin                          
+         et/euler_mq_dataset/128x128_ds/train.h5                                
+INFO     Loading inflated VAE (LTXV_2B_0.9.6_DEV) +    preprocess_dataset.py:228
+         checkpoint                                                             
+         finetune_vae_outputs/lundquist/finetune_vae_d                          
+         it_smoketest_source/checkpoints/vae_shockwave                          
+         _best.safetensors...                                                   
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+[windinet] loaded inflated VAE checkpoint: finetune_vae_outputs/lundquist/finetune_vae_dit_smoketest_source/checkpoints/vae_shockwave_best.safetensors (epoch=1, step=119)
+INFO     Channel normalization from                    preprocess_dataset.py:238
+         finetune_vae_outputs/lundquist/finetune_vae_d                          
+         it_smoketest_source/training_config.yaml:                              
+         mean=[0.905097647712509,                                               
+         0.0040453659499771295,                                                 
+         -0.0019089379643528095, 0.9031908053899714],                           
+         std=[0.6607349375392083, 0.5328754120427532,                           
+         0.5262512462358824, 0.8050358917795326],                               
+         clip=5.0                                                               
+INFO     Latent space fingerprint: de01ac1a77926f71    preprocess_dataset.py:249
+Encoding ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 24/24 0:00:06 0:00:00
+INFO     Done: 24 processed, 0 skipped                 preprocess_dataset.py:357
+INFO     Latents: dit_preprocessed/smoketest/latents   preprocess_dataset.py:358
+INFO     Scalars: dit_preprocessed/smoketest/scalars   preprocess_dataset.py:359
+INFO     Split manifest:                               preprocess_dataset.py:362
+         dit_preprocessed/smoketest/split_manifest.jso                          
+         n                                                                      
+Latents written to dit_preprocessed/smoketest
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json?filters=%7B%22label%22%3A%7B%22slurm_job_id%3D22371%22%3Atrue%7D%7D": dial unix /var/run/docker.sock: connect: permission denied

@@ -1,0 +1,206 @@
+Scanning /local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5 ...
+Probe artifacts -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe  (2.16 TB free)
+VAE probe: 2 rank(s), batch_size 1, 4 sims x4, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs1_probe.log
+VAE probe: 2 rank(s), batch_size 4, 4 sims x4, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_bs4_probe.log
+Activation probe: [128, 256, 512] at 105 frames, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/activation_probe.log
+VAE probe: 2 rank(s), batch_size 1, 2 sims x2, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs1_probe.log
+VAE probe: 2 rank(s), batch_size 4, 2 sims x2, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_128_bs4_probe.log
+Synthesizing 2 sims at 256x256 ...
+VAE probe: 2 rank(s), batch_size 1, 2 sims x2, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs1_probe.log
+VAE probe: 2 rank(s), batch_size 4, 2 sims x2, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_256_bs4_probe.log
+Synthesizing 2 sims at 512x512 ...
+VAE probe: 2 rank(s), batch_size 1, 2 sims x2, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs1_probe.log
+VAE probe: 2 rank(s), batch_size 4, 2 sims x2, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/vae_512_bs4_probe.log
+Latent probe: encoding 8 sims, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/preprocess_probe.log
+DiT probe: 2 rank(s), 4 steps, log -> /local/disk/hramachandran/work/wh_work/.windinet_profile_probe/dit_probe.log
+───────────────────────────────────────────────────────────────── Dataset inventory ──────────────────────────────────────────────────────────────────
+ Index file        /local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5  (508.14 kB, HDF5 external-link index) 
+ Simulations       4,500 across 10 gamma values                                                                                                
+ Per simulation    4 fields x 101 frames x 128x128 float32                                                                                     
+ Fields            density, momentum_x, momentum_y, pressure                                                                                   
+ Backing shards    10 files, 82.00 GB total (gzip)                                                                                             
+ On disk (stored)  82.00 GB                                                                                                                    
+ Uncompressed      110.96 GB  (gzip ratio 1.35x)                                                                                               
+ Per sim           17.16 MB stored / 25.25 MB in memory                                                                                        
+────────────────────────────────────────────────────────────── Q1 -- Processes per job ───────────────────────────────────────────────────────────────
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Job                        ┃ Cluster ┃ Nodes ┃ Ranks/node ┃ MPI ranks ┃ IO workers ┃ OS processes ┃ CPUs/task ┃ Eff. batch ┃ Wall     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ VAE finetune (production)  │ sng_pvc │ 1     │ 8          │ 8         │ 32         │ 40           │ -         │ 32         │ 12:00:00 │
+│ DiT training (production)  │ sng_pvc │ 1     │ 8          │ 8         │ 16         │ 24           │ -         │ 128        │ 24:00:00 │
+│ VAE finetune (H100, 2 GPU) │ lrz_ai  │ 1     │ 2          │ 2         │ 8          │ 10           │ 48        │ 32         │ 08:00:00 │
+│ VAE finetune (H100, 4 GPU) │ lrz_ai  │ 1     │ 4          │ 4         │ 16         │ 20           │ 92        │ 32         │ 06:00:00 │
+└────────────────────────────┴─────────┴───────┴────────────┴───────────┴────────────┴──────────────┴───────────┴────────────┴──────────┘
+Average over the 4 production job types: 5.5 MPI ranks, 23.5 OS processes (1 rank per GPU/tile + 4 dataloader workers each).
+────────────────────────────────────────────────────────────────── Q2/Q3 -- Memory ───────────────────────────────────────────────────────────────────
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Probe                 ┃ Ranks ┃ batch ┃ Host PSS (all) ┃ Host peak (1 proc) ┃ Host private (1 proc) ┃ Device live (1 rank) ┃ Device resv. (1 rank) ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━┩
+│ VAE finetune (batch   │ 2     │ 1     │ 12.10 GB       │ 7.38 GB            │ 6.85 GB               │ 21.53 GB             │ 22.23 GB              │
+│ 1)                    │       │       │                │                    │                       │                      │                       │
+│ VAE finetune (batch   │ 2     │ 4     │ 11.48 GB       │ 8.22 GB            │ 8.06 GB               │ 21.54 GB             │ 22.59 GB              │
+│ 4)                    │       │       │                │                    │                       │                      │                       │
+│ VAE 128x128 (batch 1) │ 2     │ 1     │ 10.52 GB       │ 7.00 GB            │ 6.84 GB               │ 21.33 GB             │ 22.42 GB              │
+│ VAE 128x128 (batch 4) │ 2     │ 4     │ 11.06 GB       │ 7.23 GB            │ 7.07 GB               │ 21.55 GB             │ 23.42 GB              │
+│ VAE 256x256 (batch 1) │ 2     │ 1     │ 10.91 GB       │ 7.00 GB            │ 6.84 GB               │ 21.55 GB             │ 22.66 GB              │
+│ VAE 256x256 (batch 4) │ 2     │ 4     │ 13.61 GB       │ 7.49 GB            │ 7.24 GB               │ 30.48 GB             │ 36.75 GB              │
+│ VAE 512x512 (batch 1) │ 2     │ 1     │ 10.54 GB       │ 7.26 GB            │ 7.09 GB               │ 29.69 GB             │ 36.36 GB              │
+│ VAE 512x512 (batch 4) │ 2     │ -     │ FAILED         │ -                  │ -                     │ -                    │ -                     │
+│ Latent preprocessing  │ -     │ -     │ 7.50 GB        │ 7.58 GB            │ 7.42 GB               │ -                    │ 3.36 GB               │
+│ DiT training          │ 2     │ -     │ 20.52 GB       │ 13.89 GB           │ 13.74 GB              │ 45.27 GB             │ 47.52 GB              │
+└───────────────────────┴───────┴───────┴────────────────┴────────────────────┴───────────────────────┴──────────────────────┴───────────────────────┘
+  VAE finetune at production width (8 ranks, jobs/sng_pvc/finetune_vae.sbatch): host 65.65 GB, device 180.75 GB -- scaled from the 2-rank measurement 
+above.
+  Max per process: 8,421 MB host RSS, 23,136 MB device, per training rank. Dataloader workers are much smaller (they hold one decompressed sim each).
+  DiT training at production width (8 ranks): host 159.23 GB, device 380.17 GB (48,662 MB per rank -- fp32 weights + grads + AdamW moments for the 
+1.9B transformer dominate).
+  "Device live" is torch.cuda.max_memory_allocated() inside the rank -- the true high-water mark of live tensors, and the figure that responds to 
+resolution and batch size. "Device resv." is the caching allocator's pool as the driver reports it: the amount that must be free on the card (the 
+provisioning number), but sticky, so it under-reports differences between configurations. Host figures are RSS sampled across the process tree at 4 
+Hz.
+────────────────────────────────────────────────────── Q4 -- Data transferred to/from the site ───────────────────────────────────────────────────────
+┏━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Direction ┃ Item                                                         ┃ Size     ┃ When                                                         ┃
+┡━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ IN        │ Euler-MQ dataset (4,500 sims, 10 HDF5 shards)                │ 82.00 GB │ once, staged to project storage                              │
+│ IN        │ LTX-Video 2B pretrained weights (HF hub cache)               │ 8.23 GB  │ once per machine                                             │
+│ IN        │ Source checkout (git)                                        │ 30.00 MB │ once, then incremental pulls                                 │
+│ OUT       │ Diagnostics mirror -- panels, metrics, configs, logs (20     │ 3.09 GB  │ rsync at the end of each run (checkpoints/ excluded by the   │
+│           │ runs)                                                        │          │ launchers)                                                   │
+│ OUT       │ Promoted VAE checkpoints archived off-cluster                │ 13.94 GB │ only for runs that become a reference baseline               │
+│ OUT       │ Final DiT checkpoint + sample rollouts                       │ 7.65 GB  │ once at the end of the DiT run                               │
+└───────────┴──────────────────────────────────────────────────────────────┴──────────┴──────────────────────────────────────────────────────────────┘
+  Total inbound  90.26 GB
+  Total outbound 24.68 GB
+
+Resident on project storage (never transferred, but must be provisioned):
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Item                                                                       ┃ Size      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ Dataset, resolutions in use (4,500 sims at 128x128; a 256x256 copy is ~4x) │ 82.00 GB  │
+│ VAE checkpoints, 20 concurrent/archived runs x (weights + optimizer state) │ 278.74 GB │
+│ Preprocessed latents (4,500 pairs)                                         │ 261.63 MB │
+│ DiT checkpoint rolling window                                              │ 35.83 GB  │
+│ Diagnostics (20 runs)                                                      │ 3.09 GB   │
+│ Pretrained weight cache                                                    │ 8.23 GB   │
+│ Total                                                                      │ 408.14 GB │
+└────────────────────────────────────────────────────────────────────────────┴───────────┘
+──────────────────────────────────────────────────────────── Q5 -- I/O frequency and size ────────────────────────────────────────────────────────────
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Stream                             ┃ Frequency                          ┃ Size per event                     ┃ Aggregate                           ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ HDF5 read (VAE train+eval)         │ every epoch, 30 epochs; 3,825      │ 17.16 MB/sim compressed, 25.25 MB  │ 82.00 GB/epoch, 2.40 TB per run     │
+│                                    │ train + 675 eval sims              │ decompressed                       │                                     │
+│ VAE checkpoint write               │ every 1 epoch(s)                   │ 4.65 GB weights + 9.29 GB          │ 418.10 GB written over the run into │
+│                                    │                                    │ optimizer state                    │ 2 rewritten slots                   │
+│ Reconstruction panels              │ every 1 epoch(s), rank 0           │ 448.47 kB x 12 PNGs                │ 157.66 MB                           │
+│ Latent preprocessing (one-off,     │ once per VAE checkpoint promoted   │ reads 82.00 GB, writes 57.77 kB +  │ 261.63 MB of latents for 4,500 sims │
+│ between stages)                    │ to DiT training                    │ 1.77 kB per sim                    │                                     │
+│ Latent read (DiT train)            │ every step; 16 samples/step x      │ 57.77 kB                           │ 8.81 GB of reads, but the whole     │
+│                                    │ 10,000 steps                       │                                    │ 261.63 MB corpus fits in page cache │
+│ DiT checkpoint write               │ every 60 optimizer steps (166      │ 7.17 GB                            │ 1.16 TB of write traffic; 35.83 GB  │
+│                                    │ writes)                            │                                    │ resident (keep_last_n=5)            │
+│ Slurm stdout/stderr                │ continuous                         │ ~1 line/step                       │ < 5 MB per job                      │
+└────────────────────────────────────┴────────────────────────────────────┴────────────────────────────────────┴─────────────────────────────────────┘
+────────────────────────────────────────────────────── Q6 -- Files in a typical production run ───────────────────────────────────────────────────────
+
+Stage 1 -- VAE finetuning, one run (30 epochs, finetune_vae_whole_structure_baseline_ep30.yaml)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ File                                           ┃ Count ┃ Size each ┃ Total     ┃ Cadence                                                    ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ visualizations/epoch_####/<sim>/frame_####.png │ 360   │ 448.47 kB │ 157.66 MB │ 3 sims x 4 frames every 1 epoch(s)                         │
+│ checkpoints/vae_shockwave_*.safetensors        │ 2     │ 4.65 GB   │ 9.29 GB   │ rewritten every 1 epoch(s) (best slot only on improvement) │
+│ checkpoints/vae_shockwave_*.state.pt           │ 1     │ 9.29 GB   │ 9.29 GB   │ rewritten every 1 epoch(s) (best slot only on improvement) │
+│ metrics/metrics.csv                            │ 1     │ 8.79 kB   │ 8.79 kB   │ appended once per epoch                                    │
+│ metrics/loss_curves.png                        │ 1     │ 117.19 kB │ 117.19 kB │ rewritten once per epoch                                   │
+│ training_config.yaml                           │ 1     │ 3.91 kB   │ 3.91 kB   │ once at startup                                            │
+│ slurm .out/.err logs                           │ 2     │ 195.31 kB │ 390.62 kB │ streamed                                                   │
+└────────────────────────────────────────────────┴───────┴───────────┴───────────┴────────────────────────────────────────────────────────────┘
+
+Stage 2 -- Latent preprocessing, 4,500 sims
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ File                                     ┃ Count ┃ Size each ┃ Total     ┃ Cadence                          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ latents/<sim_id>.pt                      │ 4,500 │ 57.77 kB  │ 253.86 MB │ one per simulation, written once │
+│ scalars/<sim_id>.pt                      │ 4,500 │ 1.77 kB   │ 7.77 MB   │ one per simulation, written once │
+│ normalization.json + split_manifest.json │ 2     │ 146.48 kB │ 292.97 kB │ once                             │
+└──────────────────────────────────────────┴───────┴───────────┴───────────┴──────────────────────────────────┘
+
+Stage 3 -- DiT training, one run (10,000 steps)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ File                                                ┃ Count ┃ Size each ┃ Total     ┃ Cadence                                                      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ checkpoints/model_weights_step_#####.safetensors    │ 5     │ 7.17 GB   │ 35.83 GB  │ written every 60 optimizer steps (166 writes over 10000      │
+│                                                     │       │           │           │ steps), pruned to keep_last_n=5                              │
+│ checkpoints/scalar_embedding_step_#####.safetensors │ 5     │ 16.44 MB  │ 82.22 MB  │ alongside each transformer checkpoint                        │
+│ latent_provenance.json                              │ 1     │ 1000 B    │ 1000 B    │ once at startup                                              │
+│ epoch_log.json                                      │ 1     │ 32.42 kB  │ 32.42 kB  │ appended per logged epoch                                    │
+│ slurm .out/.err logs                                │ 2     │ 390.62 kB │ 781.25 kB │ streamed                                                     │
+└─────────────────────────────────────────────────────┴───────┴───────────┴───────────┴──────────────────────────────────────────────────────────────┘
+
+  One full pipeline pass (1 VAE run + preprocessing + 1 DiT run): 9,384 files, 54.90 GB resident.
+  Whole campaign (20 VAE runs + 1 DiT run): 16,376 files, 410.90 GB resident.
+  Cumulative write traffic over one pipeline pass, including checkpoints later overwritten or pruned: 1.57 TB.
+─────────────────────────────────────────────────────── Resolution scaling (128 -> 256 -> 512) ───────────────────────────────────────────────────────
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+┃            ┃             ┃            ┃            ┃                  ┃           ┃            ┃                  ┃ Device          ┃              ┃
+┃ Resolution ┃ Latent grid ┃ Tokens/sim ┃ Latent .pt ┃ Train set (real) ┃ Per sim   ┃ Read/epoch ┃ Device live/rank ┃ resv./rank      ┃ at batch     ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
+│ 128x128    │ 4x4x14      │ 224        │ 57.77 kB   │ 82.00 GB         │ 18.66 MB  │ 82.00 GB   │ 21.55 GB         │ 23.42 GB        │ 4            │
+│ 256x256    │ 8x8x14      │ 896        │ 231.07 kB  │ 319.95 GB        │ 72.81 MB  │ 319.95 GB  │ 30.48 GB         │ 36.75 GB        │ 4            │
+│ 512x512    │ 16x16x14    │ 3,584      │ 924.28 kB  │ 1.23 TB          │ 286.54 MB │ 1.23 TB    │ 29.69 GB         │ 36.36 GB        │ 1 (OOM at 4) │
+└────────────┴─────────────┴────────────┴────────────┴──────────────────┴───────────┴────────────┴──────────────────┴─────────────────┴──────────────┘
+  Train-set sizes are the real published shard sizes (fetched live from the HuggingFace dataset repo). Latent geometry is exact (the VAE's fixed 32x 
+spatial / 8x temporal compression), not extrapolated. Device/host per rank are measured against a synthetic dataset of identical shape at that 
+resolution.
+
+Where the VAE's device memory actually goes (single rank, batch 1, bf16, gradient checkpointing on; 2.33 GB of resident weights excluded):
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Resolution ┃ Latent         ┃ Forward+backward peak ┃ Activations alone ┃ vs 128 ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ 128x128    │ 1x128x14x4x4   │ 3.43 GB               │ 1.09 GB           │ 1.0x   │
+│ 256x256    │ 1x128x14x8x8   │ 4.78 GB               │ 2.44 GB           │ 2.2x   │
+│ 512x512    │ 1x128x14x16x16 │ 12.05 GB              │ 9.72 GB           │ 8.9x   │
+└────────────┴────────────────┴───────────────────────┴───────────────────┴────────┘
+  This is why the end-to-end VAE figure barely moves from 128 to 256: the trainer's high-water mark is the optimizer step (fp32 master weights + 
+gradients + two AdamW moments for the whole-structure unfreeze), not the activations. Activations only become the dominant term at 512.
+─────────────────────────────────────────────────────────── Answers, for the proposal form ───────────────────────────────────────────────────────────
+Average number of processes. One MPI/DDP rank per GPU or XPU tile, plus 4 dataloader worker processes per rank. Production jobs run 2-8 ranks on a 
+single node (10-40 OS processes); the average across the 4 job types in use is 5.5 ranks / 23.5 processes, and the largest configuration is 8 ranks / 
+40 processes. Multi-node is supported by the launchers but not yet in production use.
+
+Average job memory (total over all nodes). Both stages run on a single node. VAE finetuning at 8 ranks: ~66 GB host RAM and ~181 GB device memory, 
+scaled from a measured 2-rank run (16.41 GB host, 45.19 GB device). DiT training at the same width: ~159 GB host and ~380 GB device. Smaller 2-GPU 
+jobs -- the lrz_ai default -- are what was measured directly: 16.41 GB host and 45.19 GB device for the VAE, 39.81 GB / 94.44 GB for the DiT. Device 
+memory scales essentially linearly with rank count (data parallelism, full model replica per rank); host RAM scales slightly sublinearly.
+
+Maximum memory per process. 8,421 MB host RSS per training rank for VAE finetuning (batch 4), rising to 14,228 MB for a DiT rank. On the device: 
+23,136 MB per VAE rank and 48,662 MB per DiT rank. The DiT figure was reserved on a 48 GB card, so it is an upper bound rather than a proven floor -- 
+the irreducible part is ~31 GB of fp32 weights + gradients + AdamW moments for the 1.9B transformer, so a 40 GB-class GPU is the practical minimum and
+48 GB is what has actually been exercised. Dataloader workers add a few hundred MB each.
+
+Total data transferred to/from. 90 GB inbound once at project setup (82.00 GB of Euler-MQ HDF5 + 8.23 GB of pretrained LTX-Video weights), then only 
+incremental git pulls. 25 GB outbound over the campaign: the launchers mirror back diagnostics only (`rsync --exclude=checkpoints/`), so weights leave
+the site only for the handful of runs promoted to a reference baseline. Resident on project storage: 408 GB (20 runs' checkpoints dominate; a 256x256 
+dataset copy would add ~328 GB).
+
+Frequency and size of data output/input. Input: the full 82.00 GB dataset is streamed once per epoch (17.16 MB compressed per simulation, 25.25 MB 
+decompressed), i.e. ~82 GB/epoch and 2.40 TB over a 30-epoch run. Output: a 13.94 GB checkpoint (weights + optimizer state) every 1 epoch(s) into a 
+fixed set of slots, plus 12 PNG panels of ~448.47 kB and one metrics-CSV append per epoch. The DiT stage writes a 7.17 GB checkpoint every 60 steps 
+(166 writes, 1.16 TB of traffic) while reading a 261.63 MB latent corpus that stays in page cache. I/O is bursty, not continuous: checkpoint writes 
+are the only large events.
+
+Files and sizes in a typical production run. One VAE run leaves 368 files / 18.74 GB: 2 checkpoints of 4.65 GB each, one 9.29 GB optimizer-state file,
+360 PNGs of ~448.47 kB, and a handful of small CSV/YAML/log files. Preprocessing adds 9,000 small `.pt` files (57.77 kB and 1.77 kB) totalling 261.63 
+MB -- the only large *file count* in the project. The DiT run keeps a rolling window of 5 x 7.17 GB. Whole campaign (20 VAE runs + 1 DiT run): ~16,376
+files, 410.90 GB.
+
+Same answers at higher resolution. Process counts, file counts and checkpoint sizes are unchanged -- the trainable parameter count is fixed by the 
+architecture, not the input resolution, so Q1 and Q6's file inventory carry over verbatim. What scales is data volume (with pixel count) and device 
+memory (not linearly). 256x256: dataset 319.95 GB (3.9x), so ~320 GB/epoch and 9.37 TB per 30-epoch run; latents grow to 231.07 kB each (1,015.45 MB 
+corpus); per-rank device 30.48 GB live at batch 4. 512x512: dataset 1.23 TB (15.4x), so ~1259 GB/epoch and 36.89 TB per 30-epoch run; latents grow to 
+924.28 kB each (3.97 GB corpus); per-rank device 29.69 GB live at batch 1, and batch 4 OOMs on a 48 GB card. Host RAM is essentially flat across all 
+three.
+
+
+Wrote /tmp/claude-2015/-local-disk-hramachandran-work-wh-work-windinet/d23acfc9-fa44-4fee-8d88-aecc63390288/scratchpad/profile_v3.json

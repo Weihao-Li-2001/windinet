@@ -1,0 +1,200 @@
+job=22380 node=lundquist gpus=0,1
+PREPROCESSED_NAME: smoketest
+BASE_CONFIG: configs/shockwavenet_lundquist_smoketest.yaml
+preprocessed_data_root=dit_preprocessed/smoketest output_dir=dit_smoketest_output
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 1e-05                                 │
+│ optimization.steps                   │ 10                                    │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 1                                     │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ dit_preprocessed/smoketest            │
+│ data.num_dataloader_workers          │ 0                                     │
+│ validation.data_root                 │ None                                  │
+│ validation.interval                  │ None                                  │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 5                                     │
+│ checkpoints.keep_last_n              │ 1                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ smoketest                             │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /local/disk/hramachandran/work/wh_wo… │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     [rank 0] Distributed training enabled with 2        dit_trainer.py:1161
+         processes                                                              
+INFO     [rank 0] Global batch size: 2                       dit_trainer.py:1167
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/r                
+         esolve/main/scheduler/scheduler_config.json "HTTP/1.1                  
+         307 Temporary Redirect"                                                
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.7-dev/2101082f5eb5540770a2df43747fead                
+         b6f69b889/scheduler%2Fscheduler_config.json "HTTP/1.1                  
+         200 OK"                                                                
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/r                
+         esolve/main/scheduler/scheduler_config.json "HTTP/1.1                  
+         307 Temporary Redirect"                                                
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.7-dev/2101082f5eb5540770a2df43747fead                
+         b6f69b889/scheduler%2Fscheduler_config.json "HTTP/1.1                  
+         200 OK"                                                                
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:695
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:718
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:722
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:309
+DEBUG    [rank 0] Loaded dataset with 24 samples from         dit_trainer.py:917
+         sources: ['latents', 'scalars']                                        
+WARNING  [rank 0] No validation.data_root configured: this    dit_trainer.py:318
+         run will only report training loss and cannot tell                     
+         you whether the model generalizes.                                     
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1153
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE                dit_trainer.py:961
+         /local/disk/hramachandran/work/wh_work/windinet/fine                   
+         tune_vae_outputs/lundquist/finetune_vae_dit_smoketes                   
+         t_source/checkpoints/vae_shockwave_best.safetensors                    
+         (fingerprint de01ac1a77926f71); recorded in                            
+         latent_provenance.json                                                 
+INFO     [rank 0] Starting training...                        dit_trainer.py:328
+[train] step=1 loss=0.800142 lr=1.000e-05
+[train] step=2 loss=0.711656 lr=9.756e-06
+[train] step=3 loss=1.037055 lr=9.046e-06
+[train] step=4 loss=1.247038 lr=7.941e-06
+[train] step=5 loss=0.656370 lr=6.549e-06
+INFO     [rank 0] Model weights for step 5 saved in          dit_trainer.py:1085
+         checkpoints/model_weights_step_00005.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 5 saved  dit_trainer.py:1092
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1123
+         checkpoints/model_weights_step_00005.state.pt                          
+[epoch 1] step=5 train_loss=0.948973
+[train] step=6 loss=0.378450 lr=5.005e-06
+[train] step=7 loss=0.982056 lr=3.461e-06
+[train] step=8 loss=0.871439 lr=2.069e-06
+[train] step=9 loss=0.469368 lr=9.640e-07
+[train] step=10 loss=0.649254 lr=2.545e-07
+INFO     [rank 0] Model weights for step 10 saved in         dit_trainer.py:1085
+         checkpoints/model_weights_step_00010.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 10 saved dit_trainer.py:1092
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1123
+         checkpoints/model_weights_step_00010.state.pt                          
+DEBUG    [rank 0] Removed old checkpoint:                    dit_trainer.py:1132
+         /local/disk/hramachandran/work/wh_work/windinet/dit                    
+         _smoketest_output/checkpoints/model_weights_step_00                    
+         005.safetensors                                                        
+DEBUG    [rank 0] Removed old checkpoint:                    dit_trainer.py:1132
+         /local/disk/hramachandran/work/wh_work/windinet/dit                    
+         _smoketest_output/checkpoints/model_weights_step_00                    
+         005.state.pt                                                           
+[epoch 2] step=10 train_loss=0.671537
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Training Step 1… ━━ Loss: 0.6493 LR: 1.00e-08 Time/Step: 41.04s 0… ETA: 00:… │
+╰──────────────────────────────────────────────────────────────────────────────╯INFO     [rank 0] Model weights for step 10 saved in         dit_trainer.py:1085
+         checkpoints/model_weights_step_00010.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 10 saved dit_trainer.py:1092
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1123
+         checkpoints/model_weights_step_00010.state.pt                          
+DEBUG    [rank 0] Removed old checkpoint:                    dit_trainer.py:1132
+         /local/disk/hramachandran/work/wh_work/windinet/dit                    
+         _smoketest_output/checkpoints/model_weights_step_00                    
+         010.safetensors                                                        
+DEBUG    [rank 0] Removed old checkpoint:                    dit_trainer.py:1132
+         /local/disk/hramachandran/work/wh_work/windinet/dit                    
+         _smoketest_output/checkpoints/model_weights_step_00                    
+         010.state.pt                                                           
+INFO     [rank 0] Training Statistics:                       dit_trainer.py:1202
+          - Total time: 1.5 minutes                                             
+          - Training time: 1.5 minutes                                          
+          - Training speed: 0.11 steps/second                                   
+          - Samples/second: 0.23                                                
+          - Peak GPU memory: 45.11 GB                                           
+          - Number of processes: 2                                              
+          - Global batch size: 2                                                
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json?filters=%7B%22label%22%3A%7B%22slurm_job_id%3D22380%22%3Atrue%7D%7D": dial unix /var/run/docker.sock: connect: permission denied
