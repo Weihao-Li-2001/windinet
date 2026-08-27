@@ -1,0 +1,71 @@
+# Throwaway smoke-test config -- NOT for real results.
+#
+# Only purpose: confirm the DiT training loop starts and runs a few steps
+# under multi-GPU (accelerate/DDP) without crashing, on whatever VAE
+# checkpoint happens to be lying around on lundquist. Regression test for
+# the 2026-08-27 fix to LtxvTrainer._prepare_models_for_training (DDP wrap
+# happening before enable_gradient_checkpointing() -- see dit_trainer.py).
+# enable_gradient_checkpointing is deliberately true here so the smoke test
+# actually exercises that code path; configs/shockwavenet.yaml's production
+# config runs with it false and would not have caught this.
+#
+# Launched by jobs/lundquist/dit_smoketest.sbatch, which also produces the
+# tiny preprocessed_data_root this points at.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 10
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "dit_smoketest_preprocessed"
+  num_dataloader_workers: 0
+
+validation:
+  data_root: null
+
+checkpoints:
+  interval: 5
+  keep_last_n: 1
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["smoketest"]
+
+seed: 42
+output_dir: "dit_smoketest_output"
