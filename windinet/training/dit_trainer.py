@@ -825,13 +825,13 @@ class LtxvTrainer:
     def _prepare_models_for_training(self) -> None:
         prepare = self._accelerator.prepare
         self._vae = prepare(self._vae).to("cpu")
+
+        if self._config.optimization.enable_gradient_checkpointing:
+            self._transformer.enable_gradient_checkpointing()
         self._transformer = prepare(self._transformer)
 
         if self._scalar_embedding is not None:
             self._scalar_embedding = prepare(self._scalar_embedding)
-
-        if self._config.optimization.enable_gradient_checkpointing:
-            self._transformer.enable_gradient_checkpointing()
 
     @staticmethod
     def _find_checkpoint(checkpoint_path: str | Path) -> Path | None:
