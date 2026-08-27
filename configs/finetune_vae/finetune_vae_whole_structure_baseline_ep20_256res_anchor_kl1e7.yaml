@@ -1,0 +1,108 @@
+# 20-epoch counterpart of finetune_vae_whole_structure_baseline_ep30_256res_anchor_kl1e7.yaml
+# -- NOT a new experiment, single variable vs that file:
+#   optimization.epochs: 30 -> 20
+# Everything else (anchor weight 1e-2, kl=1e-7, resolution, LR, schedule,
+# other loss weights, inflate_init) UNCHANGED. See that file's own header for
+# the anchor+KL rationale (latent_space_shift_measure.md, PhD-advisor-sourced
+# protocol) -- unchanged here. Same relationship as the existing
+# ep20_256res.yaml / ep20_256res_kl1e{5,6,7}.yaml siblings have to their own
+# ep30 originals.
+#
+# WHY 20 EPOCHS: sng_pvc's "general" partition caps a single job at 24h, and
+# a fresh 30-epoch 256res VAE run measured at ~45.7 min/epoch there (job
+# 523757, finetune_vae_whole_structure_baseline_256res, 18 epochs in 13h55m)
+# extrapolates to ~23h for 30 epochs -- too close to the wall to reliably
+# finish without a resume. 20 epochs extrapolates to ~15.2h, fitting inside
+# an 18h submission with real margin.
+#
+# Usage (sng_pvc, batch_size forced to 4 by jobs/sng_pvc/finetune_vae.sbatch
+# regardless of what's below, matching every other arm in this plan):
+#   sbatch --time=18:00:00 jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_anchor_kl1e7.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by the job script's DATA_DIR/$2
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    anchor: 1.0e-2
+    kl: 1.0e-7
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "latent-anchor-loss", "kl-divergence"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_256res_anchor_kl1e7"
+clean_output_dir: true
