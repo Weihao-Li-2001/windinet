@@ -1,0 +1,105 @@
+# ShockWaveNet (DiT) training config -- sng_pvc variant of configs/shockwavenet.yaml.
+#
+# WHY A SEPARATE FILE instead of editing configs/shockwavenet.yaml in place:
+# that file is lundquist's working config with paths hardcoded to its own
+# filesystem (jobs/lundquist/train_dit.sbatch points at it directly). This
+# file is sng_pvc-only, mirroring configs/shockwavenet_lrz_ai_baseline.yaml's
+# approach for that cluster's own /mnt/result container-mount paths.
+#
+# data.preprocessed_data_root / validation.data_root below are PLACEHOLDERS
+# ("__PREPROCESSED_ROOT__") -- jobs/sng_pvc/preprocess_dit_data.sbatch +
+# train_dit.sbatch substitute the real path (from the PREPROCESSED_NAME
+# argument) before launch. Edit them by hand here only if you are running
+# scripts/train.py directly, not through the job script.
+#
+# gradient_accumulation_steps is 4, not lrz_ai's 16: effective batch =
+# batch_size(1) x accum x num_processes(8 XPU tiles) = 32, same target as
+# every other cluster's DiT config (not load-bearing, just a consistent
+# choice) -- RECOMPUTE this and checkpoints.interval below if NUM_XPUS in
+# jobs/sng_pvc/train_dit.sbatch changes.
+#
+# 256x256 SEQUENCE-LENGTH CAVEAT (inherited from the lrz_ai config,
+# UNTESTED on sng_pvc/XPU specifically): 14x8x8 = 896 tokens per sample
+# (4x configs/shockwavenet.yaml's 128x128 sequence length). batch_size=1 +
+# gradient checkpointing ON below are conservative guesses, not a
+# confirmed-safe combination for XPU memory -- check peak memory after the
+# first few steps of a real run and adjust.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 10000
+  # Effective batch = batch_size * grad_acc * num_processes. 1 * 4 * 8 = 32,
+  # matching the VAE runs' own effective batch (not load-bearing, just a
+  # consistent choice) -- RECOMPUTE checkpoints.interval below if you change
+  # any of these three or NUM_XPUS in jobs/sng_pvc/train_dit.sbatch.
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  # ON (unlike configs/shockwavenet.yaml's 128res "false"): at 896 tokens
+  # instead of 224, activation memory is the more likely constraint. Try
+  # turning this off once a real run confirms there's headroom -- it costs
+  # speed, not correctness.
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  # Placeholder -- see header. jobs/sng_pvc/train_dit.sbatch substitutes
+  # the real path, matching where jobs/sng_pvc/preprocess_dit_data.sbatch
+  # writes its output ($SCRATCH/windinet/dit_preprocessed/<OUTPUT_NAME>).
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  # Same held-out split the VAE runs use (preprocess_dit_data.job passes
+  # --eval-sims 675 --split-seed 42), so DiT and VAE val metrics are
+  # measured on the same simulations.
+  data_root: "__PREPROCESSED_ROOT__/val"
+  # Validate every 5th "epoch" (checkpoints.interval x 5) rather than every
+  # one, same reasoning as configs/shockwavenet.yaml: a full held-out pass
+  # is not free, don't pay for it every checkpoint.
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  # One epoch = 3825 train sims / effective_batch 32 = ~120 optimizer steps
+  # (batch_size 1 x grad_acc 4 x 8 XPU tiles -- see optimization's own comment).
+  interval: 120
+  keep_last_n: 5
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "baseline"]
+
+seed: 42
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_baseline"
