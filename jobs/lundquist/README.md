@@ -36,7 +36,33 @@ script lives.
 | `finetune_vae_2gpu.sbatch` | 2 | 16 | 1 | 32 | `scripts/finetune_vae.py` |
 | `finetune_vae_4gpu.sbatch` | 4 | 8 | 1 | 32 | `scripts/finetune_vae.py` |
 | `train_dit.sbatch` | 4 | - | - | - | `scripts/train.py` |
+| `preprocess_dit_data.sbatch` | 1 | - | - | - | `scripts/preprocess_dataset.py` |
+| `train_dit_2gpu.sbatch` | 2 | - | - | - | `scripts/train.py` |
 | `finetune_vae_debug.sbatch` | 1 | 1 | 1 | 1 | `scripts/finetune_vae.py` |
+
+**`preprocess_dit_data.sbatch` + `train_dit_2gpu.sbatch` (2026-08-27):** the
+encode/train split of the DiT pipeline, mirroring `jobs/lrz_ai`'s
+`preprocess_dit_data.job` + `train_dit.job` pair -- run the encode job first
+(`VAE_CHECKPOINT=... sbatch jobs/lundquist/preprocess_dit_data.sbatch
+[OUTPUT_NAME]`, writes to `dit_preprocessed/<OUTPUT_NAME>`), then the train
+job (`sbatch jobs/lundquist/train_dit_2gpu.sbatch <PREPROCESSED_NAME>
+[BASE_CONFIG]`). `train_dit_2gpu.sbatch` substitutes a
+`__PREPROCESSED_ROOT__` placeholder in `BASE_CONFIG`'s
+`data.preprocessed_data_root` / `validation.data_root`, same pattern as the
+lrz_ai configs, so one config file works against any encode. Defaults to
+`configs/shockwavenet_lundquist_smoketest.yaml`, a throwaway 10-step config
+with `enable_gradient_checkpointing: true` that regression-tests the
+2026-08-27 DDP-wrap-order fix in `windinet/training/dit_trainer.py` (see that
+config's header) -- pass `configs/shockwavenet.yaml` as `BASE_CONFIG` for a
+real run instead. Separate from the existing 4-GPU `train_dit.sbatch`, which
+stays hardcoded to `configs/shockwavenet.yaml` + `euler_mq_preprocessed/`
+(the production run) and is not parameterized.
+
+**Retired (2026-08-27): `dit_smoketest.sbatch`.** Did the encode + train
+steps above in one combined job with everything hardcoded (24 samples, a
+fixed checkpoint search, `dit_smoketest_preprocessed/`). Superseded by the
+parameterized pair above the same day; removed rather than left as a second,
+diverging way to do the same thing.
 
 The 2- and 4-GPU variants patch `gradient_accumulation_steps` so both land on
 effective batch 32 and 1800 optimizer steps -- results from them are directly

@@ -9,8 +9,10 @@
 # actually exercises that code path; configs/shockwavenet.yaml's production
 # config runs with it false and would not have caught this.
 #
-# Launched by jobs/lundquist/dit_smoketest.sbatch, which also produces the
-# tiny preprocessed_data_root this points at.
+# Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
+# data.preprocessed_data_root's __PREPROCESSED_ROOT__ placeholder for
+# dit_preprocessed/<PREPROCESSED_NAME> (same pattern as the lrz_ai configs) --
+# run jobs/lundquist/preprocess_dit_data.sbatch first to produce that.
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -48,7 +50,7 @@ acceleration:
   compile_with_inductor: false
 
 data:
-  preprocessed_data_root: "dit_smoketest_preprocessed"
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
   num_dataloader_workers: 0
 
 validation:
