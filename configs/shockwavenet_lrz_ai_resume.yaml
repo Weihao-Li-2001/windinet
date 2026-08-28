@@ -1,0 +1,111 @@
+# Resume of shockwavenet_lrz_ai.yaml -- NOT a new experiment, no variable
+# changes vs that config except resuming.
+#
+# Job 5762646 (lrz_ai, 4x H100) reached step 6099/10000 ("[val] step=6000
+# val_loss=0.273693" was the last completed epoch boundary) before
+# "CANCELLED AT 2026-08-28T16:02:00 DUE TO TIME LIMIT" -- the 10h ceiling in
+# jobs/lrz_ai/train_dit_4gpu.job was a placeholder, not a calibrated
+# estimate (see that job's own header), and 6099 steps in 10h wasn't enough
+# to reach 10000. This resumes from the last checkpoint.interval=120-aligned
+# checkpoint (step 6000; steps 6001-6099 since the last save are lost) to
+# finish the remaining ~4000 steps.
+#
+# CHECK BEFORE SUBMITTING: model.load_checkpoint below assumes step 6000 is
+# still on disk (checkpoints.keep_last_n: 5 in the base config keeps steps
+# 5520/5640/5760/5880/6000 -- 6000 should be the newest). Confirm with
+#   ls /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline/shockwave_dit/checkpoints/
+# (that's RESULT_DIR from jobs/lrz_ai/train_dit_4gpu.job, mounted as
+# /mnt/result inside the container -- the path below is the in-container
+# view, matching how output_dir itself is written) and adjust the step
+# number if a later one exists.
+#
+# Pointed at the exact model_weights_step_*.safetensors file, not the
+# checkpoints/ directory -- LtxvTrainer._find_checkpoint globs
+# "*step_*.safetensors" and picks the max step number when given a
+# directory, but scalar_embedding_step_NNNNN.safetensors matches that same
+# glob and can tie on step number with model_weights_step_NNNNN.safetensors.
+# Giving the exact file sidesteps that ambiguity (the sibling scalar
+# embedding and .state.pt files are still found automatically from this
+# path, see _find_scalar_checkpoint/_state_file_for).
+#
+# resume_weights_only is not set here -- LtxvTrainerConfig defaults it to
+# false, which is what we want: restore optimizer/scheduler/global_step/RNG
+# from the checkpoint's sibling .state.pt too, so training continues the
+# cosine schedule at step 6000 instead of restarting it. (The caution in
+# train_dit_4gpu.job's header about resume only restoring transformer
+# weights is stale -- that was true before the .state.pt mechanism in
+# dit_trainer.py was added; _apply_resume_state now restores all of it.)
+#
+# No change to optimization.steps: 6000 < 10000, so DiTTrainer's own resume
+# guard (global_step >= optimization.steps) won't trip -- unlike the VAE
+# resume configs, this checkpoint was NOT already at the configured step
+# count when it stopped.
+#
+# Usage (same PREPROCESSED_NAME as job 5762646's INDEX.tsv row):
+#   sbatch jobs/lrz_ai/train_dit_4gpu.job \
+#       finetune_vae_whole_structure_baseline_ep30_256res \
+#       configs/shockwavenet_lrz_ai_resume.yaml
+#
+# --time: default 10:00:00 in train_dit_4gpu.job should be enough --
+# 5762646 did 6099 steps in exactly 10:00:00 (~10.2 steps/min), so the
+# remaining 4000 steps (6000 -> 10000) project to ~6.5h at the same rate.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: "/mnt/result/shockwave_dit/checkpoints/model_weights_step_06000.safetensors"
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 10000
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 5
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lrz_ai", "256res", "resume"]
+
+seed: 42
+output_dir: "/mnt/result/shockwave_dit"
