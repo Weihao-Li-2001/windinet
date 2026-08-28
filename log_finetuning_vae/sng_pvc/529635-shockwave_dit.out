@@ -1,0 +1,37 @@
+START TIME: Fri 28 Aug 2026 05:16:23 PM CEST
+job=529635 node=i20r03c04s08
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_256res
+BASE_CONFIG: configs/shockwavenet_sng_pvc_baseline.yaml
+MASTER_ADDR: i20r03c04s08  MASTER_PORT: 53729
+preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_256res output_dir=$SCRATCH/windinet/outputs/shockwave_dit_baseline
