@@ -1,0 +1,743 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank1]:     metadata = get_hf_file_metadata(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank1]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank1]:     response = http_backoff(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank1]:     return next(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank1]:     response = client.request(method=method, url=url, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank1]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank1]:     response = self._send_handling_auth(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank1]:     response = self._send_handling_redirects(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank1]:     hook(request)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank1]:     raise OfflineModeIsEnabled(
+[rank1]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank1]: The above exception was the direct cause of the following exception:
+
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank1]:     config_file = hf_hub_download(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank1]:     return _hf_hub_download_to_cache_dir(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank1]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank1]:     raise LocalEntryNotFoundError(
+[rank1]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank1]: During handling of the above exception, another exception occurred:
+
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank1]:     app()
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank1]:     raise e
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank1]:     return get_command(self)(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank1]:     return self.main(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank1]:     return _main(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank1]:     rv = self.invoke(ctx)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank1]:     return ctx.invoke(self.callback, **ctx.params)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank1]:     return callback(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank1]:     return callback(**use_params)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank1]:     trainer = LtxvTrainer(trainer_config)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank1]:     self._load_models()
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank1]:     components = load_ltxv_components(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank1]:     scheduler=load_scheduler(),
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank1]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank1]:     config, kwargs, commit_hash = cls.load_config(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank1]:     raise EnvironmentError(
+[rank1]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank3]:     metadata = get_hf_file_metadata(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank3]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank3]:     response = http_backoff(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank3]:     return next(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank3]:     response = client.request(method=method, url=url, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank3]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank3]:     response = self._send_handling_auth(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank3]:     response = self._send_handling_redirects(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank3]:     hook(request)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank3]:     raise OfflineModeIsEnabled(
+[rank3]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank3]: The above exception was the direct cause of the following exception:
+
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank3]:     config_file = hf_hub_download(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank3]:     return _hf_hub_download_to_cache_dir(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank3]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank3]:     raise LocalEntryNotFoundError(
+[rank3]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank3]: During handling of the above exception, another exception occurred:
+
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank3]:     app()
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank3]:     raise e
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank3]:     return get_command(self)(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank3]:     return self.main(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank3]:     return _main(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank3]:     rv = self.invoke(ctx)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank3]:     return ctx.invoke(self.callback, **ctx.params)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank3]:     return callback(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank3]:     return callback(**use_params)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank3]:     trainer = LtxvTrainer(trainer_config)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank3]:     self._load_models()
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank3]:     components = load_ltxv_components(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank3]:     scheduler=load_scheduler(),
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank3]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank3]:     config, kwargs, commit_hash = cls.load_config(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank3]:     raise EnvironmentError(
+[rank3]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank7]:     metadata = get_hf_file_metadata(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank7]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank7]:     response = http_backoff(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank7]:     return next(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank7]:     response = client.request(method=method, url=url, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank7]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank7]:     response = self._send_handling_auth(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank7]:     response = self._send_handling_redirects(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank7]:     hook(request)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank7]:     raise OfflineModeIsEnabled(
+[rank7]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank7]: The above exception was the direct cause of the following exception:
+
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank7]:     config_file = hf_hub_download(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank7]:     return _hf_hub_download_to_cache_dir(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank7]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank7]:     raise LocalEntryNotFoundError(
+[rank7]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank7]: During handling of the above exception, another exception occurred:
+
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank7]:     app()
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank7]:     raise e
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank7]:     return get_command(self)(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank7]:     return self.main(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank7]:     return _main(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank7]:     rv = self.invoke(ctx)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank7]:     return ctx.invoke(self.callback, **ctx.params)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank7]:     return callback(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank7]:     return callback(**use_params)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank7]:     trainer = LtxvTrainer(trainer_config)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank7]:     self._load_models()
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank7]:     components = load_ltxv_components(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank7]:     scheduler=load_scheduler(),
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank7]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank7]:     config, kwargs, commit_hash = cls.load_config(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank7]:     raise EnvironmentError(
+[rank7]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank2]:     metadata = get_hf_file_metadata(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank2]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank2]:     response = http_backoff(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank2]:     return next(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank2]:     response = client.request(method=method, url=url, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank2]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank2]:     response = self._send_handling_auth(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank2]:     response = self._send_handling_redirects(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank2]:     hook(request)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank2]:     raise OfflineModeIsEnabled(
+[rank2]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank2]: The above exception was the direct cause of the following exception:
+
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank2]:     config_file = hf_hub_download(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank2]:     return _hf_hub_download_to_cache_dir(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank2]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank2]:     raise LocalEntryNotFoundError(
+[rank2]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank2]: During handling of the above exception, another exception occurred:
+
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank2]:     app()
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank2]:     raise e
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank2]:     return get_command(self)(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank2]:     return self.main(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank2]:     return _main(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank2]:     rv = self.invoke(ctx)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank2]:     return ctx.invoke(self.callback, **ctx.params)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank2]:     return callback(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank2]:     return callback(**use_params)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank2]:     trainer = LtxvTrainer(trainer_config)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank2]:     self._load_models()
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank2]:     components = load_ltxv_components(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank2]:     scheduler=load_scheduler(),
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank2]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank2]:     config, kwargs, commit_hash = cls.load_config(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank2]:     raise EnvironmentError(
+[rank2]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank4]:     metadata = get_hf_file_metadata(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank4]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank4]:     response = http_backoff(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank4]:     return next(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank4]:     response = client.request(method=method, url=url, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank4]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank4]:     response = self._send_handling_auth(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank4]:     response = self._send_handling_redirects(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank4]:     hook(request)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank4]:     raise OfflineModeIsEnabled(
+[rank4]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank4]: The above exception was the direct cause of the following exception:
+
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank4]:     config_file = hf_hub_download(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank4]:     return _hf_hub_download_to_cache_dir(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank4]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank4]:     raise LocalEntryNotFoundError(
+[rank4]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank4]: During handling of the above exception, another exception occurred:
+
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank4]:     app()
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank4]:     raise e
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank4]:     return get_command(self)(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank4]:     return self.main(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank4]:     return _main(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank4]:     rv = self.invoke(ctx)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank4]:     return ctx.invoke(self.callback, **ctx.params)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank4]:     return callback(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank4]:     return callback(**use_params)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank4]:     trainer = LtxvTrainer(trainer_config)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank4]:     self._load_models()
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank4]:     components = load_ltxv_components(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank4]:     scheduler=load_scheduler(),
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank4]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank4]:     config, kwargs, commit_hash = cls.load_config(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank4]:     raise EnvironmentError(
+[rank4]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank0]:     metadata = get_hf_file_metadata(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank0]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank0]:     response = http_backoff(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank0]:     return next(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank0]:     response = client.request(method=method, url=url, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank0]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank0]:     response = self._send_handling_auth(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank0]:     response = self._send_handling_redirects(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank0]:     hook(request)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank0]:     raise OfflineModeIsEnabled(
+[rank0]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank0]: The above exception was the direct cause of the following exception:
+
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank0]:     config_file = hf_hub_download(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank0]:     return _hf_hub_download_to_cache_dir(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank0]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank0]:     raise LocalEntryNotFoundError(
+[rank0]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank0]: During handling of the above exception, another exception occurred:
+
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank0]:     app()
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank0]:     raise e
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank0]:     return get_command(self)(*args, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank0]:     return self.main(*args, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank0]:     return _main(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank0]:     rv = self.invoke(ctx)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank0]:     return ctx.invoke(self.callback, **ctx.params)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank0]:     return callback(*args, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank0]:     return callback(**use_params)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank0]:     trainer = LtxvTrainer(trainer_config)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank0]:     self._load_models()
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank0]:     components = load_ltxv_components(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank0]:     scheduler=load_scheduler(),
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank0]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank0]:     config, kwargs, commit_hash = cls.load_config(
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank0]:     raise EnvironmentError(
+[rank0]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank6]:     metadata = get_hf_file_metadata(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank6]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank6]:     response = http_backoff(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank6]:     return next(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank6]:     response = client.request(method=method, url=url, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank6]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank6]:     response = self._send_handling_auth(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank6]:     response = self._send_handling_redirects(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank6]:     hook(request)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank6]:     raise OfflineModeIsEnabled(
+[rank6]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank6]: The above exception was the direct cause of the following exception:
+
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank6]:     config_file = hf_hub_download(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank6]:     return _hf_hub_download_to_cache_dir(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank6]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank6]:     raise LocalEntryNotFoundError(
+[rank6]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank6]: During handling of the above exception, another exception occurred:
+
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank6]:     app()
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank6]:     raise e
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank6]:     return get_command(self)(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank6]:     return self.main(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank6]:     return _main(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank6]:     rv = self.invoke(ctx)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank6]:     return ctx.invoke(self.callback, **ctx.params)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank6]:     return callback(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank6]:     return callback(**use_params)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank6]:     trainer = LtxvTrainer(trainer_config)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank6]:     self._load_models()
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank6]:     components = load_ltxv_components(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank6]:     scheduler=load_scheduler(),
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank6]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank6]:     config, kwargs, commit_hash = cls.load_config(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank6]:     raise EnvironmentError(
+[rank6]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+[rank5]:     metadata = get_hf_file_metadata(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+[rank5]:     response = _httpx_follow_relative_redirects_with_backoff(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+[rank5]:     response = http_backoff(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+[rank5]:     return next(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+[rank5]:     response = client.request(method=method, url=url, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 825, in request
+[rank5]:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 914, in send
+[rank5]:     response = self._send_handling_auth(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+[rank5]:     response = self._send_handling_redirects(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/httpx/_client.py", line 977, in _send_handling_redirects
+[rank5]:     hook(request)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 260, in hf_request_event_hook
+[rank5]:     raise OfflineModeIsEnabled(
+[rank5]: huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/resolve/main/scheduler/scheduler_config.json: offline mode is enabled. To disable it, please unset the `HF_HUB_OFFLINE` environment variable.
+
+[rank5]: The above exception was the direct cause of the following exception:
+
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 424, in load_config
+[rank5]:     config_file = hf_hub_download(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+[rank5]:     return _hf_hub_download_to_cache_dir(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1165, in _hf_hub_download_to_cache_dir
+[rank5]:     _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/file_download.py", line 1867, in _raise_on_head_call_error
+[rank5]:     raise LocalEntryNotFoundError(
+[rank5]: huggingface_hub.errors.LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.
+
+[rank5]: During handling of the above exception, another exception occurred:
+
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank5]:     app()
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank5]:     raise e
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank5]:     return get_command(self)(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank5]:     return self.main(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank5]:     return _main(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank5]:     rv = self.invoke(ctx)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank5]:     return ctx.invoke(self.callback, **ctx.params)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank5]:     return callback(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank5]:     return callback(**use_params)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 48, in main
+[rank5]:     trainer = LtxvTrainer(trainer_config)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 130, in __init__
+[rank5]:     self._load_models()
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 680, in _load_models
+[rank5]:     components = load_ltxv_components(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 292, in load_ltxv_components
+[rank5]:     scheduler=load_scheduler(),
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/inference/model_loader.py", line 101, in load_scheduler
+[rank5]:     return FlowMatchEulerDiscreteScheduler.from_pretrained(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/schedulers/scheduling_utils.py", line 146, in from_pretrained
+[rank5]:     config, kwargs, commit_hash = cls.load_config(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/diffusers/configuration_utils.py", line 451, in load_config
+[rank5]:     raise EnvironmentError(
+[rank5]: OSError: Lightricks/LTX-Video-0.9.7-dev does not appear to have a file named scheduler_config.json.
+E0828 14:03:36.151000 211883 site-packages/torch/distributed/elastic/multiprocessing/api.py:984] failed (exitcode: 1) local_rank: 0 (pid: 212050) of binary: /dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/python3.10
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/accelerate", line 6, in <module>
+    sys.exit(main())
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1398, in launch_command
+    multi_gpu_launcher(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 982, in run
+    elastic_launch(
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 317, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/train.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 212051)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[2]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 212052)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[3]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 212053)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[4]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 4 (local_rank: 4)
+  exitcode  : 1 (pid: 212054)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[5]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 5 (local_rank: 5)
+  exitcode  : 1 (pid: 212055)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[6]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 6 (local_rank: 6)
+  exitcode  : 1 (pid: 212056)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[7]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 7 (local_rank: 7)
+  exitcode  : 1 (pid: 212057)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-08-28_14:03:36
+  host      : i20r06c02s10.sng.lrz.de
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 212050)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+srun: error: i20r06c02s10: task 0: Exited with exit code 1
+srun: Terminating StepId=529590.0
