@@ -1126,7 +1126,11 @@ class LtxvTrainer:
         if 0 < self._config.checkpoints.keep_last_n < len(self._checkpoint_paths):
             checkpoints_to_remove = self._checkpoint_paths[: -self._config.checkpoints.keep_last_n]
             for old_checkpoint in checkpoints_to_remove:
-                for f in (old_checkpoint, self._state_file_for(old_checkpoint)):
+                files_to_remove = [old_checkpoint, self._state_file_for(old_checkpoint)]
+                scalar_checkpoint = self._find_scalar_checkpoint(old_checkpoint)
+                if scalar_checkpoint is not None:
+                    files_to_remove.append(scalar_checkpoint)
+                for f in files_to_remove:
                     if f.exists():
                         f.unlink()
                         logger.debug(f"Removed old checkpoint: {f}")
