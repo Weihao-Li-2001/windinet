@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=wh_preprocess_dit
-#SBATCH --time=04:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general
@@ -34,6 +34,14 @@
 # why). Set EVAL_SIMS=0 to disable the split; MAX_SAMPLES for a fast
 # smoke-test encode instead (cannot combine with EVAL_SIMS, same restriction
 # as preprocess_dataset.py itself).
+#
+# --time bumped 04:00:00 -> 12:00:00 (2026-08-28): job 529527 (4500 samples,
+# 256res, single XPU tile) hit the old 4h limit and was CANCELLED mid-encode
+# -- rich.progress's carriage-return output doesn't survive in the sbatch
+# .out log, so there's no per-sample rate to size this precisely off; 12h
+# is a generous margin, not a measured figure. If a rerun times out again,
+# check actual wall-clock via `sacct -j <id> --format=Elapsed` and raise
+# further.
 #
 # Submit with:
 #   VAE_CHECKPOINT=${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/<run>/checkpoints/vae_shockwave_best.safetensors \
