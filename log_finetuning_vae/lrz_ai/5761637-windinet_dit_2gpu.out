@@ -1,0 +1,140 @@
+Directory where err and out file are logged: /dss/dsshome1/09/ge26qux3/work_wh/windinet
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep30_256res_kl1e6
+BASE_CONFIG: configs/shockwavenet_lrz_ai_kl1e6.yaml
+MASTER_ADDR: lrz-hgx-h100-029
+MASTER_PORT: 60239
+SLURM_GPUS_PER_NODE: 2
+Job started at: Thu Aug 27 09:42:12 AM CEST 2026
+preprocessed_data_root=/mnt/result/dit_preprocessed/finetune_vae_whole_structure_baseline_ep30_256res_kl1e6 output_dir=/mnt/result/shockwave_dit_kl1e6
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 1e-05                                 │
+│ optimization.steps                   │ 10000                                 │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 16                                    │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ /mnt/result/dit_preprocessed/finetun… │
+│ data.num_dataloader_workers          │ 4                                     │
+│ validation.data_root                 │ /mnt/result/dit_preprocessed/finetun… │
+│ validation.interval                  │ 600                                   │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 120                                   │
+│ checkpoints.keep_last_n              │ 5                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ cfd, full, 2b, scalar-only, lrz_ai,   │
+│                                      │ 256res, kl1e6                         │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /mnt/result/shockwave_dit_kl1e6       │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 0] Distributed training enabled with 2        dit_trainer.py:1161
+         processes                                                              
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1167
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+WARNING  [rank 0] Warning: You are sending unauthenticated requests _http.py:951
+         to the HF Hub. Please set a HF_TOKEN to enable higher rate             
+         limits and faster downloads.                                           
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+WARNING  [rank 1] Warning: You are sending unauthenticated requests _http.py:951
+         to the HF Hub. Please set a HF_TOKEN to enable higher rate             
+         limits and faster downloads.                                           
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/r                
+         esolve/main/scheduler/scheduler_config.json "HTTP/1.1                  
+         307 Temporary Redirect"                                                
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.7-dev/r                
+         esolve/main/scheduler/scheduler_config.json "HTTP/1.1                  
+         307 Temporary Redirect"                                                
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.7-dev/2101082f5eb5540770a2df43747fead                
+         b6f69b889/scheduler%2Fscheduler_config.json "HTTP/1.1                  
+         200 OK"                                                                
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.7-dev/2101082f5eb5540770a2df43747fead                
+         b6f69b889/scheduler%2Fscheduler_config.json "HTTP/1.1                  
+         200 OK"                                                                
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:695
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:718
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:722
+Job finished at: Thu Aug 27 09:43:40 AM CEST 2026
+Total runtime: 88 seconds
