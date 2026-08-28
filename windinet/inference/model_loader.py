@@ -97,9 +97,32 @@ class LtxvModelComponents(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-def load_scheduler() -> FlowMatchEulerDiscreteScheduler:
+def load_scheduler(model_source: ModelSource | None = None) -> FlowMatchEulerDiscreteScheduler:
+    """Load the flow-matching scheduler config for `model_source`'s family.
+
+    Was unconditionally pinned to LTXV_13B_097_DEV's repo regardless of
+    model_source, unlike load_vae/load_transformer's own routing -- harmless
+    when that repo's scheduler/ subfolder happens to be cached (e.g. lrz_ai),
+    but a hard failure under HF_HUB_OFFLINE=1 on a cluster (sng_pvc) that
+    never fetched it, since nothing else in the 2B pipeline needs that repo.
+    Routes 2B sources to LTXV_2B_095's repo instead, matching load_vae's own
+    2B routing (already cached wherever the VAE has been loaded before);
+    13B sources keep the original repo.
+    """
+    source = model_source
+    if isinstance(source, str):
+        if version := _try_parse_version(source):
+            source = version
+
+    repo = LtxvModelVersion.LTXV_13B_097_DEV.hf_repo
+    if not isinstance(source, LtxvModelVersion) or source not in (
+        LtxvModelVersion.LTXV_13B_097_DEV,
+        LtxvModelVersion.LTXV_13B_097_DISTILLED,
+    ):
+        repo = LtxvModelVersion.LTXV_2B_095.hf_repo
+
     return FlowMatchEulerDiscreteScheduler.from_pretrained(
-        LtxvModelVersion.LTXV_13B_097_DEV.hf_repo,
+        repo,
         subfolder="scheduler",
         cache_dir=CACHE_DIR,
     )
@@ -289,7 +312,7 @@ def load_ltxv_components(
     vae = load_vae_with_adapter(model_source, dtype=vae_dtype, device="cpu")
 
     return LtxvModelComponents(
-        scheduler=load_scheduler(),
+        scheduler=load_scheduler(model_source),
         vae=vae,
         transformer=load_transformer(model_source, dtype=transformer_dtype),
     )
