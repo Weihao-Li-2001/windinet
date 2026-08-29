@@ -26,7 +26,8 @@ because it's current, or moved verbatim into one of the two files above.
 - [Current baseline](#current-baseline)
 - [Fixed setup](#fixed-setup)
 - [Weight provenance](#weight-provenance)
-  - [DiT (stage 2, not yet run)](#dit-stage-2-not-yet-run)
+  - [DiT (stage 2) -- weight provenance](#dit-stage-2----weight-provenance)
+  - [DiT (stage 2) -- progress since VAE wrap-up](#dit-stage-2----progress-since-vae-wrap-up-updated-2026-08-29)
 - [Established](#established)
 - [NOT established (previously treated as if it were)](#not-established-previously-treated-as-if-it-were)
 - [Open questions, in priority order](#open-questions-in-priority-order)
@@ -245,12 +246,12 @@ DiT introduces no latent mismatch. Only the last decoder stage starts from
 different weights, and the decoder is fully retrained anyway (552,869,953
 trainable params), so this is an init difference, not a correctness problem.
 
-### DiT (stage 2, not yet run)
+### DiT (stage 2) -- weight provenance
 
 Different repo, different file, different loader -- from the *same*
 `model_source` string:
 
-1. `shockwavenet.yaml`: `model_source: "LTXV_2B_0.9.6_DEV"`, `load_checkpoint: null`.
+1. `shockwavenet*.yaml`: `model_source: "LTXV_2B_0.9.6_DEV"`, `load_checkpoint: null`.
 2. `dit_trainer._load_models` -> `load_ltxv_components(model_source)` ->
    `load_transformer()` (`windinet/inference/model_loader.py:226`).
 3. `LTXV_2B_096_DEV` is not in the 13B list, so it takes
@@ -265,10 +266,103 @@ Different repo, different file, different loader -- from the *same*
 So: **VAE from `LTX-Video-0.9.5` (diffusers layout), DiT from `LTX-Video` root
 repo (single-file 0.9.6-dev).** Both are stock pretrained natural-video weights.
 
-Unverified, worth checking before the DiT stage: `load_ltxv_components` also
-constructs a VAE inside `dit_trainer`. Since DiT training consumes precomputed
-latents from `preprocess_dataset.py` (encoded with the *finetuned inflate* VAE),
-that trainer-side VAE is either unused or a 3-channel landmine.
+**Resolved (2026-08-29), was flagged unverified above:** `load_ltxv_components`
+does construct a VAE inside `dit_trainer` (`_load_models`, line ~680), via
+`load_vae_with_adapter`. None of the `jobs/*/train_dit*` launchers set
+`WINDINET_VAE_INFLATE_CKPT`/`WINDINET_VAE_ADAPTER_CKPT`, so that VAE is always
+the **stock 3-channel natural-video VAE**, not the finetuned CFD one -- but it
+is harmless dead weight, not a landmine: `self._vae` is only ever assigned,
+frozen (`requires_grad_(False)`), and moved to CPU (`_prepare_models_for_training`)
+-- grep confirms no `self._vae(...)`/`.decode(...)`/`.encode(...)` call
+anywhere else in `dit_trainer.py`. Training runs entirely on the precomputed
+latents from `preprocess_dataset.py` (encoded with the real finetuned inflate
+VAE); this unused stock VAE just costs some CPU RAM at startup.
+
+### DiT (stage 2) -- progress since VAE wrap-up (updated 2026-08-29)
+
+Pipeline per cluster: `preprocess_dit_data.*` (VAE-encode the 256res dataset
+to latents with a finetuned VAE checkpoint) -> `train_dit*.*` (train the DiT
+on those latents). Three clusters involved, three different roles:
+
+- **lundquist**: infra-verification only. One throwaway smoke test (job
+  22380, `configs/shockwavenet_lundquist_smoketest.yaml`, 10 steps,
+  0.11 steps/s on 2 GPUs) confirmed the training loop runs under DDP after
+  the gradient-checkpointing fix below -- **not a real training run**, no
+  production DiT job has been submitted there.
+- **lrz_ai**: 4x H100, collaborator **Harish Ramachandran** (commits from
+  `login-01.ai.lrz.de`) operates jobs here directly and pushes logs to
+  gitlab.
+- **sng_pvc**: 8x Intel XPU tiles per node.
+
+**Bugs found and fixed along the way** (all via reading actual SLURM logs,
+not assumed):
+
+1. **DDP + gradient-checkpointing order** (found 2026-08-27 morning, all 4
+   first-wave lrz_ai 2-GPU smoke attempts crashed instantly): `enable_gradient_
+   checkpointing()` was called on the transformer *after* DDP-wrapping it,
+   and `DistributedDataParallel` doesn't proxy that method ->
+   `AttributeError`. Fixed same day (commit `8b961b2`): enable before wrap.
+2. **`load_scheduler` ignoring `model_source`**: was unconditionally pinned
+   to the 13B repo's `scheduler/` subfolder regardless of the configured
+   2B/13B source -- harmless when that repo happened to be cached, a hard
+   failure under `HF_HUB_OFFLINE=1` on a cluster that never fetched it. Fixed
+   to route 2B sources to `LTXV_2B_095`'s repo instead (commit `6b78264`/`d30e02f`).
+3. **sng_pvc: `HF_HUB_OFFLINE=1` + transformer weights never cached**
+   (found 2026-08-28, all 4 sng_pvc baseline training attempts crashed with
+   `LocalEntryNotFoundError`/`OSError` on `ltxv-2b-0.9.6-dev-04-25.safetensors`):
+   `jobs/sng_pvc/train_dit.sbatch` runs compute nodes offline and sng_pvc
+   uses the plain `~/.cache/huggingface` (not the lundquist-only in-repo
+   cache), but nobody had downloaded the transformer there yet. Fixed
+   2026-08-29 by running `load_transformer(...)` once on the sng_pvc login
+   node (which has internet) to prime the shared-home cache.
+4. **lrz_ai's 4-GPU config effective-batch mismatch -- OPEN, not fixed.**
+   `configs/shockwavenet_lrz_ai.yaml` (paired with `train_dit_4gpu.job`) has
+   `gradient_accumulation_steps: 16`, copied unchanged from the 2-GPU
+   config, giving effective batch `1x16x4=64` instead of the `32` every
+   other arm/cluster uses (comment in the file still says "= 32", stale).
+   Consequence: this arm's `optimization.steps: 10000` covers **2x the data**
+   of every other arm's 10000 steps. The one real run on this config
+   (job 5762646) had already reached step 6099 -- i.e. `6099x64=390,336`
+   samples, already past the `10000x32=320,000`-sample budget every other
+   arm targets at step 10000 -- before the mismatch was even noticed. See
+   "Open decisions" below.
+
+**Per-arm status (as of 2026-08-29, sng_pvc jobs just submitted, outcomes
+not yet known):**
+
+| Cluster | Arm (VAE checkpoint) | Encode | DiT training | Best result so far |
+|---|---|---|---|---|
+| lrz_ai | baseline (ep30) | done (job 5759865) | 3 attempts: 2GPU pre-fix crash (5761635), 4GPU post-fix -> step 6099/10000, time-limit killed (5762646), 2GPU post-fix **restarted from scratch** (not the prepared resume config) -> step 5259/10000, time-limit killed (5764225) | val_loss 0.273693 @ step 6000 (job 5762646, best on disk) |
+| lrz_ai | kl1e5 (ep30) | done (job 5759867) | pre-fix crash only (5761636) -- **never retried since the DDP fix** | none (crashed before step 1) |
+| lrz_ai | kl1e6 (ep30) | done (job 5759866) | pre-fix crash only (5761637) -- **never retried since the DDP fix** | none |
+| lrz_ai | anchor_kl1e7 (ep30) | done (job 5759868) | pre-fix crash only (5761638) -- **never retried since the DDP fix** | none |
+| sng_pvc | baseline (ep30) | done (job 529547) | 4 attempts, all crashed on the HF-cache bug (529590/604/606/635); resubmitted 2026-08-29 after the fix | pending |
+| sng_pvc | ep20 plain baseline | done (job 529637) | needed a new config (`shockwavenet_sng_pvc_ep20_baseline.yaml`, added 2026-08-29 -- no pre-existing sng_pvc DiT config covered this arm without colliding `output_dir` with the ep30 baseline); submitted 2026-08-29 | pending |
+| sng_pvc | ep20 kl1e5 | done (job 529638) | submitted 2026-08-29 | pending |
+| sng_pvc | ep20 anchor_kl1e7 | done (job 529639) | submitted 2026-08-29 | pending |
+| sng_pvc | ep20 kl1e6 | **not encoded** | -- | -- |
+
+**Open decisions (need a call, not just a bug fix):**
+
+1. **lrz_ai 4-GPU effective-batch mismatch (#4 above).** Three options: (a)
+   accept the 2x-data asymmetry and just note it when comparing arms, (b)
+   fix `gradient_accumulation_steps` to 8 (restores effective_batch=32,
+   matches everything else) and treat the existing step-6099 progress as
+   belonging to a different, no-longer-comparable schedule -- i.e. restart
+   this arm from step 0, (c) keep the run as-is but stop it at step 5000
+   instead of 10000 for data-budget parity -- at the cost of an incomplete
+   cosine LR anneal (schedule is authored for a 10000-step horizon; stopping
+   at 5000 leaves LR mid-decay, typically worse final quality than a full
+   anneal). Not resolved as of 2026-08-29.
+2. **lrz_ai kl1e5/kl1e6/anchor_kl1e7 arms need resubmitting** with the
+   post-fix code -- they never got a real attempt, only the pre-`8b961b2`
+   crash.
+3. **Is "ep20 plain baseline" a real arm or just a leftover control?** It
+   was preprocessed alongside the ep20 KL/anchor sweep but has no obvious
+   role in a KL-weight comparison (there's already an ep30 plain baseline).
+   Confirm intent before spending a full sng_pvc DiT run on it.
+4. **sng_pvc kl1e6 was never encoded** -- unclear if that arm was dropped
+   intentionally or just not gotten to yet.
 
 ## Established
 

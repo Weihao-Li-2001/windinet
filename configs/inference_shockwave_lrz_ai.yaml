@@ -1,0 +1,50 @@
+# ShockWaveNet inference config -- lrz_ai / 256res variant of
+# configs/inference_shockwave.yaml.
+#
+# checkpoint / scalar_checkpoint / vae_checkpoint / h5 / out_dir / num_samples
+# are all CLI-overridable (see scripts/inference_shockwave.py's parse_args)
+# and are passed in by jobs/lrz_ai/inference_dit.job, not set here -- this
+# file only carries the things that don't change per-run: generation params
+# and the scalar_conditioning shape (must match whatever DiT config the
+# checkpoint was trained with, e.g. configs/shockwavenet_lrz_ai.yaml).
+#
+# normalization is NOT CLI-overridable (parse_args has no flag for it), so
+# it's a __PREPROCESSED_ROOT__ placeholder here that jobs/lrz_ai/inference_dit.job
+# substitutes for the real /mnt/result/dit_preprocessed/<PREPROCESSED_NAME>
+# path, same pattern as the DiT training configs' data.preprocessed_data_root.
+
+checkpoint: null            # set via --checkpoint
+scalar_checkpoint: null     # set via --scalar_checkpoint
+vae_checkpoint: null        # set via --vae_checkpoint
+
+model_source: "LTXV_2B_0.9.6_DEV"
+
+h5: null                    # set via --h5
+
+# --- Channel normalization ---
+# Must be the stats the VAE was finetuned with and preprocessing encoded
+# with -- preprocess_dataset.py writes this file next to the latents.
+normalization: "__PREPROCESSED_ROOT__/normalization.json"
+
+# --- Generation ---
+# num_frames/num_output_frames are about TEMPORAL length only (14 latent
+# frames either way -- see configs/shockwavenet_lrz_ai.yaml's 256res
+# sequence-length caveat, which is about the spatial 8x8 vs 4x4 grid, not
+# frame count), so these are unchanged from the 128res default config.
+num_inference_steps: 20
+guidance_scale: 1.0
+num_frames: 105
+num_output_frames: 101
+image_cond_noise_scale: 0.0
+seed: 42
+
+# --- Scalar conditioning ---
+# Must match the ranges used during DiT training. fourier_features/
+# mlp_hidden_dim/dropout omitted -- ScalarConditioningConfig's defaults
+# (64/256/0.1) match every shockwavenet_*.yaml training config's values.
+scalar_conditioning:
+  scalar_names: ["gamma"]
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
