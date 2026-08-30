@@ -873,6 +873,10 @@ class LtxvTrainer:
             )
             return
         state = torch.load(state_path, map_location="cpu", weights_only=False)
+        if "optimizer" in state:
+            # Undo _save_training_state's bf16 downcast -- the live optimizer
+            # (and AdamW's own arithmetic) expects fp32 moment buffers.
+            state["optimizer"] = self._cast_optimizer_state(state["optimizer"], torch.float32)
         self._resume_state = state
         self._resume_global_step = int(state.get("global_step", 0))
         logger.info(
@@ -1193,6 +1197,30 @@ class LtxvTrainer:
         self._cleanup_checkpoints()
         return saved_weights_path
 
+    @staticmethod
+    def _cast_optimizer_state(obj, dtype: torch.dtype):
+        """Recursively cast float tensors inside an optimizer state_dict.
+
+        AdamW's per-param state is ``{"step": tensor, "exp_avg": tensor, "exp_avg_sq":
+        tensor}`` nested under an int key, plus a ``param_groups`` list of plain
+        (non-tensor) hyperparameters. Only exp_avg/exp_avg_sq are worth downcasting
+        (a single scalar's worth of "step" saves nothing); "step" is stored as an
+        fp32 tensor too (confirmed: ``torch.optim.AdamW`` state, not an int) and
+        drives bias-correction (1 - beta**step) -- bf16 rounds e.g. 9720 to 9728,
+        a silent, exact-integer-counter corruption for zero storage benefit, so it
+        is explicitly excluded rather than caught by the general float-tensor check.
+        """
+        if isinstance(obj, torch.Tensor):
+            return obj.to(dtype) if obj.is_floating_point() else obj
+        if isinstance(obj, dict):
+            return {
+                k: (v if k == "step" else LtxvTrainer._cast_optimizer_state(v, dtype))
+                for k, v in obj.items()
+            }
+        if isinstance(obj, list):
+            return [LtxvTrainer._cast_optimizer_state(v, dtype) for v in obj]
+        return obj
+
     def _save_training_state(self, state_path: Path) -> None:
         """Persist optimizer/scheduler/RNG next to the model checkpoint.
 
@@ -1200,6 +1228,15 @@ class LtxvTrainer:
         ``model.load_checkpoint=<that safetensors>`` can restore an exact
         continuation. The model weights themselves live in the safetensors
         (loaded separately), so they are intentionally not duplicated here.
+
+        The optimizer's exp_avg/exp_avg_sq moment buffers are downcast to
+        bf16 for this on-disk copy only (confirmed fp32 on disk otherwise --
+        ~15 GB for the 1.92B-param transformer, half the size of a checkpoint
+        slot). The LIVE optimizer in memory keeps its fp32 state throughout
+        training; this only shrinks what hits disk. bf16 has ample precision
+        for Adam's already-smoothed moment estimates (the same reasoning
+        8-bit-Adam-style techniques rely on) -- _load_resume_state upcasts
+        back to fp32 before handing it to the optimizer.
         """
         import numpy as np
 
@@ -1211,7 +1248,7 @@ class LtxvTrainer:
         }
         state = {
             "global_step": self._global_step,
-            "optimizer": self._optimizer.state_dict(),
+            "optimizer": self._cast_optimizer_state(self._optimizer.state_dict(), torch.bfloat16),
             "scheduler": self._lr_scheduler.state_dict() if self._lr_scheduler is not None else None,
             "rng": rng,
         }
@@ -1231,6 +1268,20 @@ class LtxvTrainer:
                         f.unlink()
                         logger.debug(f"Removed old checkpoint: {f}")
             self._checkpoint_paths = self._checkpoint_paths[-self._config.checkpoints.keep_last_n :]
+
+        # Of the checkpoints kept for redundancy, only the newest is ever
+        # actually resumed from -- older kept slots exist purely as a
+        # weights-only fallback in case the newest save turns out corrupt.
+        # Their .state.pt (the larger of the two files, and now the only
+        # thing keeping them from being a cheap weights-only backup) is
+        # pruned once a newer checkpoint has taken over the "resume-from"
+        # role. Mirrors VaeTrainer's best (weights-only) / last (weights +
+        # state) split.
+        for older_checkpoint in self._checkpoint_paths[:-1]:
+            state_path = self._state_file_for(older_checkpoint)
+            if state_path.exists():
+                state_path.unlink()
+                logger.debug(f"Removed optimizer state for older kept checkpoint: {state_path}")
 
     def _save_epoch_log(self) -> None:
         if not IS_MAIN_PROCESS:
