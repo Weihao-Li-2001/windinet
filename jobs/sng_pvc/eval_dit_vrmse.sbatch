@@ -3,7 +3,6 @@
 #SBATCH --time=04:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:1
 #SBATCH --partition=general
 #SBATCH --account=pn82ku
 #SBATCH -o logs/sng_pvc/%j-%x.out
