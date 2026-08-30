@@ -46,7 +46,9 @@
 #   PREPROCESSED_DATA_ROOT was encoded with.
 # NUM_SAMPLES: optional, default 50 (of up to 675 held-out sims).
 # SAVE_NPZ_SAMPLES: optional, default 3 -- also saves that many VAE+DiT
-#   predictions as .npz for scripts/visualize_dit_predictions.py.
+#   predictions as .npz and renders them as GT/Prediction/Residual videos
+#   (via scripts/visualize_dit_predictions.py, run automatically at the end
+#   of this job) into <OUT_DIR>/videos/. Set to 0 to skip rendering.
 
 set -eo pipefail
 
@@ -100,5 +102,19 @@ python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
     --num_samples "${NUM_SAMPLES}" \
     --save_npz_samples "${SAVE_NPZ_SAMPLES}" \
     --out_dir "${OUT_DIR}"
+
+# Render the SAVE_NPZ_SAMPLES .npz predictions eval_dit_vrmse.py just wrote
+# as GT/Prediction/Residual videos (visualize_dit_predictions.py's own
+# format -- animated per-frame, not static PNGs), same H5 the manifest
+# points at.
+if [ "${SAVE_NPZ_SAMPLES}" -gt 0 ]; then
+    H5_PATH=$(python -c "import json; print(json.load(open('${PREPROCESSED_DATA_ROOT}/split_manifest.json'))['data_root'])")
+    echo "H5_PATH: ${H5_PATH}"
+    python scripts/visualize_dit_predictions.py \
+        --pred_dir "${OUT_DIR}/npz" \
+        --h5 "${H5_PATH}" \
+        --out_dir "${OUT_DIR}/videos"
+    echo "Videos: ${OUT_DIR}/videos"
+fi
 
 echo "END TIME: $(date)"
