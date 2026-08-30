@@ -51,17 +51,23 @@ def save_reconstruction_panels(
     prediction: torch.Tensor,
     target: torch.Tensor,
     sample_id: str,
-    epoch: int,
+    label: str,
     frame_numbers: list[int],
     channel_names: list[str],
     output_dir: str | Path,
     dpi: int,
 ) -> list[Path]:
-    """Save one four-channel GT/prediction/residual panel per requested frame."""
+    """Save one four-channel GT/prediction/residual panel per requested frame.
+
+    `label` names this pass in both the save path and the figure title (e.g.
+    ``f"epoch_{epoch:04d}"`` for the epoch-based VAE trainer,
+    ``f"step_{step:06d}"`` for the step-based DiT trainer) -- shared verbatim
+    across both callers rather than assuming either unit.
+    """
     prediction = prediction.detach().float().cpu()
     target = target.detach().float().cpu()
     safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", sample_id)
-    save_dir = Path(output_dir) / "visualizations" / f"epoch_{epoch:04d}" / safe_id
+    save_dir = Path(output_dir) / "visualizations" / label / safe_id
     save_dir.mkdir(parents=True, exist_ok=True)
     saved: list[Path] = []
 
@@ -98,7 +104,7 @@ def save_reconstruction_panels(
                 fig.colorbar(images[column], ax=axes[channel, column], fraction=0.046, pad=0.04)
 
         fig.suptitle(
-            f"epoch={epoch}  sample={sample_id}  frame={frame_number}  RMSE={frame_rmse:.4e}",
+            f"{label}  sample={sample_id}  frame={frame_number}  RMSE={frame_rmse:.4e}",
             fontsize=13,
         )
         path = save_dir / f"frame_{frame_number:04d}.png"

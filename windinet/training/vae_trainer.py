@@ -1197,7 +1197,7 @@ class VaeTrainer:
                 prediction=prediction[0],
                 target=target[0],
                 sample_id=sample_id,
-                epoch=epoch,
+                label=f"epoch_{epoch:04d}",
                 frame_numbers=vis_cfg.frame_numbers,
                 channel_names=cfg.adapter.channels,
                 output_dir=cfg.output_dir,

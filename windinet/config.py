@@ -178,6 +178,42 @@ class ValidationConfig(ConfigBaseModel):
     )
 
 
+class DitVisualizationConfig(ConfigBaseModel):
+    """Periodic GT-vs-prediction PNG panels during DiT training.
+
+    Mirrors VaeVisualizationConfig's role (fixed samples, static reconstruction
+    panels, per-channel RMSE) but on DiT's step-based cadence rather than VAE's
+    epoch-based one, and via a full flow-matching rollout + VAE decode instead
+    of a single forward pass -- see windinet/training/dit_visualization.py's
+    module docstring for why this needs its own VAE load (LtxvTrainer's own
+    self._vae is not the one that produced the training latents).
+    """
+
+    enabled: bool = Field(default=False)
+    interval: int | None = Field(
+        default=None,
+        gt=0,
+        description="Optimizer steps between visualization passes. Defaults to "
+        "checkpoints.interval. A final pass always runs at the end of training "
+        "regardless of this value.",
+    )
+    num_samples: int = Field(
+        default=3,
+        ge=1,
+        description="Fixed validation samples visualized every pass, picked once "
+        "as an even spread over validation.data_root's split_manifest.json val_ids "
+        "(not resampled after that).",
+    )
+    frame_numbers: list[int] = Field(default=[25, 50, 75, 100], min_length=1)
+    num_inference_steps: int = Field(
+        default=20,
+        ge=1,
+        description="Flow-matching denoising steps for the visualization rollout "
+        "(independent of training itself -- matches scripts/inference_shockwave.py's default).",
+    )
+    dpi: int = Field(default=150, ge=72)
+
+
 class CheckpointsConfig(ConfigBaseModel):
     """Configuration for model checkpointing during training."""
 
@@ -717,6 +753,7 @@ class LtxvTrainerConfig(ConfigBaseModel):
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     checkpoints: CheckpointsConfig = Field(default_factory=CheckpointsConfig)
     flow_matching: FlowMatchingConfig = Field(default_factory=FlowMatchingConfig)
+    visualization: DitVisualizationConfig = Field(default_factory=DitVisualizationConfig)
     wandb: WandbConfig = Field(default_factory=WandbConfig)
 
     seed: int = Field(default=42)

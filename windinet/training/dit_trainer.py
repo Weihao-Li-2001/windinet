@@ -49,6 +49,7 @@ from windinet.training.precomputed_dataset import PrecomputedDataset
 from windinet.inference.model_loader import load_ltxv_components
 from windinet.scalar_embeddings import ScalarEmbedding
 from windinet.training.timestep_samplers import SAMPLERS
+from windinet.training.dit_visualization import DitVisualizer
 from windinet.latent_utils import get_rope_scale_factors
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -136,6 +137,7 @@ class LtxvTrainer:
         self._dataset = None
         self._val_dataset = None
         self._val_dataloader = None
+        self._visualizer: DitVisualizer | None = None
         self._global_step = -1
         self._checkpoint_paths = []
         self._epoch_losses = []
@@ -150,6 +152,80 @@ class LtxvTrainer:
         if self._config.validation.data_root is None:
             return None
         return self._config.validation.interval or self._config.checkpoints.interval
+
+    @property
+    def _visualization_interval(self) -> int | None:
+        """Optimizer steps between visualization passes, or None if disabled."""
+        if not self._config.visualization.enabled:
+            return None
+        return self._config.visualization.interval or self._config.checkpoints.interval
+
+    def _init_visualizer(self) -> None:
+        """Build the (lazily-loading) DitVisualizer if visualization is enabled.
+
+        Main-process-only, same as the val dataloader: the panels are rendered
+        by rank 0 alone, no other rank needs this object.
+        """
+        if not self._config.visualization.enabled or not IS_MAIN_PROCESS:
+            return
+        vis_cfg = self._config.visualization
+        self._visualizer = DitVisualizer(
+            preprocessed_data_root=self._config.data.preprocessed_data_root,
+            model_source=self._config.model.model_source,
+            scalar_names=self._config.scalar_conditioning.scalar_names,
+            num_samples=vis_cfg.num_samples,
+            frame_numbers=vis_cfg.frame_numbers,
+            num_inference_steps=vis_cfg.num_inference_steps,
+            dpi=vis_cfg.dpi,
+            output_dir=self._config.output_dir,
+            seed=self._config.seed,
+            device=self._accelerator.device,
+        )
+
+    def _run_visualization(self, step: int) -> None:
+        """Render GT-vs-prediction panels for the fixed visualization samples.
+
+        Same RNG save/restore and DDP-unwrap/eval-mode discipline as
+        _validate() -- see that method's docstring -- so a visualization pass
+        perturbs neither the training RNG stream nor (via a stray DDP
+        collective only rank 0 would issue) the other ranks.
+        """
+        if self._visualizer is None:
+            return
+
+        device = self._accelerator.device
+        py_rng_state = random.getstate()
+        cpu_rng_state = torch.get_rng_state()
+        if device.type == "cuda":
+            accel_rng_state = torch.cuda.get_rng_state_all()
+        elif device.type == "xpu":
+            accel_rng_state = torch.xpu.get_rng_state_all()
+        else:
+            accel_rng_state = None
+
+        transformer = self._accelerator.unwrap_model(self._transformer)
+        scalar_embedding = (
+            self._accelerator.unwrap_model(self._scalar_embedding)
+            if self._scalar_embedding is not None
+            else None
+        )
+        transformer.eval()
+        try:
+            self._visualizer.run(
+                transformer=transformer,
+                scalar_embedding=scalar_embedding,
+                scheduler=self._scheduler,
+                step=step,
+            )
+        finally:
+            transformer.train()
+            random.setstate(py_rng_state)
+            torch.set_rng_state(cpu_rng_state)
+            if accel_rng_state is not None:
+                if device.type == "cuda":
+                    torch.cuda.set_rng_state_all(accel_rng_state)
+                elif device.type == "xpu":
+                    torch.xpu.set_rng_state_all(accel_rng_state)
 
     # ------------------------------------------------------------------
     # Batch preparation (absorbed from training_strategies.py)
@@ -311,6 +387,7 @@ class LtxvTrainer:
         self._init_optimizer()
         self._init_dataloader()
         self._init_val_dataloader()
+        self._init_visualizer()
         data_iter = iter(self._dataloader)
         self._init_timestep_sampler()
         val_interval = self._validation_interval
@@ -319,6 +396,7 @@ class LtxvTrainer:
                 "No validation.data_root configured: this run will only report training loss "
                 "and cannot tell you whether the model generalizes."
             )
+        vis_interval = self._visualization_interval
 
         self._accelerator.wait_for_everyone()
         Path(cfg.output_dir).mkdir(parents=True, exist_ok=True)
@@ -443,6 +521,16 @@ class LtxvTrainer:
                         and IS_MAIN_PROCESS
                     ):
                         self._save_checkpoint()
+
+                    if (
+                        vis_interval
+                        and is_optimization_step
+                        and self._global_step > 0
+                        and self._global_step % vis_interval == 0
+                        and IS_MAIN_PROCESS
+                    ):
+                        self._run_visualization(self._global_step)
+                    self._accelerator.wait_for_everyone()
 
                     if (
                         cfg.checkpoints.interval
@@ -571,6 +659,14 @@ class LtxvTrainer:
         if IS_MAIN_PROCESS:
             saved_path = self._save_checkpoint()
             comfy_path = saved_path
+
+            # Skip if the periodic pass above already rendered this exact step
+            # (e.g. optimization.steps an exact multiple of vis_interval) --
+            # a real generation pass, not free to duplicate.
+            if self._visualizer is not None and not (
+                vis_interval and self._global_step % vis_interval == 0
+            ):
+                self._run_visualization(self._global_step)
 
             if os.getenv("LTXV_SAVE_COMFY", "0").lower() in ("1", "true", "yes", "y"):
                 maybe_comfy = saved_path.parent / f"comfy_{saved_path.name}"

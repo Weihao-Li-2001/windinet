@@ -39,6 +39,7 @@ from windinet.training.shockwave_data import (
 )
 from windinet.utils import get_default_device
 from windinet.training.vae_visualization import denormalize_fields
+from windinet.training.dit_visualization import pick_fixed_visualization_sample_ids
 from windinet.vae_adapter import latent_space_fingerprint
 
 DTYPE = torch.bfloat16
@@ -96,9 +97,18 @@ def parse_args():
     ap.add_argument("--out_dir", type=Path, default=Path("outputs/inference_shockwave"),
                     help="Output directory for .npz predictions")
     ap.add_argument("--sample_ids", type=str, default=None,
-                    help="Comma-separated sample ids to run (default: the first --num_samples)")
-    ap.add_argument("--num_samples", type=int, default=4,
-                    help="Number of samples to run when --sample_ids is not given")
+                    help="Comma-separated sample ids to run (default: the first --num_samples, "
+                         "or the fixed picks from --preprocessed_data_root if given)")
+    ap.add_argument("--num_samples", type=int, default=3,
+                    help="Number of samples to run when --sample_ids is not given (default 3, "
+                         "matching DitVisualizationConfig's training-time default)")
+    ap.add_argument("--preprocessed_data_root", type=Path, default=None,
+                    help="Lock onto the SAME fixed sample ids (and --h5, if not overridden) "
+                         "DiT training's periodic visualization used for this run -- pass the "
+                         "same preprocessed_data_root the training config's data.preprocessed_data_root "
+                         "pointed at (post-substitution, e.g. dit_preprocessed/<name>), with the "
+                         "same --num_samples the training config's visualization.num_samples used "
+                         "(default 3 both sides). Overrides --sample_ids/--h5 when given.")
     ap.add_argument("--checkpoint", type=Path, default=None, help="Override transformer checkpoint")
     ap.add_argument("--scalar_checkpoint", type=Path, default=None, help="Override scalar embedding checkpoint")
     ap.add_argument("--vae_checkpoint", type=Path, default=None, help="Override inflate-mode VAE checkpoint")
@@ -120,8 +130,11 @@ def load_config(args):
     if args.h5 is not None:
         cfg["h5"] = str(args.h5)
 
-    if not cfg.get("h5"):
-        raise SystemExit("No dataset given: pass --h5 or set 'h5' in the config.")
+    if not cfg.get("h5") and args.preprocessed_data_root is None:
+        raise SystemExit(
+            "No dataset given: pass --h5, set 'h5' in the config, or pass "
+            "--preprocessed_data_root to derive it from that run's split_manifest.json."
+        )
     return cfg
 
 
@@ -229,12 +242,26 @@ def main():
         num_tokens_per_scalar=sc.get("num_tokens_per_scalar", 4),
     )
 
-    dataset = ShockWaveDataset(cfg["h5"])
-    if args.sample_ids:
-        wanted = [s.strip() for s in args.sample_ids.split(",")]
+    if args.preprocessed_data_root is not None:
+        wanted, manifest_h5 = pick_fixed_visualization_sample_ids(
+            args.preprocessed_data_root, args.num_samples
+        )
+        h5_path = cfg.get("h5") or manifest_h5  # --h5 still wins if the caller passed one
+        print(
+            f"Locked onto {len(wanted)} fixed sample(s) from "
+            f"{args.preprocessed_data_root}/split_manifest.json: {wanted}"
+        )
+    else:
+        wanted, h5_path = (
+            [s.strip() for s in args.sample_ids.split(",")] if args.sample_ids else None,
+            cfg["h5"],
+        )
+
+    dataset = ShockWaveDataset(h5_path)
+    if wanted:
         missing = [s for s in wanted if s not in dataset.ids]
         if missing:
-            raise SystemExit(f"Sample ids not in {cfg['h5']}: {missing}")
+            raise SystemExit(f"Sample ids not in {h5_path}: {missing}")
         indices = [dataset.ids.index(s) for s in wanted]
     else:
         indices = list(range(min(args.num_samples, len(dataset))))

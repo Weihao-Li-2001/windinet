@@ -82,6 +82,17 @@ flow_matching:
   timestep_sampling_mode: "shifted_logit_normal"
   timestep_sampling_params: {}
 
+visualization:
+  # GT/prediction/residual PNG panels on the same 3 fixed held-out
+  # samples every `interval` optimizer steps, plus always once more at
+  # the very end of training -- see windinet/training/dit_visualization.py.
+  # Decodes through the VAE recorded in normalization.json (NOT this
+  # trainer's own model.model_source VAE), so it needs validation.data_root's
+  # split_manifest.json (val_ids) to exist -- disabled on configs whose
+  # preprocessed data has no held-out split (smoketest, the bs sweep).
+  enabled: true
+  interval: 2000
+
 wandb:
   enabled: false
   project: "shockwavenet"
