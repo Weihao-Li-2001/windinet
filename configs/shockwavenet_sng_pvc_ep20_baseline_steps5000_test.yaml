@@ -1,0 +1,93 @@
+# Dedicated test copy of configs/shockwavenet_sng_pvc_ep20_baseline.yaml --
+# NOT a new experiment arm, exists only to smoke-test
+# jobs/sng_pvc/train_dit.sbatch's new STEPS env-var override (2026-08-30,
+# see that script's own header) without touching the real ep20_baseline
+# arm's output_dir, which already has an in-flight/completed run from
+# 2026-08-29 (job 529653) -- DiT training does not clean_output_dir the way
+# the VAE trainer does, so launching a second run against that same
+# output_dir would silently overwrite its early step-numbered checkpoints.
+#
+# SINGLE VARIABLE vs shockwavenet_sng_pvc_ep20_baseline.yaml:
+#   output_dir: ".../shockwave_dit_ep20_baseline" -> ".../shockwave_dit_ep20_baseline_steps5000_test"
+#   wandb.tags: added "steps-override-smoketest"
+# optimization.steps below is left at the file's own 10000 -- the actual
+# STEPS=5000 override happens at launch (see Usage), so this run also
+# doubles as confirmation that the override actually takes effect rather
+# than silently falling back to the file's default.
+#
+# Usage:
+#   STEPS=5000 sbatch --time=18:00:00 jobs/sng_pvc/train_dit.sbatch \
+#       <PREPROCESSED_NAME> configs/shockwavenet_sng_pvc_ep20_baseline_steps5000_test.yaml
+# where <PREPROCESSED_NAME> is the same encode this arm's real run uses:
+# finetune_vae_whole_structure_baseline_ep20_256res (see logs/sng_pvc/INDEX.tsv
+# job 529637's wh_preprocess_dit entry).
+#
+# Once the STEPS override is confirmed working (check the job's .out log
+# for "STEPS override: 5000" and "steps=5000" from the config-patch step,
+# and that optimization.steps in the run's own training_config.yaml under
+# this output_dir reads 5000), this config and its output_dir can be
+# deleted -- it has no further use once the mechanism is verified.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 10000
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 5
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "ep20_baseline", "steps-override-smoketest"]
+
+seed: 42
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_ep20_baseline_steps5000_test"
