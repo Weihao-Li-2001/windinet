@@ -99,30 +99,19 @@ export HDF5_USE_FILE_LOCKING=FALSE
 # batch_size=4, val_vrmse 0.084099 vs batch_size=1's 0.083633, well inside
 # the ~1.1% noise floor) and the batch_size x accum grid follow-up. See
 # EXPERIMENTS.md's "Open Question 23" section for the full readout.
-#
-# EFFECTIVE_BATCH (2026-08-30, default 32 -- unchanged behavior): overrides
-# the target effective batch patch_config_for_cluster() derives
-# gradient_accumulation_steps from, e.g. `EFFECTIVE_BATCH=128 sbatch ...`
-# with batch_size still hardcoded to 4 above and 8 XPU tiles gives accum=4
-# instead of the default 1 -- written for the accum=1-vs-4 runtime/effect
-# comparison in configs/finetune_vae/finetune_vae_whole_structure_baseline_
-# ep10_256res_acc{1,4}.yaml. Leave unset for normal production runs.
-EFFECTIVE_BATCH=${EFFECTIVE_BATCH:-32}
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml}
 DATA_ROOT_OVERRIDE=${2:-}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 
-python - "${BASE_CONFIG}" "${RUN_CONFIG}" "$((NUM_XPUS * SLURM_JOB_NUM_NODES))" "${DATA_ROOT_OVERRIDE}" "${EFFECTIVE_BATCH}" <<'PY'
+python - "${BASE_CONFIG}" "${RUN_CONFIG}" "$((NUM_XPUS * SLURM_JOB_NUM_NODES))" "${DATA_ROOT_OVERRIDE}" <<'PY'
 import sys
 
 import yaml
 
 from windinet.cluster_config import patch_config_for_cluster
 
-src, dst, num_processes, data_root_override, effective_batch = (
-    sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], int(sys.argv[5]),
-)
+src, dst, num_processes, data_root_override = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
 cfg = yaml.safe_load(open(src))
 cfg["optimization"]["batch_size"] = 4  # production default, see header comment above
 patch_config_for_cluster(
@@ -130,14 +119,13 @@ patch_config_for_cluster(
     cluster="sng_pvc",
     num_processes=num_processes,
     output_suffix="",
-    effective_batch=effective_batch,
     data_root=data_root_override or None,
 )
 yaml.safe_dump(cfg, open(dst, "w"), sort_keys=False)
 print(
     f"{num_processes} XPU tiles x batch_size {cfg['optimization']['batch_size']} x "
-    f"accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch "
-    f"{effective_batch}; output_dir {cfg['output_dir']}"
+    f"accum {cfg['optimization']['gradient_accumulation_steps']} -> effective batch 32; "
+    f"output_dir {cfg['output_dir']}"
 )
 PY
 
