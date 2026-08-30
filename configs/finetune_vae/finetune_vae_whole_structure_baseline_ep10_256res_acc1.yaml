@@ -1,0 +1,120 @@
+# VAE full finetuning, 256res, 10 epochs -- accum=1 arm (CONTROL, matches
+# sng_pvc's current production default).
+#
+# Forked from finetune_vae_whole_structure_baseline_ep30_256res.yaml (the
+# current 256res reference baseline) with ONLY optimization.epochs changed
+# 30 -> 10 and output_dir/wandb.tags updated -- everything else (LR,
+# scheduler, adapter, loss weights, batch_size) is untouched, so this is a
+# genuine single-variable fork of the reference baseline, not a new recipe.
+#
+# PURPOSE (2026-08-30): paired with the _acc4 sibling to test "if batch_size
+# stays 4 and gradient_accumulation_steps goes 1 -> 4 (effective_batch
+# 32 -> 128), does sng_pvc VAE training run faster, and is the result
+# comparable?" -- see chat discussion, not written up in EXPERIMENTS.md yet.
+#
+# batch_size/gradient_accumulation_steps in this file (1/16) are NOT what
+# actually runs -- jobs/sng_pvc/finetune_vae.sbatch hardcodes batch_size=4
+# and patch_config_for_cluster() derives gradient_accumulation_steps from
+# the target effective_batch (cluster default 32, i.e. accum=1 at 8 XPU
+# tiles) -- see that script's own header. This file's literal values are
+# just the pre-patch template, same convention as every other sng_pvc VAE
+# config.
+#
+# CAVEAT: warmup_steps=200 (unchanged from the 30-epoch baseline) was sized
+# for that baseline's step count (3825 train sims / effective_batch 32 x 30
+# epochs = ~3600 steps -- 200 is ~5.5% of that). At 10 epochs / effective_batch
+# 32, total steps drop to ~1200, so warmup is now ~16.7% of training -- still
+# a minority, fine for this arm. The _acc4 sibling is NOT so lucky: see its
+# own header for why this same warmup_steps=200 eats most of ITS much
+# shorter run instead of leaving it a corresponding minority -- an
+# unavoidable side effect of raising effective_batch without touching the
+# schedule, not a bug in this file.
+#
+# Submit with the 256x256_ds override (sng_pvc's cluster default is
+# 128x128_ds -- forgetting this override trains on the wrong resolution):
+#   sbatch --time=10:00:00 jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep10_256res_acc1.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by the sbatch script's data_root
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 10
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "10ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "acc-sweep", "acc1"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep10_256res_acc1"
+clean_output_dir: true
