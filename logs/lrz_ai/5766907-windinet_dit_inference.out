@@ -1,0 +1,77 @@
+Directory where err and out file are logged: /dss/dsshome1/09/ge26qux3/work_wh/windinet
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep30_256res
+DIT_CHECKPOINT: /mnt/result/shockwave_dit/checkpoints/model_weights_step_06000.safetensors
+SCALAR_CHECKPOINT: /mnt/result/shockwave_dit/checkpoints/scalar_embedding_step_06000.safetensors
+VAE_CHECKPOINT: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res/checkpoints/vae_shockwave_best.safetensors
+NUM_SAMPLES: 4
+Job started at: Sat Aug 29 10:06:56 PM CEST 2026
+normalization=/mnt/result/dit_preprocessed/finetune_vae_whole_structure_baseline_ep30_256res/normalization.json
+INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+VAE checkpoint: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res/checkpoints/vae_shockwave_best.safetensors  (loader: WINDINET_VAE_INFLATE_CKPT)
+Normalization from /mnt/result/dit_preprocessed/finetune_vae_whole_structure_baseline_ep30_256res/normalization.json: clip=5.0
+Latent space verified: fingerprint 72216f0948349fe1 matches the DiT's training latents
+INFO     [rank 0] HTTP Request: GET                              _client.py:1025
+         https://huggingface.co/api/agent-harnesses "HTTP/1.1                   
+         200 OK"                                                                
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+WARNING  [rank 0] Warning: You are sending unauthenticated requests _http.py:951
+         to the HF Hub. Please set a HF_TOKEN to enable higher rate             
+         limits and faster downloads.                                           
+[windinet] loaded inflated VAE checkpoint: /mnt/result/finetune_vae_whole_structure_baseline_ep30_256res/checkpoints/vae_shockwave_best.safetensors (epoch=30, step=3600)
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/scheduler/scheduler_config.json "HTTP/1.1 307                  
+         Temporary Redirect"                                                    
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/scheduler%2Fscheduler_config.json "HTTP/1.1 200                  
+         OK"                                                                    
+INFO     [rank 0] HTTP Request: GET                              _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/scheduler%2Fscheduler_config.json "HTTP/1.1 200                  
+         OK"                                                                    
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+Loading transformer: /mnt/result/shockwave_dit/checkpoints/model_weights_step_06000.safetensors
+Loading scalar embedding: /mnt/result/shockwave_dit/checkpoints/scalar_embedding_step_06000.safetensors
+Generating 4 predictions -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000  [steps=20]
+[1/4] 0000_gamma1.1299999952 — saved (101 frames, gamma=1.1300)
+[2/4] 0001_gamma1.1299999952 — saved (101 frames, gamma=1.1300)
+[3/4] 0002_gamma1.1299999952 — saved (101 frames, gamma=1.1300)
+[4/4] 0003_gamma1.1299999952 — saved (101 frames, gamma=1.1300)
+
+Done! 4 .npz files -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000
+Rendering 4 sample(s) -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000/videos
+  0000_gamma1.1299999952: 101 frames -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000/videos/0000_gamma1.1299999952.mp4
+  0001_gamma1.1299999952: 101 frames -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000/videos/0001_gamma1.1299999952.mp4
+  0002_gamma1.1299999952: 101 frames -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000/videos/0002_gamma1.1299999952.mp4
+  0003_gamma1.1299999952: 101 frames -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000/videos/0003_gamma1.1299999952.mp4
+
+Done! 4 video(s) -> /mnt/result/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000/videos
+Mirrored videos to finetune_vae_outputs/lrz_ai/inference/finetune_vae_whole_structure_baseline_ep30_256res/model_weights_step_06000/videos/
+Job finished at: Sat Aug 29 10:13:59 PM CEST 2026
+Total runtime: 423 seconds
