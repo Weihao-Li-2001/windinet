@@ -1,0 +1,126 @@
+# Cosine-schedule counterpart of the latent-distribution anchor loss
+# (windinet.losses.latent_anchor_loss, see
+# finetune_vae_whole_structure_baseline_ep30_256res_anchor.yaml's header for
+# the full rationale -- moment-matching + decorrelation regularizer on the
+# rescaled latents, idea/formula from latent_space_shift_measure.md's
+# "Reducing the shift" section, PhD-advisor-sourced protocol). Pairs with
+# the cosine, no-KL reference
+# finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr5e5.yaml
+# (currently running on sng_pvc, 2026-08-30) the same way the ep30 anchor
+# file pairs with the ep30 wsd, no-KL baseline.
+#
+# NOT AN EP20 wsd COUNTERPART: unlike the cosine_kl1e{5,6,7}.yaml siblings,
+# there is no ep20/wsd/anchor-without-KL config to mirror -- the only
+# existing ep20 anchor arm is finetune_vae_whole_structure_baseline_ep20_256res_anchor_kl1e7.yaml,
+# which combines anchor with KL=1e-7. This file is the "anchor alone, no
+# KL" cell of the grid, at cosine schedule, filling a gap neither the wsd
+# nor the ep30 sweep covers today.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr5e5.yaml:
+#   loss_weighting.weights.anchor: unset (0.0) -> 1.0e-2
+# Everything else (cosine schedule, peak LR 5e-5, epochs 20, resolution,
+# other loss weights, inflate_init) UNCHANGED. lambda=1e-2 matches the ep30
+# anchor-only run's first-guess value (not tuned) -- see that file's header
+# for why this scale is not comparable to the KL sweep's 1e-7-1e-5 points.
+#
+# BATCH_SIZE: forced to 4 by jobs/sng_pvc/finetune_vae.sbatch regardless of
+# what's below -- matches every other arm in the 2026-08-20 256res plan
+# (memory headroom over speed, user preference).
+#
+# Usage (sng_pvc):
+#   sbatch --time=18:00:00 jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_cosine_anchor.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+#
+# After training, measure whether the anchor loss actually shrank the shift
+# with scripts/latent_shift_metrics.py against this run's best checkpoint
+# and test.h5, and compare against the cosine no-anchor reference's own
+# metrics (see finetune_vae_whole_structure_baseline_ep30_256res_anchor.yaml's
+# header for the same read-out pattern at ep30/wsd).
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by the job script's DATA_DIR/$2
+  # argument (see Usage above). Only meaningful if this config is ever run
+  # through a launcher that does NOT override data_root.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "cosine"
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable: unset (0.0, i.e. the cosine no-KL reference) -> 1e-2.
+    # See header for why this scale is not comparable to the KL sweep's
+    # 1e-7-1e-5 points.
+    anchor: 1.0e-2
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 1
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "latent-anchor-loss", "schedule-shape"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_256res_cosine_anchor"
+clean_output_dir: true

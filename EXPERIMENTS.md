@@ -185,6 +185,42 @@ logvar-clamp blip allowance) -- at 2x the highest LR ever run here, a
 rough epoch 1-2 is a real instability signal to treat seriously, not a
 known-benign artifact.
 
+**Experiment 5, planned 2026-08-30: cosine-schedule counterpart of the
+ep20/256res KL-weight + anchor-loss sweep.** `..._cosine_lr5e5.yaml` (this
+sub-sweep's own wsd-vs-cosine isolation, Experiment 4 arm 1/3) beat its wsd
+reference by ~4.8% (val_vrmse 0.05689 vs 0.05974) once it finished on
+lrz_ai -- reversing the earlier 128res/ep30 verdict that cosine loses to
+wsd at the same peak LR. Now running again on sng_pvc (same config, no new
+file needed -- see finetune_vae.sbatch's own cross-cluster precedent).
+Given cosine is now a live contender rather than a rejected retest, this
+experiment re-runs the KL-weight sweep and the anchor-loss experiment under
+cosine instead of wsd, to check whether the KL/anchor read-outs (Experiment
+2's "flat across 1e-8 to 1e-5" verdict, Open Question 22; the ep30 anchor
+run's own shift-reduction result) still hold under the schedule that's now
+winning. 4 new arms, all forked from `..._cosine_lr5e5.yaml` (peak LR 5e-5
+unchanged), single variable each:
+- `..._cosine_kl1e7.yaml` -- `loss_weighting.weights.kl: 1e-7`
+- `..._cosine_kl1e6.yaml` -- `loss_weighting.weights.kl: 1e-6`
+- `..._cosine_kl1e5.yaml` -- `loss_weighting.weights.kl: 1e-5`
+- `..._cosine_anchor.yaml` -- `loss_weighting.weights.anchor: 1e-2`, no KL
+  (fills a cell the wsd sweep never covered either -- the only existing
+  ep20 anchor arm combines anchor with kl=1e-7)
+
+`BATCH_SIZE=4` (sng_pvc's `finetune_vae.sbatch` forces this regardless of
+the config), `--time=18:00:00` (sng_pvc's 2026-08-30 VAE default) --
+uniform with every other arm in this plan.
+
+**Read-out:** each arm's val_vrmse vs `..._cosine_lr5e5.yaml`'s own
+0.05689 (this sub-sweep's cosine reference), bar 2.2% (2x seed noise
+floor). Also worth comparing each cosine arm to its wsd counterpart
+(`..._kl1e7.yaml`/`_kl1e6.yaml`/`_kl1e5.yaml`) to see whether the ~4.8%
+cosine win from Experiment 4 persists once KL/anchor is layered on top, or
+was specific to the no-KL case.
+
+**Kill criterion:** usual (epoch 2 train_loss above epoch 1's) -- same
+logvar-clamp blip allowance as the original KL sweep for the three KL arms
+(Experiment 2); no special allowance for `..._cosine_anchor.yaml`.
+
 ## Fixed setup
 
 Architecture/data facts that don't depend on which sweep is running. Trainable
