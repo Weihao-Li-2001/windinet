@@ -313,7 +313,7 @@ trainable params), so this is an init difference, not a correctness problem.
 Different repo, different file, different loader -- from the *same*
 `model_source` string:
 
-1. `shockwavenet*.yaml`: `model_source: "LTXV_2B_0.9.6_DEV"`, `load_checkpoint: null`.
+1. `train_dit*.yaml`: `model_source: "LTXV_2B_0.9.6_DEV"`, `load_checkpoint: null`.
 2. `dit_trainer._load_models` -> `load_ltxv_components(model_source)` ->
    `load_transformer()` (`windinet/inference/model_loader.py:226`).
 3. `LTXV_2B_096_DEV` is not in the 13B list, so it takes
@@ -347,7 +347,7 @@ to latents with a finetuned VAE checkpoint) -> `train_dit*.*` (train the DiT
 on those latents). Three clusters involved, three different roles:
 
 - **lundquist**: infra-verification only. One throwaway smoke test (job
-  22380, `configs/shockwavenet_lundquist_smoketest.yaml`, 10 steps,
+  22380, `configs/dit/train_dit_lundquist_smoketest.yaml`, 10 steps,
   0.11 steps/s on 2 GPUs) confirmed the training loop runs under DDP after
   the gradient-checkpointing fix below -- **not a real training run**, no
   production DiT job has been submitted there.
@@ -378,7 +378,7 @@ not assumed):
    2026-08-29 by running `load_transformer(...)` once on the sng_pvc login
    node (which has internet) to prime the shared-home cache.
 4. **lrz_ai's 4-GPU config effective-batch mismatch -- OPEN, not fixed.**
-   `configs/shockwavenet_lrz_ai.yaml` (paired with `train_dit_4gpu.job`) has
+   `configs/dit/train_dit_lrz_ai.yaml` (paired with `train_dit_4gpu.job`) has
    `gradient_accumulation_steps: 16`, copied unchanged from the 2-GPU
    config, giving effective batch `1x16x4=64` instead of the `32` every
    other arm/cluster uses (comment in the file still says "= 32", stale).
@@ -399,7 +399,7 @@ not yet known):**
 | lrz_ai | kl1e6 (ep30) | done (job 5759866) | pre-fix crash only (5761637) -- **never retried since the DDP fix** | none |
 | lrz_ai | anchor_kl1e7 (ep30) | done (job 5759868) | pre-fix crash only (5761638) -- **never retried since the DDP fix** | none |
 | sng_pvc | baseline (ep30) | done (job 529547) | 4 attempts, all crashed on the HF-cache bug (529590/604/606/635); resubmitted 2026-08-29 after the fix | pending |
-| sng_pvc | ep20 plain baseline | done (job 529637) | needed a new config (`shockwavenet_sng_pvc_ep20_baseline.yaml`, added 2026-08-29 -- no pre-existing sng_pvc DiT config covered this arm without colliding `output_dir` with the ep30 baseline); submitted 2026-08-29 | pending |
+| sng_pvc | ep20 plain baseline | done (job 529637) | needed a new config (`train_dit_sng_pvc_ep20_baseline.yaml`, added 2026-08-29 -- no pre-existing sng_pvc DiT config covered this arm without colliding `output_dir` with the ep30 baseline); submitted 2026-08-29 | pending |
 | sng_pvc | ep20 kl1e5 | done (job 529638) | submitted 2026-08-29 | pending |
 | sng_pvc | ep20 anchor_kl1e7 | done (job 529639) | submitted 2026-08-29 | pending |
 | sng_pvc | ep20 kl1e6 | **not encoded** | -- | -- |

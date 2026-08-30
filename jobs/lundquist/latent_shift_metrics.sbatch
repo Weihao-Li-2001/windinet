@@ -63,7 +63,9 @@ cd /local/disk/hramachandran/work/wh_work/windinet
 # LTX base weights ship with the repo (pretrained/hub), not ~/.cache/huggingface.
 export HF_HUB_CACHE="${PWD}/pretrained/hub"
 
-CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml}
+CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline_ep40_kl1e7.yaml}
+# CHECKPOINT stays at the pre-archive path: it's gitignored, so archiving the
+# tracked config/metrics on 2026-08-30 did not move the actual weights file on disk.
 CHECKPOINT=${2:-finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep40_kl1e7/checkpoints/vae_shockwave_best.safetensors}
 TEST_H5=${3:-euler_mq_dataset/128x128_ds/test.h5}
 NUM_SAMPLES=${4:-64}

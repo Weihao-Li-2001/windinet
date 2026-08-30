@@ -36,11 +36,11 @@ echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"
 
 # See the note in jobs/lundquist/finetune_vae_4gpu.sbatch -- keeps logs/lundquist/ self-describing.
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "configs/shockwavenet.yaml" "-" >> logs/lundquist/INDEX.tsv
+    "configs/dit/train_dit.yaml" "-" >> logs/lundquist/INDEX.tsv
 
 # --num_processes must match --gres=gpu:N above, and the config's
 # checkpoints.interval assumes it (steps_per_epoch = 3825 / (4 * 4 * N)).
 "${PYTHON}" -m accelerate.commands.launch \
     --num_processes 4 \
     --mixed_precision bf16 \
-    scripts/train.py configs/shockwavenet.yaml
+    scripts/train.py configs/dit/train_dit.yaml

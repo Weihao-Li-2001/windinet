@@ -74,7 +74,7 @@ This must use the *finetuned* VAE checkpoint from stage 1 -- see `scripts/prepro
 ### Stage 3: DiT training
 
 ```bash
-python scripts/train.py configs/shockwavenet.yaml
+python scripts/train.py configs/dit/train_dit.yaml
 ```
 
 Set `data.preprocessed_data_root` (and `validation.data_root` to the `val/` split from preprocessing) and `output_dir` in the config. DiT training consumes precomputed latents only -- it never re-runs the VAE encoder -- and records which VAE checkpoint produced them in `<output_dir>/latent_provenance.json` for later verification.
@@ -84,7 +84,7 @@ Cluster launchers: `jobs/lundquist/train_dit.sbatch`, `jobs/sng_pvc/train_dit.sb
 ## Inference
 
 ```bash
-python scripts/inference_shockwave.py configs/inference_shockwave.yaml \
+python scripts/inference_shockwave.py configs/dit/inference_dit.yaml \
     --h5 euler_mq_dataset/128x128_ds/train.h5 \
     --out_dir predictions/ --num_samples 8
 ```

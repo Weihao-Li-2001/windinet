@@ -1,7 +1,7 @@
 # ShockWaveNet inference configuration (4-channel CFD fields + gamma).
 #
 # Usage:
-#   python scripts/inference_shockwave.py configs/inference_shockwave.yaml \
+#   python scripts/inference_shockwave.py configs/inference_dit.yaml \
 #       --h5 euler_mq_dataset/128x128_ds/train.h5 \
 #       --out_dir predictions/ --num_samples 8
 
@@ -44,7 +44,7 @@ image_cond_noise_scale: 0.0  # the IC is exact physics -- do not perturb it
 seed: 42
 
 # --- Scalar conditioning ---
-# Must match the ranges used during DiT training (configs/shockwavenet.yaml).
+# Must match the ranges used during DiT training (configs/train_dit.yaml).
 scalar_conditioning:
   scalar_names: ["gamma"]
   scalar_ranges:

@@ -1,4 +1,4 @@
-# Resume of shockwavenet_lrz_ai.yaml -- NOT a new experiment, no variable
+# Resume of train_dit_lrz_ai.yaml -- NOT a new experiment, no variable
 # changes vs that config except resuming.
 #
 # Job 5762646 (lrz_ai, 4x H100) reached step 6099/10000 ("[val] step=6000
@@ -44,7 +44,7 @@
 # Usage (same PREPROCESSED_NAME as job 5762646's INDEX.tsv row):
 #   sbatch jobs/lrz_ai/train_dit_4gpu.job \
 #       finetune_vae_whole_structure_baseline_ep30_256res \
-#       configs/shockwavenet_lrz_ai_resume.yaml
+#       configs/train_dit_lrz_ai_resume.yaml
 #
 # --time: default 10:00:00 in train_dit_4gpu.job should be enough --
 # 5762646 did 6099 steps in exactly 10:00:00 (~10.2 steps/min), so the

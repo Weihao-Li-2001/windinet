@@ -10,7 +10,7 @@
 # DiT training launcher, 1-GPU. Companion to train_dit_2gpu.sbatch (same
 # structure, --gres/--cpus-per-task/--num_processes/job-name differ) --
 # written for the batch_size throughput sweep (2026-08-30):
-# configs/shockwavenet_lundquist_bs_sweep_bs{1,2,4,8}.yaml, each submitted
+# configs/dit/train_dit_lundquist_bs_sweep_bs{1,2,4,8}.yaml, each submitted
 # with this script to see how many optimizer steps a fixed 2h window buys
 # at each batch_size. --time is hardcoded to 02:00:00 (not left overridable
 # like the sng_pvc/lrz_ai queue-wait test jobs) since a fixed wall-clock
@@ -25,23 +25,23 @@
 #
 # PREPROCESSED_NAME is REQUIRED, no default -- same convention as
 # train_dit_2gpu.sbatch. $2 (optional) overrides BASE_CONFIG, default
-# configs/shockwavenet_lundquist_smoketest.yaml.
+# configs/dit/train_dit_lundquist_smoketest.yaml.
 #
 # Submit with:
 #   sbatch jobs/lundquist/train_dit_1gpu.sbatch <PREPROCESSED_NAME> [BASE_CONFIG]
 #
 #   # batch_size throughput sweep (the reason this script exists):
-#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/shockwavenet_lundquist_bs_sweep_bs1.yaml
-#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/shockwavenet_lundquist_bs_sweep_bs2.yaml
-#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/shockwavenet_lundquist_bs_sweep_bs4.yaml
-#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/shockwavenet_lundquist_bs_sweep_bs8.yaml
+#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/dit/train_dit_lundquist_bs_sweep_bs1.yaml
+#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/dit/train_dit_lundquist_bs_sweep_bs2.yaml
+#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/dit/train_dit_lundquist_bs_sweep_bs4.yaml
+#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/dit/train_dit_lundquist_bs_sweep_bs8.yaml
 #
 # Read the step count each arm reached from its own log
 # (logs/lundquist/dit_train_1gpu_<jobid>.log) -- dit_trainer.py
 # logs "[train] step={global_step} loss=... lr=..." every step, so:
 #   grep -oP '\[train\] step=\K[0-9]+' logs/lundquist/dit_train_1gpu_<jobid>.log | tail -1
 # gives the last completed step -- see
-# configs/shockwavenet_lundquist_bs_sweep_bs1.yaml's header for why
+# configs/dit/train_dit_lundquist_bs_sweep_bs1.yaml's header for why
 # checkpoints.interval was raised, so this is read from the log, not from
 # how many checkpoints got written.
 
@@ -59,7 +59,7 @@ if [[ -z "${1:-}" ]]; then
     exit 1
 fi
 PREPROCESSED_NAME=$1
-BASE_CONFIG=${2:-configs/shockwavenet_lundquist_smoketest.yaml}
+BASE_CONFIG=${2:-configs/dit/train_dit_lundquist_smoketest.yaml}
 RUN_CONFIG=$(mktemp /tmp/dit_train_1gpu_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 

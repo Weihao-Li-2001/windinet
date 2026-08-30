@@ -22,8 +22,8 @@
 # --time=18:00:00 (2026-08-30 default) is a USER-CHOSEN CEILING, not a
 # calibrated estimate -- DiT training on lrz_ai still needs its wall-clock
 # shortened (real steps/second at 256res's 896-token sequence length,
-# configs/shockwavenet_lrz_ai.yaml's own header explains why this is 4x
-# configs/shockwavenet.yaml's 128res sequence, is not yet fast enough to
+# configs/dit/train_dit_lrz_ai.yaml's own header explains why this is 4x
+# configs/dit/train_dit.yaml's 128res sequence, is not yet fast enough to
 # comfortably finish optimization.steps in this window). Check the step
 # rate after the first few hundred steps and be ready to lower
 # optimization.steps rather than trust this number -- same caution as
@@ -41,7 +41,7 @@
 # /mnt/result/dit_preprocessed/<PREPROCESSED_NAME>/.
 #
 # $2 (optional) overrides BASE_CONFIG, default
-# configs/shockwavenet_lrz_ai.yaml -- the tunable knobs (scalar
+# configs/dit/train_dit_lrz_ai.yaml -- the tunable knobs (scalar
 # conditioning, optimizer/scheduler, flow-matching timestep sampling,
 # checkpoint/validation cadence) all live there, not in this script.
 
@@ -55,7 +55,7 @@ fi
 export PREPROCESSED_NAME=$1
 
 export RESULT_DIR=/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline
-export BASE_CONFIG=${2:-configs/shockwavenet_lrz_ai.yaml}
+export BASE_CONFIG=${2:-configs/dit/train_dit_lrz_ai.yaml}
 
 echo "PREPROCESSED_NAME: ${PREPROCESSED_NAME}"
 echo "BASE_CONFIG: ${BASE_CONFIG}"

@@ -1,12 +1,12 @@
 # ShockWaveNet inference config -- lrz_ai / 256res variant of
-# configs/inference_shockwave.yaml.
+# configs/inference_dit.yaml.
 #
 # checkpoint / scalar_checkpoint / vae_checkpoint / h5 / out_dir / num_samples
 # are all CLI-overridable (see scripts/inference_shockwave.py's parse_args)
 # and are passed in by jobs/lrz_ai/inference_dit.job, not set here -- this
 # file only carries the things that don't change per-run: generation params
 # and the scalar_conditioning shape (must match whatever DiT config the
-# checkpoint was trained with, e.g. configs/shockwavenet_lrz_ai.yaml).
+# checkpoint was trained with, e.g. configs/train_dit_lrz_ai.yaml).
 #
 # normalization is NOT CLI-overridable (parse_args has no flag for it), so
 # it's a __PREPROCESSED_ROOT__ placeholder here that jobs/lrz_ai/inference_dit.job
@@ -28,7 +28,7 @@ normalization: "__PREPROCESSED_ROOT__/normalization.json"
 
 # --- Generation ---
 # num_frames/num_output_frames are about TEMPORAL length only (14 latent
-# frames either way -- see configs/shockwavenet_lrz_ai.yaml's 256res
+# frames either way -- see configs/train_dit_lrz_ai.yaml's 256res
 # sequence-length caveat, which is about the spatial 8x8 vs 4x4 grid, not
 # frame count), so these are unchanged from the 128res default config.
 num_inference_steps: 20
@@ -41,7 +41,7 @@ seed: 42
 # --- Scalar conditioning ---
 # Must match the ranges used during DiT training. fourier_features/
 # mlp_hidden_dim/dropout omitted -- ScalarConditioningConfig's defaults
-# (64/256/0.1) match every shockwavenet_*.yaml training config's values.
+# (64/256/0.1) match every train_dit_*.yaml training config's values.
 scalar_conditioning:
   scalar_names: ["gamma"]
   scalar_ranges:

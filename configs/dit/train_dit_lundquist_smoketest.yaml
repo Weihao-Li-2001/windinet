@@ -6,7 +6,7 @@
 # the 2026-08-27 fix to LtxvTrainer._prepare_models_for_training (DDP wrap
 # happening before enable_gradient_checkpointing() -- see dit_trainer.py).
 # enable_gradient_checkpointing is deliberately true here so the smoke test
-# actually exercises that code path; configs/shockwavenet.yaml's production
+# actually exercises that code path; configs/train_dit.yaml's production
 # config runs with it false and would not have caught this.
 #
 # Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes

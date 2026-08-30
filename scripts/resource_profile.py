@@ -339,7 +339,7 @@ def read_job_shapes() -> list[JobShape]:
         ("VAE finetune (H100, 4 GPU)", "lrz_ai", "jobs/lrz_ai/finetune_vae_4gpu.job", "gres", 1),
     ]
 
-    dit_cfg = yaml.safe_load((REPO_ROOT / "configs/shockwavenet.yaml").read_text())
+    dit_cfg = yaml.safe_load((REPO_ROOT / "configs/dit/train_dit.yaml").read_text())
 
     for name, cluster, rel, rank_src, batch_size in specs:
         path = REPO_ROOT / rel
@@ -864,7 +864,7 @@ def probe_preprocess(checkpoint: Path, data_root: Path, workdir: Path, n_sims: i
 
 def probe_dit(preprocessed: Path, processes: int, steps: int, workdir: Path) -> dict:
     """Run the real DiT trainer for a few optimizer steps on real latents."""
-    base_cfg = yaml.safe_load((REPO_ROOT / "configs/shockwavenet.yaml").read_text())
+    base_cfg = yaml.safe_load((REPO_ROOT / "configs/dit/train_dit.yaml").read_text())
     corpus = workdir / "dit_data"
     val = corpus / "val"
     for sub in ("latents", "scalars"):
@@ -1302,7 +1302,7 @@ def assemble(
     n_runs: int,
 ) -> dict:
     vae_cfg = yaml.safe_load(vae_config.read_text())
-    dit_cfg = yaml.safe_load((REPO_ROOT / "configs/shockwavenet.yaml").read_text())
+    dit_cfg = yaml.safe_load((REPO_ROOT / "configs/dit/train_dit.yaml").read_text())
 
     # The largest successful VAE batch size measured is the production-representative one.
     vae_candidates = [v for k, v in probes.items() if k.startswith("VAE finetune") and v.get("returncode") == 0]

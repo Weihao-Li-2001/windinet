@@ -33,7 +33,7 @@
 #   find that run's normalization.json.
 # DIT_CHECKPOINT: full container path to the exact model_weights_step_*.safetensors
 #   file (not the checkpoints/ dir -- avoids the scalar_embedding_step_*
-#   glob-tie ambiguity, same reasoning as configs/shockwavenet_lrz_ai_resume.yaml).
+#   glob-tie ambiguity, same reasoning as configs/dit/train_dit_lrz_ai_resume.yaml).
 #   The sibling scalar_embedding_step_*.safetensors is derived automatically.
 #   e.g. /mnt/result/shockwave_dit/checkpoints/model_weights_step_06000.safetensors
 # VAE_CHECKPOINT: full container path to the vae_shockwave_best.safetensors
@@ -60,7 +60,7 @@ export NUM_SAMPLES=${4:-4}
 
 export RESULT_DIR=/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline
 export DATA_DIR=${5:-/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds}
-export BASE_CONFIG=configs/inference_shockwave_lrz_ai.yaml
+export BASE_CONFIG=configs/dit/inference_dit_lrz_ai.yaml
 
 # Sibling file, same convention as the resume config's own comment: model_
 # weights and scalar_embedding checkpoints for the same step live next to
@@ -83,7 +83,7 @@ export PYTHONPATH="$(pwd):$PYTHONPATH"
 export RUN_CONFIG="/tmp/inference_run_${SLURM_JOB_ID}.yaml"
 
 # Substitute the __PREPROCESSED_ROOT__ placeholder in `normalization` --
-# the only field in configs/inference_shockwave_lrz_ai.yaml that isn't
+# the only field in configs/dit/inference_dit_lrz_ai.yaml that isn't
 # CLI-overridable (see scripts/inference_shockwave.py's parse_args).
 python -c '
 import os, yaml

@@ -10,7 +10,7 @@ There is no RGB encoding: the fields go through the VAE natively as 4
 channels, so this script requires an inflate-mode finetuned VAE checkpoint.
 
 Usage:
-    python scripts/inference_shockwave.py configs/inference_shockwave.yaml \\
+    python scripts/inference_shockwave.py configs/dit/inference_dit.yaml \\
         --h5 euler_mq_dataset/128x128_ds/train.h5 \\
         --out_dir predictions/ --num_samples 8
 """

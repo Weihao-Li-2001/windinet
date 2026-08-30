@@ -4,7 +4,7 @@
 # siblings each for a fixed --time=02:00:00 wall-clock window (see
 # jobs/lundquist/train_dit_1gpu.sbatch) and compare how many optimizer
 # steps each batch_size reaches in that window -- a throughput/OOM-headroom
-# read-out, same spirit as configs/shockwavenet_lrz_ai_baseline.yaml's
+# read-out, same spirit as configs/train_dit_lrz_ai_baseline.yaml's
 # still-unconfirmed batch_size=2/accum=8 change (2026-08-30): does raising
 # batch_size (fewer, fatter steps) actually buy more steps/hour than many
 # thin gradient-accumulation micro-steps?
@@ -15,7 +15,7 @@
 # question being asked is "how fast is each batch_size", not "does a
 # fixed-effective-batch reshuffle go faster" (that's the lrz_ai question).
 #
-# Based on configs/shockwavenet_lundquist_smoketest.yaml (same model/
+# Based on configs/train_dit_lundquist_smoketest.yaml (same model/
 # conditioning/acceleration blocks), but:
 #   - num_dataloader_workers raised 0 -> 4 (smoketest's 0 is a debug choice
 #     that would make the dataloader itself the bottleneck at higher batch
@@ -36,7 +36,7 @@
 # lundquist's GPUs, not an exact 256res production estimate.
 #
 # Submit with (PREPROCESSED_NAME=smoketest, see train_dit_1gpu.sbatch header):
-#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/shockwavenet_lundquist_bs_sweep_bs2.yaml
+#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/train_dit_lundquist_bs_sweep_bs2.yaml
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"

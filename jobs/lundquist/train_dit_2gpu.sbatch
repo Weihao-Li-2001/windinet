@@ -9,18 +9,18 @@
 
 # DiT training launcher, 2-GPU. Companion to preprocess_dit_data.sbatch --
 # run that first, then this job trains on its output. Separate from the
-# existing train_dit.sbatch (4-GPU, hardcoded to configs/shockwavenet.yaml +
+# existing train_dit.sbatch (4-GPU, hardcoded to configs/dit/train_dit.yaml +
 # euler_mq_preprocessed/ -- the real production run): this one is
 # parameterized so it can point at ANY dit_preprocessed/<name> the encode
 # job produced, e.g. the smoke-test encode that regression-tests the
 # 2026-08-27 DDP-wrap-order fix in dit_trainer.py (see
-# configs/shockwavenet_lundquist_smoketest.yaml's header).
+# configs/dit/train_dit_lundquist_smoketest.yaml's header).
 #
 # PREPROCESSED_NAME is REQUIRED, no default: must match the <name>
 # preprocess_dit_data.sbatch wrote under dit_preprocessed/.
 # $2 (optional) overrides BASE_CONFIG, default
-# configs/shockwavenet_lundquist_smoketest.yaml -- pass
-# configs/shockwavenet.yaml (or any other config using the
+# configs/dit/train_dit_lundquist_smoketest.yaml -- pass
+# configs/dit/train_dit.yaml (or any other config using the
 # __PREPROCESSED_ROOT__ placeholder in data.preprocessed_data_root /
 # validation.data_root) for a real run instead of the smoke test.
 #
@@ -44,7 +44,7 @@ if [[ -z "${1:-}" ]]; then
     exit 1
 fi
 PREPROCESSED_NAME=$1
-BASE_CONFIG=${2:-configs/shockwavenet_lundquist_smoketest.yaml}
+BASE_CONFIG=${2:-configs/dit/train_dit_lundquist_smoketest.yaml}
 RUN_CONFIG=$(mktemp /tmp/dit_train_2gpu_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT
 

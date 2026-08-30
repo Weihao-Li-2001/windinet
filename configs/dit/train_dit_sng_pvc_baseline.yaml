@@ -1,9 +1,9 @@
-# ShockWaveNet (DiT) training config -- sng_pvc variant of configs/shockwavenet.yaml.
+# ShockWaveNet (DiT) training config -- sng_pvc variant of configs/train_dit.yaml.
 #
-# WHY A SEPARATE FILE instead of editing configs/shockwavenet.yaml in place:
+# WHY A SEPARATE FILE instead of editing configs/train_dit.yaml in place:
 # that file is lundquist's working config with paths hardcoded to its own
 # filesystem (jobs/lundquist/train_dit.sbatch points at it directly). This
-# file is sng_pvc-only, mirroring configs/shockwavenet_lrz_ai_baseline.yaml's
+# file is sng_pvc-only, mirroring configs/train_dit_lrz_ai_baseline.yaml's
 # approach for that cluster's own /mnt/result container-mount paths.
 #
 # data.preprocessed_data_root / validation.data_root below are PLACEHOLDERS
@@ -20,7 +20,7 @@
 #
 # 256x256 SEQUENCE-LENGTH CAVEAT (inherited from the lrz_ai config,
 # UNTESTED on sng_pvc/XPU specifically): 14x8x8 = 896 tokens per sample
-# (4x configs/shockwavenet.yaml's 128x128 sequence length). batch_size=1 +
+# (4x configs/train_dit.yaml's 128x128 sequence length). batch_size=1 +
 # gradient checkpointing ON below are conservative guesses, not a
 # confirmed-safe combination for XPU memory -- check peak memory after the
 # first few steps of a real run and adjust.
@@ -58,7 +58,7 @@ optimization:
   scheduler_type: "cosine"
   scheduler_params:
     eta_min: 1.0e-8
-  # ON (unlike configs/shockwavenet.yaml's 128res "false"): at 896 tokens
+  # ON (unlike configs/train_dit.yaml's 128res "false"): at 896 tokens
   # instead of 224, activation memory is the more likely constraint. Try
   # turning this off once a real run confirms there's headroom -- it costs
   # speed, not correctness.
@@ -81,7 +81,7 @@ validation:
   # measured on the same simulations.
   data_root: "__PREPROCESSED_ROOT__/val"
   # Validate every 5th "epoch" (checkpoints.interval x 5) rather than every
-  # one, same reasoning as configs/shockwavenet.yaml: a full held-out pass
+  # one, same reasoning as configs/train_dit.yaml: a full held-out pass
   # is not free, don't pay for it every checkpoint.
   interval: 600
   max_samples: 0
@@ -110,7 +110,7 @@ visualization:
 wandb:
   enabled: false
   project: "shockwavenet"
-  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "kl1e5"]
+  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "baseline"]
 
 seed: 42
-output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_kl1e5"
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_baseline"

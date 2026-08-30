@@ -1,10 +1,10 @@
-# DiT (ShockWaveNet) 1-GPU batch_size throughput sweep, bs=1 arm -- lundquist.
+# DiT (ShockWaveNet) 1-GPU batch_size throughput sweep, bs=8 arm -- lundquist.
 #
 # NOT for real training results. Purpose: submit this and its bs2/bs4/bs8
 # siblings each for a fixed --time=02:00:00 wall-clock window (see
 # jobs/lundquist/train_dit_1gpu.sbatch) and compare how many optimizer
 # steps each batch_size reaches in that window -- a throughput/OOM-headroom
-# read-out, same spirit as configs/shockwavenet_lrz_ai_baseline.yaml's
+# read-out, same spirit as configs/train_dit_lrz_ai_baseline.yaml's
 # still-unconfirmed batch_size=2/accum=8 change (2026-08-30): does raising
 # batch_size (fewer, fatter steps) actually buy more steps/hour than many
 # thin gradient-accumulation micro-steps?
@@ -15,7 +15,7 @@
 # question being asked is "how fast is each batch_size", not "does a
 # fixed-effective-batch reshuffle go faster" (that's the lrz_ai question).
 #
-# Based on configs/shockwavenet_lundquist_smoketest.yaml (same model/
+# Based on configs/train_dit_lundquist_smoketest.yaml (same model/
 # conditioning/acceleration blocks), but:
 #   - num_dataloader_workers raised 0 -> 4 (smoketest's 0 is a debug choice
 #     that would make the dataloader itself the bottleneck at higher batch
@@ -36,7 +36,7 @@
 # lundquist's GPUs, not an exact 256res production estimate.
 #
 # Submit with (PREPROCESSED_NAME=smoketest, see train_dit_1gpu.sbatch header):
-#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/shockwavenet_lundquist_bs_sweep_bs1.yaml
+#   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/train_dit_lundquist_bs_sweep_bs8.yaml
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -60,7 +60,7 @@ scalar_conditioning:
 optimization:
   learning_rate: 1e-5
   steps: 100000
-  batch_size: 1
+  batch_size: 8
   gradient_accumulation_steps: 1
   max_grad_norm: 1.0
   optimizer_type: "adamw"
@@ -91,7 +91,7 @@ flow_matching:
 wandb:
   enabled: false
   project: "shockwavenet"
-  tags: ["throughput-sweep", "lundquist", "1gpu", "bs1"]
+  tags: ["throughput-sweep", "lundquist", "1gpu", "bs8"]
 
 seed: 42
-output_dir: "dit_outputs/lundquist/dit_throughput_sweep_bs1"
+output_dir: "dit_outputs/lundquist/dit_throughput_sweep_bs8"

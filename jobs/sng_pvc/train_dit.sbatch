@@ -14,7 +14,7 @@
 # output. For the NVIDIA/lundquist variant, see jobs/lundquist/train_dit_2gpu.sbatch;
 # for lrz_ai (enroot container), see jobs/lrz_ai/train_dit.job.
 #
-# PARAMETERIZED (2026-08-27): previously hardcoded to configs/shockwavenet.yaml,
+# PARAMETERIZED (2026-08-27): previously hardcoded to configs/dit/train_dit.yaml,
 # which is lundquist's own config with paths hardcoded to lundquist's local
 # disk -- this job had never actually been run against it (no entry in
 # logs/sng_pvc/INDEX.tsv), so nothing depended on that default.
@@ -25,7 +25,7 @@
 # PREPROCESSED_NAME is REQUIRED, no default: must match the <name>
 # preprocess_dit_data.sbatch wrote under ${SCRATCH}/windinet/dit_preprocessed/.
 # $2 (optional) overrides BASE_CONFIG, default
-# configs/shockwavenet_sng_pvc_baseline.yaml -- pass one of the sibling
+# configs/dit/train_dit_sng_pvc_baseline.yaml -- pass one of the sibling
 # kl1e6/kl1e5/anchor_kl1e7 configs for the other VAE arms.
 #
 # STEPS (optional env var, 2026-08-30): overrides optimization.steps at
@@ -70,7 +70,7 @@ if [[ -z "${1:-}" ]]; then
     exit 1
 fi
 PREPROCESSED_NAME=$1
-BASE_CONFIG=${2:-configs/shockwavenet_sng_pvc_baseline.yaml}
+BASE_CONFIG=${2:-configs/dit/train_dit_sng_pvc_baseline.yaml}
 STEPS=${STEPS:-}
 RUN_CONFIG=$(mktemp /tmp/dit_train_sng_pvc_XXXX.yaml)
 trap 'rm -f "${RUN_CONFIG}"' EXIT

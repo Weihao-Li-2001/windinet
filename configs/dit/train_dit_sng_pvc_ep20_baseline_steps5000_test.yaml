@@ -1,4 +1,4 @@
-# Dedicated test copy of configs/shockwavenet_sng_pvc_ep20_baseline.yaml --
+# Dedicated test copy of configs/train_dit_sng_pvc_ep20_baseline.yaml --
 # NOT a new experiment arm, exists only to smoke-test
 # jobs/sng_pvc/train_dit.sbatch's new STEPS env-var override (2026-08-30,
 # see that script's own header) without touching the real ep20_baseline
@@ -7,7 +7,7 @@
 # the VAE trainer does, so launching a second run against that same
 # output_dir would silently overwrite its early step-numbered checkpoints.
 #
-# SINGLE VARIABLE vs shockwavenet_sng_pvc_ep20_baseline.yaml:
+# SINGLE VARIABLE vs train_dit_sng_pvc_ep20_baseline.yaml:
 #   output_dir: ".../shockwave_dit_ep20_baseline" -> ".../shockwave_dit_ep20_baseline_steps5000_test"
 #   wandb.tags: added "steps-override-smoketest"
 # optimization.steps below is left at the file's own 10000 -- the actual
@@ -17,7 +17,7 @@
 #
 # Usage:
 #   STEPS=5000 sbatch --time=18:00:00 jobs/sng_pvc/train_dit.sbatch \
-#       <PREPROCESSED_NAME> configs/shockwavenet_sng_pvc_ep20_baseline_steps5000_test.yaml
+#       <PREPROCESSED_NAME> configs/train_dit_sng_pvc_ep20_baseline_steps5000_test.yaml
 # where <PREPROCESSED_NAME> is the same encode this arm's real run uses:
 # finetune_vae_whole_structure_baseline_ep20_256res (see logs/sng_pvc/INDEX.tsv
 # job 529637's wh_preprocess_dit entry).

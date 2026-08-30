@@ -50,12 +50,12 @@ job (`sbatch jobs/lundquist/train_dit_2gpu.sbatch <PREPROCESSED_NAME>
 `__PREPROCESSED_ROOT__` placeholder in `BASE_CONFIG`'s
 `data.preprocessed_data_root` / `validation.data_root`, same pattern as the
 lrz_ai configs, so one config file works against any encode. Defaults to
-`configs/shockwavenet_lundquist_smoketest.yaml`, a throwaway 10-step config
+`configs/dit/train_dit_lundquist_smoketest.yaml`, a throwaway 10-step config
 with `enable_gradient_checkpointing: true` that regression-tests the
 2026-08-27 DDP-wrap-order fix in `windinet/training/dit_trainer.py` (see that
-config's header) -- pass `configs/shockwavenet.yaml` as `BASE_CONFIG` for a
+config's header) -- pass `configs/dit/train_dit.yaml` as `BASE_CONFIG` for a
 real run instead. Separate from the existing 4-GPU `train_dit.sbatch`, which
-stays hardcoded to `configs/shockwavenet.yaml` + `euler_mq_preprocessed/`
+stays hardcoded to `configs/dit/train_dit.yaml` + `euler_mq_preprocessed/`
 (the production run) and is not parameterized.
 
 **Retired (2026-08-27): `dit_smoketest.sbatch`.** Did the encode + train
