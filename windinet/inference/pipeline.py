@@ -1,6 +1,10 @@
 # ruff: noqa
 # From LTX-Video-Trainer (https://github.com/Lightricks/LTX-Video-Trainer)
 # Modified: line 786 changed `> 1.0` to `!= 1.0` to enable negative guidance.
+# Modified: torchvision.transforms.functional.{resize,center_crop} replaced
+# with pure-torch equivalents (_resize_frames/_center_crop_frames below) --
+# torchvision has no build for our XPU cluster, and this was the codebase's
+# only torchvision usage.
 
 # Copyright 2024 Lightricks and The HuggingFace Team. All rights reserved.
 #
@@ -34,7 +38,28 @@ from diffusers.utils import is_torch_xla_available, logging, replace_example_doc
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.video_processor import VideoProcessor
 from transformers import T5EncoderModel, T5TokenizerFast
-from torchvision.transforms.functional import center_crop, resize
+
+
+def _resize_frames(frames: torch.Tensor, size: list[int], antialias: bool = True) -> torch.Tensor:
+    """Pure-torch stand-in for torchvision.transforms.functional.resize on a [..., H, W] tensor."""
+    return torch.nn.functional.interpolate(
+        frames, size=size, mode="bilinear", align_corners=False, antialias=antialias
+    )
+
+
+def _center_crop_frames(frames: torch.Tensor, size: list[int]) -> torch.Tensor:
+    """Pure-torch stand-in for torchvision.transforms.functional.center_crop.
+
+    Only handles the crop-not-pad case (target <= actual on both dims), which
+    is all the one call site here needs -- it always resizes to >= target
+    first.
+    """
+    target_h, target_w = size
+    h, w = frames.shape[-2:]
+    top = (h - target_h) // 2
+    left = (w - target_w) // 2
+    return frames[..., top : top + target_h, left : left + target_w]
+
 
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
@@ -1094,10 +1119,10 @@ class LTXConditionPipeline(DiffusionPipeline, FromSingleFileMixin, LTXVideoLoraL
                 resize_width = width
                 resize_height = int(resize_width / aspect_ratio)
 
-            ref_frames = resize(ref_frames, [resize_height, resize_width], antialias=True)
+            ref_frames = _resize_frames(ref_frames, [resize_height, resize_width], antialias=True)
 
             # Center crop to target dimensions
-            ref_frames = center_crop(ref_frames, [height, width])
+            ref_frames = _center_crop_frames(ref_frames, [height, width])
 
             # Convert to VAE input format: [1, C, F, H, W] and proper range [-1, 1]
             reference_tensor = ref_frames.unsqueeze(0).permute(0, 2, 1, 3, 4)  # [1, F, C, H, W] -> [1, C, F, H, W]
