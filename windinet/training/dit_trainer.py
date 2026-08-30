@@ -4,6 +4,7 @@
 """Flow-matching trainer for the WinDiNet diffusion transformer."""
 
 import json
+import math
 import os
 import random
 import time
@@ -144,6 +145,8 @@ class LtxvTrainer:
         self._epoch_train_losses = []
         self._last_val_loss: float | None = None
         self._last_val_step: int | None = None
+        self._best_val_loss: float = math.inf
+        self._best_step: int | None = None
         self._init_wandb()
 
     @property
@@ -1184,14 +1187,40 @@ class LtxvTrainer:
         save_file(state_dict, saved_weights_path)
         logger.info(f"Model weights for step {self._global_step} saved in {rel_saved_weights_path}")
 
+        scalar_state_dict = None
         if self._scalar_embedding is not None:
             scalar_filename = f"scalar_embedding_step_{self._global_step:05d}.safetensors"
             scalar_path = save_dir / scalar_filename
             unwrapped_scalar = self._accelerator.unwrap_model(self._scalar_embedding)
-            save_file(unwrapped_scalar.state_dict(), scalar_path)
+            scalar_state_dict = unwrapped_scalar.state_dict()
+            save_file(scalar_state_dict, scalar_path)
             logger.info(f"Scalar embedding weights for step {self._global_step} saved")
 
         self._save_training_state(self._state_file_for(saved_weights_path))
+
+        # Weights-only "best" slot, mirroring VaeTrainer's best/last split --
+        # exempt from _cleanup_checkpoints (never added to _checkpoint_paths)
+        # so it survives keep_last_n pruning regardless of how far training
+        # has moved on. Only meaningful when validation.data_root is
+        # configured; fresh_val_loss is None otherwise (e.g. the bs_sweep/
+        # smoketest throughput configs) and this block is a no-op. Existing
+        # eval jobs that hardcode a specific model_weights_step_NNNNN.safetensors
+        # break once that step gets pruned out from under them (see the
+        # 2026-08-30 sng_pvc cleanup incident) -- model_weights_best.safetensors
+        # gives them a stable name that always points at the best-so-far
+        # weights instead.
+        fresh_val_loss = self._last_val_loss if self._last_val_step == self._global_step else None
+        if fresh_val_loss is not None and fresh_val_loss < self._best_val_loss:
+            self._best_val_loss = fresh_val_loss
+            self._best_step = self._global_step
+            best_path = save_dir / "model_weights_best.safetensors"
+            save_file(state_dict, best_path)
+            if scalar_state_dict is not None:
+                save_file(scalar_state_dict, save_dir / "scalar_embedding_best.safetensors")
+            logger.info(
+                f"New best checkpoint (step {self._global_step}, val_loss={fresh_val_loss:.6f}): "
+                f"{best_path.relative_to(self._config.output_dir)}"
+            )
 
         self._checkpoint_paths.append(saved_weights_path)
         self._cleanup_checkpoints()

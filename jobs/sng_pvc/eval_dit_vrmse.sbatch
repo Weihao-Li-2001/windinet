@@ -39,9 +39,9 @@
 #   split_manifest.json -- see preprocess_dataset.py's own comment on why
 #   that file exists).
 # DIT_CHECKPOINT: full path to the exact model_weights_step_*.safetensors
-#   file (not the checkpoints/ dir). The sibling *.state.pt scalar-embedding
-#   checkpoint is derived automatically (same stem, see dit_trainer.py's
-#   own save-path convention).
+#   file (not the checkpoints/ dir). The sibling scalar_embedding_step_*
+#   .safetensors checkpoint is derived automatically (same step, see
+#   dit_trainer.py's own save-path convention).
 # VAE_CHECKPOINT: full path to the vae_shockwave_best.safetensors this
 #   PREPROCESSED_DATA_ROOT was encoded with.
 # NUM_SAMPLES: optional, default 50 (of up to 675 held-out sims).
@@ -81,9 +81,12 @@ VAE_CHECKPOINT=$3
 NUM_SAMPLES=${4:-50}
 SAVE_VIS_SAMPLES=${5:-3}
 
-# Sibling file, same stem -- see scripts/eval_dit_vrmse.py's own docstring
-# and jobs/lrz_ai/inference_dit.job's identical convention.
-SCALAR_CHECKPOINT=${DIT_CHECKPOINT/.safetensors/.state.pt}
+# Sibling file, same step -- see scripts/eval_dit_vrmse.py's own docstring
+# and jobs/lrz_ai/inference_dit.job's identical convention. NOT .state.pt
+# (that's optimizer/scheduler/RNG state, saved by _save_training_state --
+# ScalarEmbedding has its own separate safetensors file, see dit_trainer.py's
+# _save_checkpoint).
+SCALAR_CHECKPOINT=${DIT_CHECKPOINT/model_weights_step_/scalar_embedding_step_}
 NORMALIZATION=$(dirname "$(dirname "${VAE_CHECKPOINT}")")/training_config.yaml
 OUT_DIR="logs/sng_pvc/eval_dit_vrmse/${SLURM_JOB_ID}"
 
