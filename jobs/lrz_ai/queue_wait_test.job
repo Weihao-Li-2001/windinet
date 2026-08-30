@@ -1,0 +1,48 @@
+#!/bin/bash
+#SBATCH -J wh_queue_wait_test
+###-------------------------------------
+#SBATCH -p lrz-hgx-h100-94x4
+###------------------------------------
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=48
+#SBATCH --time=08:00:00
+#SBATCH --gres=gpu:2  #gpus per node
+#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
+#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+
+# Minimal no-op job for measuring lrz_ai's backfill queue wait as a
+# function of GPU count (--gres) and requested --time, WITHOUT touching any
+# real training config or output_dir. Unlike finetune_vae_2gpu.job/
+# finetune_vae_4gpu.job, whose default config writes to the same
+# output_dir as the already-completed ep30_256res baseline experiment on
+# DSS, this job does nothing but print and exit -- no container, no conda
+# env, no dataset mount needed for that, so there's nothing it could
+# collide with even if left running.
+#
+# --gres/--cpus-per-task are NOT meant to be edited here -- override both
+# at submission to cover the four combinations being compared:
+#
+#   sbatch --time=10:00:00 --gres=gpu:2 --cpus-per-task=48 jobs/lrz_ai/queue_wait_test.job
+#   sbatch --time=18:00:00 --gres=gpu:2 --cpus-per-task=48 jobs/lrz_ai/queue_wait_test.job
+#   sbatch --time=06:00:00 --gres=gpu:4 --cpus-per-task=92 jobs/lrz_ai/queue_wait_test.job
+#   sbatch --time=10:00:00 --gres=gpu:4 --cpus-per-task=92 jobs/lrz_ai/queue_wait_test.job
+#
+# 48/92 are the confirmed fair-share, socket-safe --cpus-per-task values
+# for 2-GPU/4-GPU on this partition (see finetune_vae_2gpu.job's header for
+# how these were derived) -- other values have failed submission outright
+# with "CPU count per node can not be satisfied", so keep them paired with
+# their matching --gres above.
+#
+# Submit all four back-to-back (same wave, seconds apart) so they see the
+# same queue state -- otherwise cluster load drift between submissions
+# would confound the comparison you're trying to isolate. Queue wait is
+# load-dependent in general, so treat one wave as a single noisy sample.
+#
+# Read off Submit/Start/Wait once they've landed (or finished) with:
+#   sacct -j <id1>,<id2>,<id3>,<id4> -X -o JobID,ReqTRES%30,Submit,Start,Elapsed,State
+# "Start - Submit" is the queue wait for each job.
+
+echo "Job started at: $(date)"
+echo "job=${SLURM_JOB_ID} node=$(hostname) gres=${SLURM_JOB_GRES:-unset} cpus_per_task=${SLURM_CPUS_PER_TASK:-unset}"
+echo "Job finished at: $(date)"
