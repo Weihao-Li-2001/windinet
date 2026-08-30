@@ -42,13 +42,19 @@ Measured at 2 ranks, scaled to production width by rank count. Host figures are
 its forked dataloader workers by the number of processes mapping them. Summing
 RSS across ranks double-counts those pages and overstates the total by ~40%.
 
-| Stage | 2 ranks (measured) | 8 ranks (scaled) |
-|---|---|---|
-| VAE finetune | 11.7 GB host / 45.2 GB device | **~47 GB host / ~181 GB device** |
-| DiT training | 19.8 GB host / 95.0 GB device | **~79 GB host / ~380 GB device** |
+| Stage | host RAM (CPU), 2 ranks | GPU, 2 ranks | host RAM (CPU), 8 ranks | GPU, 8 ranks |
+|---|---|---|---|---|
+| VAE finetune | 11.7 GB | 45.2 GB (22.6 GB/GPU) | **~47 GB** | **~181 GB** (22.6 GB/GPU) |
+| DiT training | 19.8 GB | 95.0 GB (47.5 GB/GPU) | **~79 GB** | **~380 GB** (47.5 GB/GPU) |
 
-Device memory scales essentially linearly with rank count (data parallelism,
-full model replica per rank). Host RAM scales slightly sublinearly.
+All figures are job totals summed over all ranks, not per rank; the
+per-GPU value is given in parentheses. GPU figures are **reserved** memory
+— the amount that must be free on each card, which is the number to
+provision against. The smaller "live" requirement is in Q3.
+
+GPU memory scales linearly with rank count (data parallelism, full model
+replica per rank, no sharding). Host RAM scales slightly sublinearly, since
+each rank shares pages with its forked dataloader workers.
 
 ### 3. Maximum memory per process
 

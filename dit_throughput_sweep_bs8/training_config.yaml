@@ -1,0 +1,62 @@
+acceleration:
+  compilation_mode: reduce-overhead
+  compile_with_inductor: false
+  mixed_precision_mode: bf16
+checkpoints:
+  best_metric: val_total_loss
+  interval: 500
+  keep_last_n: 1
+  save_best_only: false
+  save_epochs: []
+  save_last_state: true
+conditioning:
+  first_frame_conditioning_p: 1.0
+data:
+  num_dataloader_workers: 4
+  preprocessed_data_root: dit_preprocessed/smoketest
+flow_matching:
+  timestep_sampling_mode: shifted_logit_normal
+  timestep_sampling_params: {}
+model:
+  load_checkpoint: null
+  model_source: LTXV_2B_0.9.6_DEV
+optimization:
+  batch_size: 8
+  enable_gradient_checkpointing: true
+  gradient_accumulation_steps: 1
+  learning_rate: 1.0e-05
+  max_grad_norm: 1.0
+  optimizer_type: adamw
+  scheduler_params:
+    eta_min: 1.0e-08
+  scheduler_type: cosine
+  steps: 100000
+output_dir: /local/disk/hramachandran/work/wh_work/windinet/dit_throughput_sweep_bs8
+resume_weights_only: false
+scalar_conditioning:
+  dropout: 0.1
+  embedding_dim: 4096
+  enabled: true
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  num_tokens_per_scalar: 4
+  scalar_names:
+  - gamma
+  scalar_ranges:
+    gamma:
+    - 1.0
+    - 2.0
+seed: 42
+validation:
+  data_root: null
+  interval: null
+  max_samples: 0
+wandb:
+  enabled: false
+  entity: null
+  project: shockwavenet
+  tags:
+  - throughput-sweep
+  - lundquist
+  - 1gpu
+  - bs8
