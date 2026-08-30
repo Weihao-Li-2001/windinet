@@ -221,6 +221,32 @@ was specific to the no-KL case.
 logvar-clamp blip allowance as the original KL sweep for the three KL arms
 (Experiment 2); no special allowance for `..._cosine_anchor.yaml`.
 
+**Experiment 6, planned 2026-08-30: 512x512_orig under the current
+baseline conventions, lrz_ai 4-GPU.** Open Question 4 (latent bandwidth)
+already has a 512res config
+(`finetune_vae_whole_structure_baseline_512res.yaml`), but it was forked
+from the old ep18/mean-init baseline back on 2026-08-16 and then
+deprioritized before ever being run -- it does not reflect the current
+whole-structure baseline (zeros-init, 1.0x encoder LR) or the 20-epoch
+budget the 256res family now uses. New config
+`finetune_vae_whole_structure_baseline_ep20_512res.yaml`: single variable
+vs `..._ep20_256res.yaml` (the 256res/20ep/kl=0 reference) is
+`data.data_root` (256x256_ds -> 512x512_orig); everything else (zeros-init,
+LR, wsd, epochs=20, loss weights, no KL) unchanged. Still reuses the
+256-resolution channel stats (512's own were never computed, same
+explicit-instruction caveat the old 512res config carries). 4-GPU,
+`--time=12:00:00` -- both user-chosen, not calibrated: no confirmed
+per-epoch timing exists for 512res anywhere in this project.
+
+**Read-out:** val_vrmse vs `..._ep20_256res.yaml`'s own 0.05974 (sng_pvc,
+this file's own header) -- isolates the resolution-only effect the same
+way the 256res-vs-128res comparison did for Open Question 4 originally.
+
+**Kill criterion:** usual (epoch 2 train_loss above epoch 1's), plus watch
+the first epoch's `.err` log for OOM at `BATCH_SIZE=4` (unconfirmed at
+512res) -- lower via `BATCH_SIZE=<n>` if it hits one, same as every 256res
+arm before it.
+
 ## Fixed setup
 
 Architecture/data facts that don't depend on which sweep is running. Trainable
