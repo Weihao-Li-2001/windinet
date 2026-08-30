@@ -1027,7 +1027,8 @@ class VaeTrainer:
 
                     vis_t0 = time.time()
                     vis_cfg = cfg.visualization
-                    if vis_cfg.enabled and epoch % vis_cfg.interval_epochs == 0:
+                    is_last_epoch = epoch == cfg.optimization.epochs
+                    if vis_cfg.enabled and (epoch % vis_cfg.interval_epochs == 0 or is_last_epoch):
                         self._save_visualization(vis_loader, device, epoch)
                     vis_elapsed = time.time() - vis_t0
 
@@ -1067,6 +1068,21 @@ class VaeTrainer:
                     f"Best epoch: {self._best_epoch} "
                     f"({cfg.checkpoints.best_metric}={self._best_metric_value:.6f})"
                 )
+
+            # Training completed the full loop (no crash/time-limit kill, which
+            # would exit before reaching here) -- the rolling last/ pair only
+            # existed for resuming, and there is nothing left to resume into.
+            # Drop it and its optimizer-state twin (the larger of the two) so a
+            # finished run doesn't keep paying for it -- best/ is what every
+            # downstream consumer (inference, DiT preprocessing) reads anyway.
+            if cfg.checkpoints.save_best_only and self._best_ckpt_path is not None:
+                last_path = Path(cfg.output_dir) / "checkpoints" / "vae_shockwave_last.safetensors"
+                last_state_path = self._state_file_for(last_path)
+                removed = [f.name for f in (last_path, last_state_path) if f.exists()]
+                for f in (last_path, last_state_path):
+                    f.unlink(missing_ok=True)
+                if removed:
+                    logger.info(f"Run finished: removed {removed} (kept only vae_shockwave_best.safetensors)")
 
         if self._wandb_run is not None:
             self._wandb_run.finish()

@@ -94,7 +94,7 @@ loss:
 
 visualization:
   enabled: true
-  interval_epochs: 1
+  interval_epochs: 4
   num_samples: 3
   frame_numbers: [25, 50, 75, 100]
   dpi: 150
@@ -109,7 +109,6 @@ checkpoints:
   best_metric: "val_vrmse"
   save_last_state: true
   keep_last_n: 1
-  save_epochs: [15]  # advisor requested: always keep epoch 15's weights regardless of best/last pruning
 
 wandb:
   enabled: false

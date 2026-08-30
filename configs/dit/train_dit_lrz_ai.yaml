@@ -105,7 +105,7 @@ checkpoints:
   # (batch_size 2 x grad_acc 8 x 2 GPUs -- see optimization's own comment;
   # stale GPU count as noted there -- this file is actually 4-GPU).
   interval: 120
-  keep_last_n: 5
+  keep_last_n: 2
 
 flow_matching:
   timestep_sampling_mode: "shifted_logit_normal"

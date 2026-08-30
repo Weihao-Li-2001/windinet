@@ -11,8 +11,10 @@
 # finish the remaining ~4000 steps.
 #
 # CHECK BEFORE SUBMITTING: model.load_checkpoint below assumes step 6000 is
-# still on disk (checkpoints.keep_last_n: 5 in the base config keeps steps
-# 5520/5640/5760/5880/6000 -- 6000 should be the newest). Confirm with
+# still on disk. checkpoints.keep_last_n was 5 when this resume was
+# prepared (kept steps 5520/5640/5760/5880/6000, 6000 the newest) --
+# lowered to 2 since (2026-08-30, disk-pressure), so a fresh run under this
+# config would only keep the last 2. Confirm with
 #   ls /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/work_wh/windinet/finetune_vae_baseline/shockwave_dit/checkpoints/
 # (that's RESULT_DIR from jobs/lrz_ai/train_dit_4gpu.job, mounted as
 # /mnt/result inside the container -- the path below is the in-container
@@ -96,7 +98,7 @@ validation:
 
 checkpoints:
   interval: 120
-  keep_last_n: 5
+  keep_last_n: 2
 
 flow_matching:
   timestep_sampling_mode: "shifted_logit_normal"

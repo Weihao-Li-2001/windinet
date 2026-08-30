@@ -73,10 +73,15 @@ checkpoints:
   # real epochs. RE-DERIVE THIS IF YOU CHANGE THE GPU COUNT OR BATCH SIZE:
   # steps_per_epoch = 3825 / (batch_size * grad_acc * num_gpus).
   interval: 60
-  # The 1.92B transformer is saved as an fp32 state_dict = 7.7 GB per checkpoint.
-  # keep_last_n: -1 keeps every one of them: 10000/60 = 166 checkpoints = 1.3 TB,
-  # on a volume with 2.1 TB free. Keep a short rolling window instead.
-  keep_last_n: 5
+  # Confirmed on disk 2026-08-30 (sng_pvc, step_09240..09720): 7.2 GB
+  # safetensors weights + 15 GB .state.pt optimizer state = ~22 GB per
+  # checkpoint slot (the earlier "7.7 GB per checkpoint" estimate here only
+  # counted the weights file, not the optimizer state -- corrected).
+  # keep_last_n: -1 keeps every one of them: 10000/60 = 166 checkpoints ~=
+  # 3.7 TB. Lowered from 5 to 2 (2026-08-30, disk-pressure) -- 2 slots is
+  # enough to survive one bad/corrupt save and still resume, at ~44 GB
+  # instead of ~110 GB per training arm.
+  keep_last_n: 2
 
 flow_matching:
   timestep_sampling_mode: "shifted_logit_normal"
