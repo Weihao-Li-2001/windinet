@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=wh_preprocess_dit
-#SBATCH --time=12:00:00
+#SBATCH --time=07:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general
@@ -35,13 +35,15 @@
 # smoke-test encode instead (cannot combine with EVAL_SIMS, same restriction
 # as preprocess_dataset.py itself).
 #
-# --time bumped 04:00:00 -> 12:00:00 (2026-08-28): job 529527 (4500 samples,
-# 256res, single XPU tile) hit the old 4h limit and was CANCELLED mid-encode
-# -- rich.progress's carriage-return output doesn't survive in the sbatch
-# .out log, so there's no per-sample rate to size this precisely off; 12h
-# is a generous margin, not a measured figure. If a rerun times out again,
-# check actual wall-clock via `sacct -j <id> --format=Elapsed` and raise
-# further.
+# --time history: 04:00:00 -> 12:00:00 (2026-08-28, job 529527 hit the old
+# 4h limit and was CANCELLED mid-encode at 4500 samples/256res/1 tile;
+# rich.progress's carriage-return output doesn't survive in the sbatch .out
+# log, so there's no per-sample rate to size this precisely off -- 12h was a
+# generous margin, not a measured figure) -> 07:00:00 (2026-08-30 default,
+# STILL UNMEASURED -- below the 12h that worked but above the 4h that
+# didn't; watch the first run under this default and raise back toward 12h
+# if it times out). Check actual wall-clock via
+# `sacct -j <id> --format=Elapsed`.
 #
 # Submit with:
 #   VAE_CHECKPOINT=${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/<run>/checkpoints/vae_shockwave_best.safetensors \

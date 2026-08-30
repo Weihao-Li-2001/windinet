@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=92
-#SBATCH --time=10:00:00
+#SBATCH --time=18:00:00
 #SBATCH --gres=gpu:4  #gpus per node
 #SBATCH -o logs/lrz_ai/%j-%x.out
 #SBATCH -e logs/lrz_ai/%j-%x.err
@@ -19,13 +19,14 @@
 # (job 5757490) -- see that script's header for how 92 (not sinfo's raw 96,
 # and not 94 from the partition name) was derived.
 #
-# --time=10:00:00 is a USER-CHOSEN CEILING (2026-08-26), not a calibrated
-# estimate -- no lrz_ai DiT run has happened yet at any GPU count to measure
-# steps/second at 256res's 896-token sequence length (see
-# configs/shockwavenet_lrz_ai.yaml's own header). Same caution as
-# train_dit.job's own --time=15:00:00 placeholder: check the step rate after
-# the first few hundred steps and be ready to lower optimization.steps
-# rather than assume 10h is enough to reach it. If the job is killed by the
+# --time=18:00:00 (2026-08-30 default, was a 10:00:00 USER-CHOSEN CEILING
+# set 2026-08-26) is still not a calibrated estimate -- DiT training here
+# needs its wall-clock shortened (real steps/second at 256res's 896-token
+# sequence length, see configs/shockwavenet_lrz_ai.yaml's own header, is not
+# yet fast enough to comfortably finish optimization.steps in this window).
+# Same caution as train_dit.job's own --time=18:00:00: check the step rate
+# after the first few hundred steps and be ready to lower optimization.steps
+# rather than assume this is enough to reach it. If the job is killed by the
 # time limit, LtxvTrainer._load_checkpoint only restores transformer
 # weights, not optimizer/scheduler state, so a resume restarts the cosine
 # schedule from the top rather than continuing it -- same as

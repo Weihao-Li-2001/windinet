@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=48
-#SBATCH --time=15:00:00
+#SBATCH --time=18:00:00
 #SBATCH --gres=gpu:2  #gpus per node
 #SBATCH -o logs/lrz_ai/%j-%x.out
 #SBATCH -e logs/lrz_ai/%j-%x.err
@@ -19,11 +19,13 @@
 # HuggingFace Accelerate, same as jobs/sng_pvc/train_dit.sbatch and
 # jobs/lundquist/train_dit.sbatch.
 #
-# --time=15:00:00 is an UNCALIBRATED placeholder: no lrz_ai DiT run has
-# happened yet to measure steps/second at 256res's 896-token sequence
-# length (configs/shockwavenet_lrz_ai.yaml's own header explains why this
-# is 4x configs/shockwavenet.yaml's 128res sequence). Check the step rate
-# after the first few hundred steps and be ready to lower
+# --time=18:00:00 (2026-08-30 default) is a USER-CHOSEN CEILING, not a
+# calibrated estimate -- DiT training on lrz_ai still needs its wall-clock
+# shortened (real steps/second at 256res's 896-token sequence length,
+# configs/shockwavenet_lrz_ai.yaml's own header explains why this is 4x
+# configs/shockwavenet.yaml's 128res sequence, is not yet fast enough to
+# comfortably finish optimization.steps in this window). Check the step
+# rate after the first few hundred steps and be ready to lower
 # optimization.steps rather than trust this number -- same caution as
 # jobs/sng_pvc/train_dit.sbatch and jobs/lundquist/train_dit.sbatch already
 # carry: LtxvTrainer._load_checkpoint only restores transformer weights,

@@ -25,8 +25,8 @@ sbatch jobs/lrz_ai/finetune_vae_1gpu.job                                    # 25
 sbatch jobs/lrz_ai/finetune_vae_1gpu.job configs/finetune_vae/other.yaml    # or pass one
 sbatch jobs/lrz_ai/finetune_vae_2gpu.job                                    # 2-GPU variant
 sbatch jobs/lrz_ai/finetune_vae_4gpu.job                                    # 4-GPU variant
-sbatch jobs/lrz_ai/train_dit.job <PREPROCESSED_NAME>                        # DiT training, 2 GPU
-sbatch jobs/lrz_ai/train_dit_4gpu.job <PREPROCESSED_NAME>                   # DiT training, 4 GPU, --time=10:00:00 (2026-08-26, user-chosen ceiling, uncalibrated)
+sbatch jobs/lrz_ai/train_dit.job <PREPROCESSED_NAME>                        # DiT training, 2 GPU, --time=18:00:00 (2026-08-30, user-chosen ceiling, uncalibrated)
+sbatch jobs/lrz_ai/train_dit_4gpu.job <PREPROCESSED_NAME>                   # DiT training, 4 GPU, --time=18:00:00 (2026-08-30, user-chosen ceiling, uncalibrated)
 ```
 
 **Default config/data changed 2026-08-16**: `finetune_vae_1gpu.job`/`2gpu.job`/
@@ -34,12 +34,14 @@ sbatch jobs/lrz_ai/train_dit_4gpu.job <PREPROCESSED_NAME>                   # Di
 `finetune_vae_whole_structure_baseline_ep30_256res.yaml` against
 `256x256_ds` (256x256 is the fixed baseline resolution going forward) --
 previously the ancient 15-epoch frozen-trunk `finetune_vae_baseline.yaml`
-against `128x128_ds`. Their `--time=06:00:00` header has **not** been
-updated to match (still sized for the old queue-wait diagnostic default);
-override with `sbatch --time=<HH:MM:SS> ...` for a real 256res run until
-lrz_ai's actual per-epoch throughput and the partition's `MaxTime` are
-known -- see `finetune_vae_whole_structure_baseline_ep30_256res.yaml`'s own
-header.
+against `128x128_ds`.
+
+**`--time` defaults (2026-08-30):** `2gpu.job` 10:00:00, `4gpu.job`
+06:00:00 -- user-chosen ceilings, not per-config calibrated estimates.
+`1gpu.job`'s header still carries its own TIME WARNING (`--time=06:00:00`
+left over from the old queue-wait diagnostic default, not sized for a real
+256res run) since 1-GPU isn't part of the production VAE path -- override
+with `sbatch --time=<HH:MM:SS> ...` there if you actually need a 1-GPU run.
 
 **`batch_size=16` on `finetune_vae_2gpu.job` (2026-08-16):** the largest
 batch_size that still divides effective_batch=32 at 2 GPUs (accum=1) --

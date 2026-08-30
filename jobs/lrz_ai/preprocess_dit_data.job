@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
-#SBATCH --time=04:00:00
+#SBATCH --time=02:00:00
 #SBATCH --gres=gpu:1  #gpus per node
 #SBATCH -o logs/lrz_ai/%j-%x.out
 #SBATCH -e logs/lrz_ai/%j-%x.err

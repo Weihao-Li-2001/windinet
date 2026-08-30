@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=wh_finetune_vae
-#SBATCH --time=12:00:00
+#SBATCH --time=18:00:00  # 2026-08-30 default (256res/20ep needs ~16h); override per-config if shorter/longer
 #SBATCH --nodes=1                    # increase this for multi-node
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h

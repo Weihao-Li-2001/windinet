@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=48
-#SBATCH --time=08:00:00
+#SBATCH --time=10:00:00
 #SBATCH --gres=gpu:2  #gpus per node
 #SBATCH -o logs/lrz_ai/%j-%x.out
 #SBATCH -e logs/lrz_ai/%j-%x.err
@@ -38,11 +38,11 @@
 #   sacct -j <jobid> -X -o JobID,Submit,Start,Elapsed,State
 #
 # DEFAULTS TO 256x256 (2026-08-16): BASE_CONFIG/DATA_DIR below now default
-# to the current 256res baseline, same change and same TIME WARNING
-# (--time above is still 06:00:00, sized for the old queue-wait diagnostic
-# default -- override with `sbatch --time=<HH:MM:SS> ...` for a real run)
-# as finetune_vae_1gpu.job -- see that script's header for the full
-# explanation and confirmed dataset paths.
+# to the current 256res baseline -- see finetune_vae_1gpu.job's header for
+# the full explanation and confirmed dataset paths. --time=10:00:00
+# (2026-08-30 default) is the user's chosen 2-GPU VAE ceiling, not a
+# per-config calibrated estimate -- override with `sbatch --time=<HH:MM:SS>
+# ...` for a config known to need more/less.
 #
 # $2 (optional) overrides DATA_DIR, same as finetune_vae_1gpu.job.
 #
