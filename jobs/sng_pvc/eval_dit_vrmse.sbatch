@@ -31,7 +31,7 @@
 # whatever step you point it at.
 #
 # Usage:
-#   sbatch jobs/sng_pvc/eval_dit_vrmse.sbatch <PREPROCESSED_DATA_ROOT> <DIT_CHECKPOINT> <VAE_CHECKPOINT> [NUM_SAMPLES] [SAVE_VIS_SAMPLES]
+#   sbatch jobs/sng_pvc/eval_dit_vrmse.sbatch <PREPROCESSED_DATA_ROOT> <DIT_CHECKPOINT> <VAE_CHECKPOINT> [NUM_SAMPLES] [SAVE_VIS_SAMPLES] [NUM_INFERENCE_STEPS]
 #
 # PREPROCESSED_DATA_ROOT: e.g.
 #   /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_256res
@@ -45,12 +45,20 @@
 # VAE_CHECKPOINT: full path to the vae_shockwave_best.safetensors this
 #   PREPROCESSED_DATA_ROOT was encoded with.
 # NUM_SAMPLES: optional, default 50 (of up to 675 held-out sims).
-# SAVE_VIS_SAMPLES: optional, default 3 -- for that many samples, renders
-#   GT/Prediction/Residual panels at frames 25/50/75/100 (same convention
-#   as the VAE/DiT trainers' own periodic visualization) for BOTH passes,
-#   under <OUT_DIR>/visualizations/{vae_only,vae_dit}/<sample_id>/. These
+# SAVE_VIS_SAMPLES: optional, default 3 -- for that many samples, chosen to
+#   span the evaluated set's gamma range (min/median/max for 3, evenly-
+#   spaced quantiles otherwise -- see scripts/eval_dit_vrmse.py's own
+#   pick_gamma_spread_ids), renders GT/Prediction/Residual panels at
+#   frames 25/50/75/100 (same convention as the VAE/DiT trainers' own
+#   periodic visualization) for BOTH passes, under
+#   <OUT_DIR>/visualizations/{vae_only,vae_dit}/<sample_id>/. These
 #   PNGs are gitignored (logs/**/*.png) -- pull them off the cluster
 #   directly (scp/rsync) rather than expecting them in the repo.
+# NUM_INFERENCE_STEPS: optional, default unset -- falls back to
+#   configs/dit/inference_dit.yaml's own num_inference_steps (20). Pass this
+#   to test whether a finer ODE discretization at sampling time recovers
+#   rollout quality without retraining (exposure-bias / step-accumulation
+#   diagnostic) -- same checkpoint, only the sampler's step count changes.
 
 set -eo pipefail
 
@@ -80,6 +88,7 @@ DIT_CHECKPOINT=$2
 VAE_CHECKPOINT=$3
 NUM_SAMPLES=${4:-50}
 SAVE_VIS_SAMPLES=${5:-3}
+NUM_INFERENCE_STEPS=${6:-}
 
 # Sibling file, same step -- see scripts/eval_dit_vrmse.py's own docstring
 # and jobs/lrz_ai/inference_dit.job's identical convention. NOT .state.pt
@@ -96,7 +105,13 @@ echo "SCALAR_CHECKPOINT: ${SCALAR_CHECKPOINT}"
 echo "VAE_CHECKPOINT: ${VAE_CHECKPOINT}"
 echo "NORMALIZATION: ${NORMALIZATION}"
 echo "NUM_SAMPLES: ${NUM_SAMPLES}"
+echo "NUM_INFERENCE_STEPS: ${NUM_INFERENCE_STEPS:-<config default>}"
 echo "OUT_DIR: ${OUT_DIR}"
+
+EXTRA_ARGS=()
+if [ -n "${NUM_INFERENCE_STEPS}" ]; then
+    EXTRA_ARGS+=(--num_inference_steps "${NUM_INFERENCE_STEPS}")
+fi
 
 python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
     --preprocessed_data_root "${PREPROCESSED_DATA_ROOT}" \
@@ -106,6 +121,7 @@ python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
     --normalization "${NORMALIZATION}" \
     --num_samples "${NUM_SAMPLES}" \
     --save_vis_samples "${SAVE_VIS_SAMPLES}" \
-    --out_dir "${OUT_DIR}"
+    --out_dir "${OUT_DIR}" \
+    "${EXTRA_ARGS[@]}"
 
 echo "END TIME: $(date)"

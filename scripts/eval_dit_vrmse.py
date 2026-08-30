@@ -38,10 +38,15 @@ one VAE encode + one DiT rollout + two VAE decodes.
 --save_vis_samples N additionally renders GT/Prediction/Residual panels, at
 --frame_numbers (default 25/50/75/100, matching the VAE/DiT trainers' own
 periodic-visualization convention -- windinet.training.vae_visualization
-.save_reconstruction_panels), for the first N samples, for BOTH passes --
-vae_only and vae_dit -- under <out_dir>/visualizations/{vae_only,vae_dit}/
-<sample_id>/frame_XXXX.png -- so the before/after gap from adding the DiT
-can be read off visually, same layout the training-time panels use.
+.save_reconstruction_panels), for N samples chosen to span the evaluated
+set's full gamma range (min/median/max for N=3, evenly-spaced quantiles
+otherwise -- same selection vae_trainer.py's own visualization uses, per
+the same PhD-advisor request that figures show the full physical regime
+rather than whichever sims happen to land first in split order), for BOTH
+passes -- vae_only and vae_dit -- under
+<out_dir>/visualizations/{vae_only,vae_dit}/<sample_id>/frame_XXXX.png --
+so the before/after gap from adding the DiT can be read off visually, same
+layout the training-time panels use.
 """
 
 import argparse
@@ -66,6 +71,7 @@ from windinet.training.shockwave_data import (
     build_shockwave_video,
     load_channel_normalization,
     normalize_fields,
+    parse_gamma,
 )
 from windinet.training.vae_visualization import denormalize_fields, save_reconstruction_panels
 from windinet.utils import get_default_device
@@ -178,6 +184,24 @@ def pad_to(t: torch.Tensor, n_frames: int) -> torch.Tensor:
     return t[:, :, :n_frames]
 
 
+def pick_gamma_spread_ids(val_ids: list[str], n: int) -> set[str]:
+    """N sample ids spanning val_ids' gamma range: min/median/max for n=3,
+    evenly-spaced quantiles otherwise -- same selection vae_trainer.py's
+    own visualization uses (see train()'s vis_loader), so figures always
+    show the full physical regime rather than whichever sims happen to
+    land first in split order. Cheap here since gamma is parsed straight
+    out of the sample id, no h5 access needed."""
+    if n <= 0:
+        return set()
+    gamma_order = sorted(range(len(val_ids)), key=lambda k: parse_gamma(val_ids[k]))
+    n = min(n, len(gamma_order))
+    if n == 1:
+        picks = [gamma_order[len(gamma_order) // 2]]
+    else:
+        picks = [gamma_order[round(i * (len(gamma_order) - 1) / (n - 1))] for i in range(n)]
+    return {val_ids[i] for i in picks}
+
+
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("config", type=Path, help="Path to inference YAML config")
@@ -234,6 +258,10 @@ def main():
     if args.num_samples is not None:
         val_ids = val_ids[: args.num_samples]
     print(f"Evaluating {len(val_ids)} sim(s)")
+
+    vis_ids = pick_gamma_spread_ids(val_ids, args.save_vis_samples)
+    if vis_ids:
+        print(f"Visualizing {len(vis_ids)} sample(s) spanning the gamma range: {sorted(vis_ids)}")
 
     model_source = cfg.get("model_source", "LTXV_2B_0.9.6_DEV")
     checkpoint = ensure_checkpoint(cfg["checkpoint"])
@@ -348,7 +376,7 @@ def main():
 
         print(f"[{i+1}/{len(val_ids)}] {sid}: vae_only={vo_overall:.5f}  vae+dit={vd_overall:.5f}")
 
-        if i < args.save_vis_samples:
+        if sid in vis_ids:
             # Physical-units ground truth, straight from the dataset -- same
             # approach dit_visualization.py's own periodic panels use (not
             # `target`, which is the normalized-space vrmse comparand above).
@@ -405,9 +433,9 @@ def main():
         vd = summary["vae_dit_vrmse_per_channel"][name]
         print(f"  {name:12s} vae_only={vo:.5f}  vae+dit={vd:.5f}  delta={vd - vo:+.5f}")
     print(f"\nSaved: {args.out_dir / 'vrmse_summary.json'}")
-    if args.save_vis_samples > 0:
-        print(f"Saved GT/Prediction/Residual panels for {min(args.save_vis_samples, n)} sample(s), "
-              f"frames {args.frame_numbers}, under:")
+    if vis_ids:
+        print(f"Saved GT/Prediction/Residual panels for {len(vis_ids)} sample(s) spanning the gamma "
+              f"range, frames {args.frame_numbers}, under:")
         print(f"  {args.out_dir / 'visualizations' / 'vae_only'}/<sample_id>/frame_XXXX.png")
         print(f"  {args.out_dir / 'visualizations' / 'vae_dit'}/<sample_id>/frame_XXXX.png")
 
