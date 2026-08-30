@@ -1,11 +1,11 @@
 # Cluster logs
 
 Slurm stdout+stderr for every job run on this cluster. The sbatch scripts write
-here directly (`#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log`), so
+here directly (`#SBATCH --output=logs/lundquist/%x_%j.log`), so
 `%x` is the job name and `%j` the Slurm job id.
 
 **`.gitkeep` must stay tracked.** Slurm does not create the output directory --
-if `log_finetuning_vae/lundquist/` is missing when a job starts, the job dies
+if `logs/lundquist/` is missing when a job starts, the job dies
 before producing any output, and on a fresh clone the directory would
 otherwise not exist (`*.log` is gitignored, so the logs themselves are not).
 

@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # Batch submission for scripts/inflate_weight_drift.py -- CPU-only,
 # no-training weight-space diagnostic (no dataset, no forward pass): loads
@@ -23,7 +23,7 @@
 #   sbatch jobs/sng_pvc/inflate_weight_drift.sbatch [config_yaml] [checkpoint]
 #
 # Submit with:   sbatch jobs/sng_pvc/inflate_weight_drift.sbatch
-# Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_weight_drift.out
+# Watch with:    tail -f logs/sng_pvc/<jobid>-wh_weight_drift.out
 # Cancel with:   scancel <jobid>
 
 set -eo pipefail
@@ -43,7 +43,7 @@ export TRANSFORMERS_OFFLINE=1
 
 CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline.yaml}
 CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
-OUTPUT_JSON="log_finetuning_vae/sng_pvc/${SLURM_JOB_ID}-weight_drift.json"
+OUTPUT_JSON="logs/sng_pvc/${SLURM_JOB_ID}-weight_drift.json"
 
 echo "config=${CONFIG} checkpoint=${CHECKPOINT} output=${OUTPUT_JSON}"
 

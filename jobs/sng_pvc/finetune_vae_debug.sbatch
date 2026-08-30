@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # NOT "test" (30 min cap) -- 50 epochs won't fit
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # 1-XPU-tile debug launcher for the overfit-8 capacity diagnostic (see
 # EXPERIMENTS.md Open Question 2 and Open Question 12), the sng_pvc
@@ -55,7 +55,7 @@
 #   sbatch jobs/sng_pvc/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_overfit_lr5e5_wsd_wholestruct.yaml
 #
 # Submit with:   sbatch jobs/sng_pvc/finetune_vae_debug.sbatch <config>
-# Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_debug_vae.out
+# Watch with:    tail -f logs/sng_pvc/<jobid>-wh_debug_vae.out
 
 set -eo pipefail
 
@@ -120,7 +120,7 @@ PY
 
 OUT_DIR=$(python -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/sng_pvc/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> logs/sng_pvc/INDEX.tsv
 
 srun --mpi=none accelerate launch \
     --num_processes 1 \

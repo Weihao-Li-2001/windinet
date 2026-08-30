@@ -1,13 +1,13 @@
 # Cluster logs
 
 SLURM stdout+stderr for every job run on lrz_ai. `jobs/lrz_ai/*.job` writes
-here directly (`#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out`,
-`-e log_finetuning_vae/lrz_ai/%j-%x.err`), so `%j` is the SLURM job id and
+here directly (`#SBATCH -o logs/lrz_ai/%j-%x.out`,
+`-e logs/lrz_ai/%j-%x.err`), so `%j` is the SLURM job id and
 `%x` the job name -- one `.out`/`.err` pair per job, same convention as
-`log_finetuning_vae/sng_pvc/`.
+`logs/sng_pvc/`.
 
 **`.gitkeep` must stay tracked.** SLURM does not create the output directory
--- if `log_finetuning_vae/lrz_ai/` is missing when a job starts, the job
+-- if `logs/lrz_ai/` is missing when a job starts, the job
 dies before producing any output.
 
 `INDEX.tsv` maps each job to the config it ran and the output_dir it wrote:

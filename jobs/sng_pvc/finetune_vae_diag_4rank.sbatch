@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # NOT "test" (30 min cap) -- see finetune_vae_diag.sbatch's header for why; this run already strips ckpt/viz I/O but train+eval alone is still an unknown, don't risk the cap
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # H2 (communication-bound) probe for the sng_pvc slowdown. RUN THIS LAST --
 # only after jobs/sng_pvc/finetune_vae_diag.sbatch's Exp 0/2 have ruled out
@@ -107,7 +107,7 @@ PY
 
 OUT_DIR=$(python -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/sng_pvc/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> logs/sng_pvc/INDEX.tsv
 
 srun --mpi=none accelerate launch \
     --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \

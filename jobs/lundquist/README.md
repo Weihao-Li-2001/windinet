@@ -8,14 +8,14 @@ here hard-codes:
 - `#SBATCH --partition=debug` -- this cluster's partition name
 - `PYTHON=/local/disk/hramachandran/miniconda/envs/windinet/bin/python`
 - `cd /local/disk/hramachandran/work/wh_work/windinet`
-- `#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log`
+- `#SBATCH --output=logs/lundquist/%x_%j.log`
 
 Moving the repo to another machine means rewriting all four, not porting them.
 
 ## Submitting
 
 **Submit from the repo root.** Slurm resolves `--output` relative to the
-*submission* directory, not the script's location, so `log_finetuning_vae/lundquist/`
+*submission* directory, not the script's location, so `logs/lundquist/`
 must exist relative to wherever you run `sbatch`:
 
 ```bash
@@ -26,7 +26,7 @@ sbatch jobs/lundquist/finetune_vae_4gpu.sbatch configs/finetune_vae/other.yaml  
 
 The scripts themselves `cd` to an absolute repo path before doing anything, so
 every path *inside* them (`scripts/finetune_vae.py`,
-`log_finetuning_vae/lundquist/INDEX.tsv`) resolves regardless of where the
+`logs/lundquist/INDEX.tsv`) resolves regardless of where the
 script lives.
 
 ## What each one does
@@ -114,6 +114,6 @@ whatever the previous one produced. If you need to keep results from two
 variants side by side, copy the output_dir out before submitting the next
 one.
 
-Each job appends a row to `log_finetuning_vae/lundquist/INDEX.tsv` mapping job
+Each job appends a row to `logs/lundquist/INDEX.tsv` mapping job
 id -> config -> output_dir. See `../../EXPERIMENTS.md` for results and
 rationale.

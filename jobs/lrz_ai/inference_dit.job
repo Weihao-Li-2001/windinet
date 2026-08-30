@@ -8,8 +8,8 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --time=00:30:00
 #SBATCH --gres=gpu:1
-#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
-#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+#SBATCH -o logs/lrz_ai/%j-%x.out
+#SBATCH -e logs/lrz_ai/%j-%x.err
 
 # Rollout a trained DiT checkpoint on a few held-out sims and render GT vs
 # prediction videos, instead of judging a run by val_loss alone. Companion

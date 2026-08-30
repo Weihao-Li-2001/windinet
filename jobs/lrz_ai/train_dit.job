@@ -8,8 +8,8 @@
 #SBATCH --cpus-per-task=48
 #SBATCH --time=15:00:00
 #SBATCH --gres=gpu:2  #gpus per node
-#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
-#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+#SBATCH -o logs/lrz_ai/%j-%x.out
+#SBATCH -e logs/lrz_ai/%j-%x.err
 
 # DiT (ShockWaveNet) training launcher for lrz_ai. Companion to
 # jobs/lrz_ai/preprocess_dit_data.job -- run that first to encode a VAE
@@ -97,7 +97,7 @@ print("preprocessed_data_root=" + cfg["data"]["preprocessed_data_root"] + " outp
 '
 
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> log_finetuning_vae/lrz_ai/INDEX.tsv
+    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> logs/lrz_ai/INDEX.tsv
 
 accelerate launch \
     --num_processes ${SLURM_GPUS_ON_NODE} \

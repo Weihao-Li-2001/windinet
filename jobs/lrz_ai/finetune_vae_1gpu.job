@@ -8,8 +8,8 @@
 #SBATCH --cpus-per-task=48
 #SBATCH --time=06:00:00
 #SBATCH --gres=gpu:1  #gpus per node (fixed for nvidia-h100)
-#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
-#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+#SBATCH -o logs/lrz_ai/%j-%x.out
+#SBATCH -e logs/lrz_ai/%j-%x.err
 
 # 1-GPU launcher for the lrz_ai cluster (H100, enroot/pyxis container).
 # Submit from the repo root so the #SBATCH -o/-e paths above resolve, same
@@ -124,11 +124,11 @@ print("output_dir=" + cfg["output_dir"] + " data_root=" + cfg["data"]["data_root
 '
 OUT_DIR=$(python -c 'import os, yaml; print(yaml.safe_load(open(os.environ["RUN_CONFIG"]))["output_dir"])')
 
-# Make log_finetuning_vae/lrz_ai/ self-describing: one row per job mapping
+# Make logs/lrz_ai/ self-describing: one row per job mapping
 # the log to the config it ran and the output_dir it wrote, same convention
-# as log_finetuning_vae/{sng_pvc,lundquist}/INDEX.tsv.
+# as logs/{sng_pvc,lundquist}/INDEX.tsv.
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/lrz_ai/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> logs/lrz_ai/INDEX.tsv
 
 torchrun \
   --nnodes=${SLURM_JOB_NUM_NODES} \
@@ -142,7 +142,7 @@ torchrun \
 # repo checkout so they're browsable without touching $RESULT_DIR -- but not
 # checkpoints/ (weights + optimizer state), which stay on $RESULT_DIR only
 # (large, and already addressed via OUT_DIR in
-# log_finetuning_vae/lrz_ai/INDEX.tsv). Same pattern as
+# logs/lrz_ai/INDEX.tsv). Same pattern as
 # jobs/sng_pvc/finetune_vae.sbatch's mirror step.
 #
 # Assumes rsync is available inside the container image (windinet1.sqsh) --

@@ -20,7 +20,7 @@
 # Note metrics.csv will only cover the epoch(s) this resumed process itself
 # runs -- VaeTrainer.train() accumulates metrics_history in-memory per
 # process, not reloaded from an existing metrics.csv on resume -- the full
-# epoch 1-19 curve stays available in log_finetuning_vae/sng_pvc/529528-wh_finetune_vae.out.
+# epoch 1-19 curve stays available in logs/sng_pvc/529528-wh_finetune_vae.out.
 #
 # batch_size stays whatever jobs/sng_pvc/finetune_vae.sbatch hardcodes (4) --
 # unlike lrz_ai's BATCH_SIZE env var, sng_pvc's launcher has no separate

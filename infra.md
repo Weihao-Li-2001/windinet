@@ -454,8 +454,8 @@ DIAG_TAG=filelock_true DIAG_FILE_LOCKING=TRUE sbatch jobs/sng_pvc/finetune_vae_d
 | Rationale, hypotheses, verdicts | **this file** |
 | Cluster job launchers | `jobs/lundquist/*.sbatch`, `jobs/sng_pvc/*.sbatch` (submit from repo root) |
 | Portable entry points | `scripts/*.py` |
-| Slurm logs | `log_finetuning_vae/lundquist/<jobname>_<jobid>.log`, `log_finetuning_vae/sng_pvc/<jobid>-<jobname>.{out,err}` |
-| job -> config -> output_dir map | `log_finetuning_vae/{lundquist,sng_pvc}/INDEX.tsv` (appended by the sbatch scripts) |
+| Slurm logs | `logs/lundquist/<jobname>_<jobid>.log`, `logs/sng_pvc/<jobid>-<jobname>.{out,err}` |
+| job -> config -> output_dir map | `logs/{lundquist,sng_pvc}/INDEX.tsv` (appended by the sbatch scripts) |
 | Per-run metrics, panels, resolved config | `finetune_vae_outputs/lundquist/<run>/{metrics,visualizations,training_config.yaml}` -- **tracked in git** since `f88eb09` |
 | Checkpoints | `finetune_vae_outputs/lundquist/<run>/checkpoints/vae_shockwave_best.safetensors` -- **gitignored**, this machine is the only copy |
 | Retired runs | git history, see Artifact retention under the Ledger |

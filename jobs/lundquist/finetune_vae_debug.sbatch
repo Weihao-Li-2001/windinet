@@ -4,8 +4,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --time=02:00:00
-#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
-#SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
+#SBATCH --output=logs/lundquist/%x_%j.log
+#SBATCH --error=logs/lundquist/%x_%j.log
 
 # 1-GPU debug launcher, default config configs/finetune_vae/finetune_vae_overfit.yaml
 # (the overfit-8 capacity diagnostic -- see that file's header and
@@ -14,7 +14,7 @@
 # and this launcher is only meant to run on the debug partition.
 #
 # Submit with:   sbatch jobs/lundquist/finetune_vae_debug.sbatch
-# Watch with:    tail -f log_finetuning_vae/lundquist/wh_debug_<jobid>.log
+# Watch with:    tail -f logs/lundquist/wh_debug_<jobid>.log
 #
 # EFFECTIVE BATCH IS PATCHED TO 1, NOT THE CLUSTER DEFAULT (32). The other
 # lundquist scripts call patch_config_for_cluster() with its default
@@ -55,12 +55,12 @@ PY
 
 echo "job=${SLURM_JOB_ID} node=$(hostname) gpus=${CUDA_VISIBLE_DEVICES}"
 
-# Make log_finetuning_vae/lundquist/ self-describing: one row per job mapping
+# Make logs/lundquist/ self-describing: one row per job mapping
 # the log file to the config it ran and the output_dir it wrote. Without this,
 # recovering "which log belongs to which run" means grepping every log by hand.
 OUT_DIR=$("${PYTHON}" -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/lundquist/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> logs/lundquist/INDEX.tsv
 
 # Mixed precision is NOT passed here on purpose: VaeTrainer builds its own
 # Accelerator from acceleration.mixed_precision_mode (bf16) in the config.

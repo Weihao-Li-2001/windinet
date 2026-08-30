@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 # i20r02c04s06 has a broken/stale scratch (hppfs) mount as of 2026-08-12:
 # jobs 523911/523913/523914 all landed there and died with
 # FileNotFoundError on euler_mq_dataset/128x128_ds/train.h5, while the same
@@ -38,7 +38,7 @@
 #   sbatch jobs/sng_pvc/latent_stats.sbatch [config_yaml] [checkpoint] [num_samples]
 #
 # Submit with:   sbatch jobs/sng_pvc/latent_stats.sbatch
-# Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_latent_stats.out
+# Watch with:    tail -f logs/sng_pvc/<jobid>-wh_latent_stats.out
 # Cancel with:   scancel <jobid>
 
 set -eo pipefail
@@ -62,7 +62,7 @@ export HDF5_USE_FILE_LOCKING=FALSE
 CONFIG=${1:-configs/finetune_vae/archive/done/finetune_vae_whole_structure_baseline.yaml}
 CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline/checkpoints/vae_shockwave_best.safetensors"}
 NUM_SAMPLES=${3:-32}
-OUTPUT_JSON="log_finetuning_vae/sng_pvc/${SLURM_JOB_ID}-latent_stats.json"
+OUTPUT_JSON="logs/sng_pvc/${SLURM_JOB_ID}-latent_stats.json"
 
 # latent_stats.py reads data.data_root straight from the config file with no
 # cluster patching of its own -- every checked-in config's data_root is a

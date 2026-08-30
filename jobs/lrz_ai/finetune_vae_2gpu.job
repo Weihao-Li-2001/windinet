@@ -8,8 +8,8 @@
 #SBATCH --cpus-per-task=48
 #SBATCH --time=08:00:00
 #SBATCH --gres=gpu:2  #gpus per node
-#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
-#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+#SBATCH -o logs/lrz_ai/%j-%x.out
+#SBATCH -e logs/lrz_ai/%j-%x.err
 
 # 2-GPU variant of jobs/lrz_ai/finetune_vae_1gpu.job -- same script, only the
 # #SBATCH --gres/--cpus-per-task header differs (torchrun --nproc_per_node
@@ -134,11 +134,11 @@ print("batch_size=" + str(cfg["optimization"]["batch_size"]) + " accum=" + str(c
 '
 OUT_DIR=$(python -c 'import os, yaml; print(yaml.safe_load(open(os.environ["RUN_CONFIG"]))["output_dir"])')
 
-# Make log_finetuning_vae/lrz_ai/ self-describing: one row per job mapping
+# Make logs/lrz_ai/ self-describing: one row per job mapping
 # the log to the config it ran and the output_dir it wrote, same convention
-# as log_finetuning_vae/{sng_pvc,lundquist}/INDEX.tsv.
+# as logs/{sng_pvc,lundquist}/INDEX.tsv.
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/lrz_ai/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> logs/lrz_ai/INDEX.tsv
 
 torchrun \
   --nnodes=${SLURM_JOB_NUM_NODES} \

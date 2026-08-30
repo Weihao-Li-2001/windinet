@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # Encode step for the sng_pvc DiT pipeline (Intel Data Center GPU Max 1550 /
 # XPU). Companion to train_dit.sbatch -- run this first to turn a VAE
@@ -84,7 +84,7 @@ echo "DATA_ROOT: ${DATA_ROOT}"
 echo "OUTPUT_NAME: ${OUTPUT_NAME} -> ${OUT_DIR}"
 
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${VAE_CHECKPOINT}" "${OUT_DIR}" >> log_finetuning_vae/sng_pvc/INDEX.tsv
+    "${VAE_CHECKPOINT}" "${OUT_DIR}" >> logs/sng_pvc/INDEX.tsv
 
 EXTRA_ARGS=()
 if [[ "${MAX_SAMPLES}" != "0" ]]; then

@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # NOT "test" (30 min cap) -- see caveat below
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # Batch submission for scripts/compute_channel_stats.py -- streams an entire
 # ShockWave HDF5 dataset (density/momentum_x/momentum_y/pressure/
@@ -39,7 +39,7 @@
 #       [h5_path] [compare_to_yaml] [output_json]
 #
 # Submit with:   sbatch jobs/sng_pvc/compute_channel_stats.sbatch
-# Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_channel_stats.out
+# Watch with:    tail -f logs/sng_pvc/<jobid>-wh_channel_stats.out
 # Cancel with:   scancel <jobid>
 
 set -eo pipefail

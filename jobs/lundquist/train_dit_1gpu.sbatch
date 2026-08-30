@@ -4,8 +4,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --time=02:00:00
-#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
-#SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
+#SBATCH --output=logs/lundquist/%x_%j.log
+#SBATCH --error=logs/lundquist/%x_%j.log
 
 # DiT training launcher, 1-GPU. Companion to train_dit_2gpu.sbatch (same
 # structure, --gres/--cpus-per-task/--num_processes/job-name differ) --
@@ -37,9 +37,9 @@
 #   sbatch jobs/lundquist/train_dit_1gpu.sbatch smoketest configs/shockwavenet_lundquist_bs_sweep_bs8.yaml
 #
 # Read the step count each arm reached from its own log
-# (log_finetuning_vae/lundquist/dit_train_1gpu_<jobid>.log) -- dit_trainer.py
+# (logs/lundquist/dit_train_1gpu_<jobid>.log) -- dit_trainer.py
 # logs "[train] step={global_step} loss=... lr=..." every step, so:
-#   grep -oP '\[train\] step=\K[0-9]+' log_finetuning_vae/lundquist/dit_train_1gpu_<jobid>.log | tail -1
+#   grep -oP '\[train\] step=\K[0-9]+' logs/lundquist/dit_train_1gpu_<jobid>.log | tail -1
 # gives the last completed step -- see
 # configs/shockwavenet_lundquist_bs_sweep_bs1.yaml's header for why
 # checkpoints.interval was raised, so this is read from the log, not from
@@ -82,7 +82,7 @@ print(f"preprocessed_data_root={cfg['data']['preprocessed_data_root']} output_di
 PY
 
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> log_finetuning_vae/lundquist/INDEX.tsv
+    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> logs/lundquist/INDEX.tsv
 
 "${PYTHON}" -m accelerate.commands.launch \
     --num_processes 1 \

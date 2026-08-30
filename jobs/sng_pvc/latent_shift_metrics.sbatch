@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 # See jobs/sng_pvc/latent_stats.sbatch's exclusion note -- add back
 # "--exclude=i20r02c04s06" here too if that node's scratch mount is still
 # broken when this is submitted.
@@ -29,7 +29,7 @@
 #   sbatch jobs/sng_pvc/latent_shift_metrics.sbatch [config_yaml] [checkpoint] [test_h5] [num_samples]
 #
 # Submit with:   sbatch jobs/sng_pvc/latent_shift_metrics.sbatch
-# Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_latent_shift.out
+# Watch with:    tail -f logs/sng_pvc/<jobid>-wh_latent_shift.out
 # Cancel with:   scancel <jobid>
 
 set -eo pipefail
@@ -52,7 +52,7 @@ CONFIG=${1:-configs/finetune_vae/finetune_vae_whole_structure_baseline_ep30.yaml
 CHECKPOINT=${2:-"${SCRATCH}/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep30/checkpoints/vae_shockwave_best.safetensors"}
 TEST_H5=${3:-"${SCRATCH}/windinet/euler_mq_dataset/128x128_ds/test.h5"}
 NUM_SAMPLES=${4:-64}
-OUTPUT_JSON="log_finetuning_vae/sng_pvc/${SLURM_JOB_ID}-latent_shift_metrics.json"
+OUTPUT_JSON="logs/sng_pvc/${SLURM_JOB_ID}-latent_shift_metrics.json"
 
 # Same reasoning as jobs/sng_pvc/latent_stats.sbatch: every checked-in
 # config's data.data_root is a lundquist-style literal path, so patch a temp

@@ -52,7 +52,7 @@ other epoch for all 14 completed epochs, never converging, in lockstep
 with `mlw`'s adapted weight swinging between ~0.0 and ~3.8-4.0 each epoch.
 No output dir here -- the run never reached a committed `metrics.csv`
 (only the raw `.out`/`.err` logs, under
-`log_finetuning_vae/sng_pvc/523590-*`, survive). See "GradNorm loss
+`logs/sng_pvc/523590-*`, survive). See "GradNorm loss
 weighting" in `EXPERIMENTS.md` for the full per-epoch trace. Do not
 relaunch with the current `alpha`/`weight_lr` defaults -- a real retry
 would need a smaller `weight_lr` (or a different re-weighting cadence) to

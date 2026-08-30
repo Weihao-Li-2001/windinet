@@ -8,8 +8,8 @@
 #SBATCH --cpus-per-task=48
 #SBATCH --time=08:00:00
 #SBATCH --gres=gpu:2  #gpus per node
-#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
-#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+#SBATCH -o logs/lrz_ai/%j-%x.out
+#SBATCH -e logs/lrz_ai/%j-%x.err
 
 # Minimal no-op job for measuring lrz_ai's backfill queue wait as a
 # function of GPU count (--gres) and requested --time, WITHOUT touching any

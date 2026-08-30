@@ -87,7 +87,7 @@ Because `$RESULT_DIR`/`$DATA_DIR` are DSS paths outside the git repo (same
 situation as sng_pvc's `$SCRATCH`), the job script's inner script mirrors
 each run's metrics/config/visualizations back onto the repo checkout after
 training finishes -- checkpoints stay on `$RESULT_DIR` only (large, and
-already addressed via `log_finetuning_vae/lrz_ai/INDEX.tsv`'s `output_dir`
+already addressed via `logs/lrz_ai/INDEX.tsv`'s `output_dir`
 column):
 
 ```
@@ -96,9 +96,9 @@ column):
 finetune_vae_outputs/lrz_ai/<run>/   (git-tracked)
 ```
 
-`log_finetuning_vae/lrz_ai/INDEX.tsv` maps each job id -> config ->
+`logs/lrz_ai/INDEX.tsv` maps each job id -> config ->
 container-internal `output_dir`, same convention as
-`log_finetuning_vae/{sng_pvc,lundquist}/INDEX.tsv`. See
+`logs/{sng_pvc,lundquist}/INDEX.tsv`. See
 `../../EXPERIMENTS.md` for results and rationale.
 
 ## Why the inner script is a separate file

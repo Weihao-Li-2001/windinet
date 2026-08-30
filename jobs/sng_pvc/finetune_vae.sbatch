@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # Batch submission for VAE finetuning on the sng_pvc cluster (Intel Data
 # Center GPU Max 1550 / XPU, 8 tiles per node).
@@ -24,7 +24,7 @@
 #       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
 #
 # Submit with:   sbatch jobs/sng_pvc/finetune_vae.sbatch
-# Watch with:    tail -f log_finetuning_vae/sng_pvc/<jobid>-wh_finetune_vae.out
+# Watch with:    tail -f logs/sng_pvc/<jobid>-wh_finetune_vae.out
 # Cancel with:   scancel <jobid>
 #
 # Verified working interactively on a single XPU tile first (srun + plain
@@ -141,11 +141,11 @@ print(
 )
 PY
 
-# Make log_finetuning_vae/sng_pvc/ self-describing: one row per job mapping the log to the
-# config it ran and the output_dir it wrote, same convention as log_finetuning_vae/lundquist/.
+# Make logs/sng_pvc/ self-describing: one row per job mapping the log to the
+# config it ran and the output_dir it wrote, same convention as logs/lundquist/.
 OUT_DIR=$(python -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['output_dir'])" "${RUN_CONFIG}")
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${OUT_DIR}" >> log_finetuning_vae/sng_pvc/INDEX.tsv
+    "${BASE_CONFIG}" "${OUT_DIR}" >> logs/sng_pvc/INDEX.tsv
 
 srun --mpi=none accelerate launch \
     --num_processes $((NUM_XPUS * SLURM_JOB_NUM_NODES)) \
@@ -159,7 +159,7 @@ srun --mpi=none accelerate launch \
 # Mirror the run's visualizations/metrics/config back onto the DSS-backed repo
 # checkout so they're browsable without touching $SCRATCH -- but not
 # checkpoints/ (weights + optimizer state), which stay scratch-only since
-# they're large and already addressed via OUT_DIR in log_finetuning_vae/sng_pvc/INDEX.tsv.
+# they're large and already addressed via OUT_DIR in logs/sng_pvc/INDEX.tsv.
 OUTPUT_ROOT=$(python -c "
 from windinet.cluster_config import CLUSTER_DEFAULTS
 import os

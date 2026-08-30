@@ -4,8 +4,8 @@
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=12
 #SBATCH --time=08:00:00
-#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
-#SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
+#SBATCH --output=logs/lundquist/%x_%j.log
+#SBATCH --error=logs/lundquist/%x_%j.log
 
 # DiT training launcher, 2-GPU. Companion to preprocess_dit_data.sbatch --
 # run that first, then this job trains on its output. Separate from the
@@ -68,7 +68,7 @@ print(f"preprocessed_data_root={cfg['data']['preprocessed_data_root']} output_di
 PY
 
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> log_finetuning_vae/lundquist/INDEX.tsv
+    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> logs/lundquist/INDEX.tsv
 
 "${PYTHON}" -m accelerate.commands.launch \
     --num_processes 2 \

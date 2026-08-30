@@ -4,8 +4,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # Minimal job for measuring how sng_pvc's backfill queue wait depends on the
 # requested --time, holding everything else (nodes/ntasks/partition/account)

@@ -36,7 +36,7 @@ references, which now mean "elsewhere in this file" unless noted.
   0.095396** (ledger #3). Its output dir no longer exists -- job 21664 re-ran
   into the same `output_dir` with `clean_output_dir: true` and was cancelled at
   step 20, wiping it. The only surviving record of that run is
-  `log_finetuning_vae/lundquist/vae_2gpu_21632.log` (21664's own log is gone
+  `logs/lundquist/vae_2gpu_21632.log` (21664's own log is gone
   too, and it never got an INDEX.tsv row). Job **21666** is re-running the same
   config at the same seed to restore it.
 - **New reference baseline (as of 2026-08-06)**: the encoder head-vs-tail
@@ -140,7 +140,7 @@ deleted to start the next round clean. What survives:
   #3). Retrieve with
   `git show f88eb09:finetune_vae_outputs_lundquist/<run>/metrics/metrics.csv`.
 - **Numbers in this table only** -- #5, #7, #10 were already gone before that
-  commit; their Slurm logs are in `log_finetuning_vae/lundquist/`, which is
+  commit; their Slurm logs are in `logs/lundquist/`, which is
   where every lundquist log now lives (the old `lundquist_log/` and
   `log_lundquist/` directories are gone). `*.log` is gitignored, so those are
   on this disk only.
@@ -1766,7 +1766,7 @@ probe --
 sbatch jobs/sng_pvc/finetune_vae_debug.sbatch configs/finetune_vae/finetune_vae_whole_structure_baseline_gradnorm.yaml
 ```
 (1 tile, cheap, cancel after 2-3 "Epoch N timing" log lines in
-`log_finetuning_vae/sng_pvc/<jobid>-wh_debug_vae.out`) -- won't reproduce
+`logs/sng_pvc/<jobid>-wh_debug_vae.out`) -- won't reproduce
 the whole-structure baseline's exact per-epoch train time, but the
 *relative* GradNorm-vs-fixed overhead multiplier should transfer
 reasonably well to 8 tiles, since the extra backward-pass cost is

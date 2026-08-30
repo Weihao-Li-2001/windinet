@@ -5,8 +5,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=general           # "test" is max 30 min, "general" is max 24h
 #SBATCH --account=pn82ku
-#SBATCH -o log_finetuning_vae/sng_pvc/%j-%x.out
-#SBATCH -e log_finetuning_vae/sng_pvc/%j-%x.err
+#SBATCH -o logs/sng_pvc/%j-%x.out
+#SBATCH -e logs/sng_pvc/%j-%x.err
 
 # Batch submission for the ShockWaveNet DiT run on the sng_pvc cluster
 # (Intel Data Center GPU Max 1550 / XPU, 8 tiles per node). Companion to
@@ -17,7 +17,7 @@
 # PARAMETERIZED (2026-08-27): previously hardcoded to configs/shockwavenet.yaml,
 # which is lundquist's own config with paths hardcoded to lundquist's local
 # disk -- this job had never actually been run against it (no entry in
-# log_finetuning_vae/sng_pvc/INDEX.tsv), so nothing depended on that default.
+# logs/sng_pvc/INDEX.tsv), so nothing depended on that default.
 # Now takes PREPROCESSED_NAME + BASE_CONFIG like the other clusters' DiT
 # launchers, and substitutes a __PREPROCESSED_ROOT__ placeholder the same way
 # jobs/lrz_ai/train_dit.job and jobs/lundquist/train_dit_2gpu.sbatch do.
@@ -106,7 +106,7 @@ print(f"preprocessed_data_root={cfg['data']['preprocessed_data_root']} output_di
 PY
 
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> log_finetuning_vae/sng_pvc/INDEX.tsv
+    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> logs/sng_pvc/INDEX.tsv
 
 # --num_processes must match NUM_XPUS * num nodes, and the config's
 # checkpoints.interval assumes effective_batch 32 (see the config's own

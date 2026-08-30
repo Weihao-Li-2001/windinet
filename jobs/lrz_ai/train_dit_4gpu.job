@@ -8,8 +8,8 @@
 #SBATCH --cpus-per-task=92
 #SBATCH --time=10:00:00
 #SBATCH --gres=gpu:4  #gpus per node
-#SBATCH -o log_finetuning_vae/lrz_ai/%j-%x.out
-#SBATCH -e log_finetuning_vae/lrz_ai/%j-%x.err
+#SBATCH -o logs/lrz_ai/%j-%x.out
+#SBATCH -e logs/lrz_ai/%j-%x.err
 
 # 4-GPU variant of jobs/lrz_ai/train_dit.job -- same script, only the
 # #SBATCH --gres/--cpus-per-task/--time header differs (accelerate launch's
@@ -40,7 +40,7 @@
 # the VAE run's own directory name) -- this job reads
 # /mnt/result/dit_preprocessed/<PREPROCESSED_NAME>/. As of 2026-08-24,
 # preprocessing has been run for four VAE variants (see
-# log_finetuning_vae/lrz_ai/INDEX.tsv): the ep30_256res baseline, kl1e6,
+# logs/lrz_ai/INDEX.tsv): the ep30_256res baseline, kl1e6,
 # kl1e5, and anchor_kl1e7.
 #
 # $2 (optional) overrides BASE_CONFIG, default
@@ -102,7 +102,7 @@ print("preprocessed_data_root=" + cfg["data"]["preprocessed_data_root"] + " outp
 '
 
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> log_finetuning_vae/lrz_ai/INDEX.tsv
+    "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> logs/lrz_ai/INDEX.tsv
 
 accelerate launch \
     --num_processes ${SLURM_GPUS_ON_NODE} \

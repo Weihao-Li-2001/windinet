@@ -4,8 +4,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
-#SBATCH --output=log_finetuning_vae/lundquist/%x_%j.log
-#SBATCH --error=log_finetuning_vae/lundquist/%x_%j.log
+#SBATCH --output=logs/lundquist/%x_%j.log
+#SBATCH --error=logs/lundquist/%x_%j.log
 
 # Encode step for the lundquist DiT pipeline. Companion to
 # train_dit_2gpu.sbatch -- run this first to turn a VAE checkpoint into
@@ -69,7 +69,7 @@ echo "DATA_ROOT: ${DATA_ROOT}"
 echo "OUTPUT_NAME: ${OUTPUT_NAME} -> ${OUT_DIR}"
 
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
-    "${VAE_CHECKPOINT}" "${OUT_DIR}" >> log_finetuning_vae/lundquist/INDEX.tsv
+    "${VAE_CHECKPOINT}" "${OUT_DIR}" >> logs/lundquist/INDEX.tsv
 
 EXTRA_ARGS=()
 if [[ "${MAX_SAMPLES}" != "0" ]]; then
