@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/eval_dit_vrmse.py", line 397, in <module>
+    main()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/eval_dit_vrmse.py", line 234, in main
+    checkpoint = ensure_checkpoint(cfg["checkpoint"])
+  File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/checkpoints.py", line 24, in ensure_checkpoint
+    raise FileNotFoundError(f"Checkpoint not found: {name_or_path}")
+FileNotFoundError: Checkpoint not found: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_baseline/checkpoints/model_weights_step_09120.safetensors
