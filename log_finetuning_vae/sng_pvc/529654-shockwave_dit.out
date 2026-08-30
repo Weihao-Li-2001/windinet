@@ -1,0 +1,246 @@
+START TIME: Sat 29 Aug 2026 01:18:22 PM CEST
+job=529654 node=i20r02c05s02
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res_kl1e5
+BASE_CONFIG: configs/shockwavenet_sng_pvc_kl1e5.yaml
+MASTER_ADDR: i20r02c05s02  MASTER_PORT: 50175
+preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res_kl1e5 output_dir=$SCRATCH/windinet/outputs/shockwave_dit_kl1e5
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 1e-05                                 │
+│ optimization.steps                   │ 10000                                 │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ data.num_dataloader_workers          │ 4                                     │
+│ validation.data_root                 │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ validation.interval                  │ 600                                   │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 120                                   │
+│ checkpoints.keep_last_n              │ 5                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ cfd, full, 2b, scalar-only, sng_pvc,  │
+│                                      │ 256res, kl1e5                         │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1165
+         processes                                                              
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1171
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:695
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:718
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:722
+2026:08:29-13:35:41:70130 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:08:29-13:35:42:70130 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:08:29-13:35:42:70131 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:29-13:35:42:70136 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:29-13:35:42:70135 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:29-13:35:42:70132 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:29-13:35:42:70130 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:08:29-13:35:42:70134 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:08:29-13:35:42:70137 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+
+2026:08:29-13:35:42:70133 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:309
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from      dit_trainer.py:917
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1000
+         /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocesse                    
+         d/finetune_vae_whole_structure_baseline_ep20_256res                    
+         _kl1e5/val                                                             
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1157
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE                dit_trainer.py:961
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_out                   
+         puts_sng_pvc/finetune_vae_whole_structure_baseline_e                   
+         p20_256res_kl1e5/checkpoints/vae_shockwave_best.safe                   
+         tensors (fingerprint 0d2b14a8304046fb); recorded in                    
+         latent_provenance.json                                                 
+INFO     [rank 0] Starting training...                        dit_trainer.py:328
+[train] step=1 loss=0.116661 lr=1.000e-05
+[train] step=2 loss=0.143297 lr=1.000e-05
+[train] step=3 loss=0.084264 lr=1.000e-05
+[train] step=4 loss=0.068112 lr=1.000e-05
+[train] step=5 loss=0.060534 lr=1.000e-05
+[train] step=6 loss=0.098979 lr=1.000e-05
+[train] step=7 loss=0.052285 lr=1.000e-05
+[train] step=8 loss=0.050819 lr=1.000e-05
+[train] step=9 loss=0.059445 lr=1.000e-05
+[train] step=10 loss=0.153618 lr=1.000e-05
+[train] step=11 loss=0.071214 lr=1.000e-05
+[train] step=12 loss=0.062513 lr=1.000e-05
+[train] step=13 loss=0.175068 lr=1.000e-05
+[train] step=14 loss=0.060409 lr=1.000e-05
+[train] step=15 loss=0.067054 lr=1.000e-05
+[train] step=16 loss=0.031334 lr=1.000e-05
+[train] step=17 loss=0.059770 lr=1.000e-05
+[train] step=18 loss=0.087327 lr=1.000e-05
+[train] step=19 loss=0.052411 lr=1.000e-05
+[train] step=20 loss=0.050950 lr=1.000e-05
+[train] step=21 loss=0.042305 lr=1.000e-05
+[train] step=22 loss=0.085076 lr=1.000e-05
+[train] step=23 loss=0.052154 lr=1.000e-05
+[train] step=24 loss=0.038287 lr=1.000e-05
+[train] step=25 loss=0.032990 lr=1.000e-05
+[train] step=26 loss=0.039306 lr=1.000e-05
+[train] step=27 loss=0.049597 lr=1.000e-05
+[train] step=28 loss=0.042599 lr=1.000e-05
+[train] step=29 loss=0.042125 lr=1.000e-05
+[train] step=30 loss=0.045254 lr=1.000e-05
+[train] step=31 loss=0.085169 lr=1.000e-05
+[train] step=32 loss=0.042094 lr=1.000e-05
+[train] step=33 loss=0.043216 lr=1.000e-05
+[train] step=34 loss=0.042038 lr=1.000e-05
+[train] step=35 loss=0.056394 lr=1.000e-05
+[train] step=36 loss=0.074374 lr=1.000e-05
+[train] step=37 loss=0.051518 lr=1.000e-05
+[train] step=38 loss=0.042361 lr=1.000e-05
+[train] step=39 loss=0.067437 lr=1.000e-05
+[train] step=40 loss=0.045824 lr=1.000e-05
+[train] step=41 loss=0.054226 lr=1.000e-05
+[train] step=42 loss=0.065796 lr=1.000e-05
+[train] step=43 loss=0.091745 lr=1.000e-05
+[train] step=44 loss=0.034304 lr=1.000e-05
+[train] step=45 loss=0.049024 lr=1.000e-05
+[train] step=46 loss=0.061743 lr=1.000e-05
+[train] step=47 loss=0.087344 lr=9.999e-06
+[train] step=48 loss=0.052053 lr=9.999e-06
+[train] step=49 loss=0.059861 lr=9.999e-06
+[train] step=50 loss=0.051356 lr=9.999e-06
+[train] step=51 loss=0.043112 lr=9.999e-06
+[train] step=52 loss=0.042541 lr=9.999e-06
+[train] step=53 loss=0.036335 lr=9.999e-06
+[train] step=54 loss=0.039206 lr=9.999e-06
+[train] step=55 loss=0.044497 lr=9.999e-06
+[train] step=56 loss=0.057195 lr=9.999e-06
+[train] step=57 loss=0.029334 lr=9.999e-06
+[train] step=58 loss=0.030496 lr=9.999e-06
+[train] step=59 loss=0.039602 lr=9.999e-06
+[train] step=60 loss=0.048703 lr=9.999e-06
+[train] step=61 loss=0.058946 lr=9.999e-06
+[train] step=62 loss=0.054063 lr=9.999e-06
+[train] step=63 loss=0.064262 lr=9.999e-06
+[train] step=64 loss=0.057028 lr=9.999e-06
+[train] step=65 loss=0.053115 lr=9.999e-06
+[train] step=66 loss=0.040468 lr=9.999e-06
+[train] step=67 loss=0.051068 lr=9.999e-06
+[train] step=68 loss=0.045416 lr=9.999e-06
+[train] step=69 loss=0.057810 lr=9.999e-06
+[train] step=70 loss=0.044907 lr=9.999e-06
+[train] step=71 loss=0.047700 lr=9.999e-06
+[train] step=72 loss=0.081704 lr=9.999e-06
+[train] step=73 loss=0.061016 lr=9.999e-06
+[train] step=74 loss=0.039155 lr=9.999e-06
+[train] step=75 loss=0.034619 lr=9.999e-06
+[train] step=76 loss=0.046055 lr=9.999e-06
+[train] step=77 loss=0.045297 lr=9.999e-06
+[train] step=78 loss=0.046658 lr=9.999e-06
+[train] step=79 loss=0.053196 lr=9.999e-06
+[train] step=80 loss=0.035518 lr=9.998e-06
+[train] step=81 loss=0.035198 lr=9.998e-06
+[train] step=82 loss=0.043361 lr=9.998e-06
+[train] step=83 loss=0.053073 lr=9.998e-06
+[train] step=84 loss=0.040315 lr=9.998e-06
+[train] step=85 loss=0.082106 lr=9.998e-06
+[train] step=86 loss=0.056997 lr=9.998e-06
+[train] step=87 loss=0.044719 lr=9.998e-06
+[train] step=88 loss=0.033318 lr=9.998e-06
+[train] step=89 loss=0.032603 lr=9.998e-06
+[train] step=90 loss=0.039740 lr=9.998e-06
+[train] step=91 loss=0.125021 lr=9.998e-06
+[train] step=92 loss=0.036593 lr=9.998e-06
+[train] step=93 loss=0.041505 lr=9.998e-06
+[train] step=94 loss=0.037859 lr=9.998e-06
+[train] step=95 loss=0.055132 lr=9.998e-06
+[train] step=96 loss=0.040238 lr=9.998e-06
+[train] step=97 loss=0.067745 lr=9.998e-06
+[train] step=98 loss=0.047514 lr=9.998e-06
+[train] step=99 loss=0.040067 lr=9.998e-06
+[train] step=100 loss=0.040010 lr=9.998e-06
+[train] step=101 loss=0.026615 lr=9.998e-06
+[train] step=102 loss=0.046890 lr=9.997e-06
+[train] step=103 loss=0.035312 lr=9.997e-06
+[train] step=104 loss=0.040533 lr=9.997e-06
+[train] step=105 loss=0.045107 lr=9.997e-06
+[train] step=106 loss=0.044596 lr=9.997e-06
+[train] step=107 loss=0.053567 lr=9.997e-06
+[train] step=108 loss=0.067988 lr=9.997e-06
+[train] step=109 loss=0.034702 lr=9.997e-06
+[train] step=110 loss=0.033567 lr=9.997e-06
+[train] step=111 loss=0.056153 lr=9.997e-06
+[train] step=112 loss=0.044404 lr=9.997e-06
+[train] step=113 loss=0.031097 lr=9.997e-06
+[train] step=114 loss=0.052084 lr=9.997e-06
+[train] step=115 loss=0.072947 lr=9.997e-06
+[train] step=116 loss=0.037613 lr=9.997e-06
+[train] step=117 loss=0.069165 lr=9.997e-06
+[train] step=118 loss=0.045480 lr=9.997e-06
+[train] step=119 loss=0.048338 lr=9.997e-06
+[train] step=120 loss=0.042531 lr=9.997e-06
+INFO     [rank 0] Model weights for step 120 saved in        dit_trainer.py:1085
+         checkpoints/model_weights_step_00120.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 120      dit_trainer.py:1092
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1123
+         checkpoints/model_weights_step_00120.state.pt                          
+[epoch 1] step=120 train_loss=0.054974
