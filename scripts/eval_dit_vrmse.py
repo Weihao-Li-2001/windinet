@@ -35,11 +35,13 @@ Usage:
 runs) -- pass a smaller number for a quick check, since each sample costs
 one VAE encode + one DiT rollout + two VAE decodes.
 
---save_npz_samples N additionally saves the VAE+DiT prediction for the
-first N samples as .npz, in the exact format scripts/inference_shockwave.py
-writes, so scripts/visualize_dit_predictions.py can render them unchanged:
-    python scripts/visualize_dit_predictions.py --pred_dir <out_dir>/npz \\
-        --h5 <the h5 path printed by this script> --out_dir <out_dir>/videos
+--save_vis_samples N additionally renders GT/Prediction/Residual panels, at
+--frame_numbers (default 25/50/75/100, matching the VAE/DiT trainers' own
+periodic-visualization convention -- windinet.training.vae_visualization
+.save_reconstruction_panels), for the first N samples, for BOTH passes --
+vae_only and vae_dit -- under <out_dir>/visualizations/{vae_only,vae_dit}/
+<sample_id>/frame_XXXX.png -- so the before/after gap from adding the DiT
+can be read off visually, same layout the training-time panels use.
 """
 
 import argparse
@@ -47,7 +49,6 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
-import numpy as np
 import torch
 import yaml
 from safetensors.torch import load_file
@@ -66,6 +67,7 @@ from windinet.training.shockwave_data import (
     load_channel_normalization,
     normalize_fields,
 )
+from windinet.training.vae_visualization import denormalize_fields, save_reconstruction_panels
 from windinet.utils import get_default_device
 from windinet.vae_adapter import latent_space_fingerprint
 
@@ -195,9 +197,12 @@ def parse_args():
     ap.add_argument("--default_temb", type=float, default=0.0,
                      help="temb passed to the VAE-only decode pass (matches adapter.default_temb "
                           "in every VAE training config seen in this repo so far)")
-    ap.add_argument("--save_npz_samples", type=int, default=3,
-                     help="Also save the VAE+DiT prediction for the first N samples as .npz, in "
-                          "scripts/inference_shockwave.py's format, for visualize_dit_predictions.py")
+    ap.add_argument("--save_vis_samples", type=int, default=3,
+                     help="Render GT/Prediction/Residual panels (both passes) for the first N samples")
+    ap.add_argument("--frame_numbers", type=int, nargs="+", default=[25, 50, 75, 100],
+                     help="1-indexed frame numbers to render panels for (default matches "
+                          "DitVisualizationConfig's own default)")
+    ap.add_argument("--dpi", type=int, default=150, help="Panel image DPI")
     ap.add_argument("--out_dir", type=Path, default=Path("outputs/eval_dit_vrmse"))
     return ap.parse_args()
 
@@ -268,8 +273,6 @@ def main():
     scalar_emb = load_scalar_embedding(scalar_checkpoint, scalar_cfg, device)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    npz_dir = args.out_dir / "npz"
-    npz_dir.mkdir(exist_ok=True)
 
     per_sample = []
     sum_overall = {"vae_only": 0.0, "vae_dit": 0.0}
@@ -345,16 +348,31 @@ def main():
 
         print(f"[{i+1}/{len(val_ids)}] {sid}: vae_only={vo_overall:.5f}  vae+dit={vd_overall:.5f}")
 
-        if i < args.save_npz_samples:
-            from windinet.training.vae_visualization import denormalize_fields
-            phys = denormalize_fields(
-                dit_pred, stats["channel_mean"], stats["channel_std"], stats["normalization_clip"],
-            )[0]
-            np.savez_compressed(
-                npz_dir / f"{sid}.npz",
-                **{name: phys[c].numpy().astype(np.float32) for c, name in enumerate(CHANNEL_NAMES)},
-                gamma=np.float32(sample["meta"]["gamma"]),
+        if i < args.save_vis_samples:
+            # Physical-units ground truth, straight from the dataset -- same
+            # approach dit_visualization.py's own periodic panels use (not
+            # `target`, which is the normalized-space vrmse comparand above).
+            gt_physical = torch.stack([sample[name] for name in CHANNEL_NAMES]).unsqueeze(0)  # [1,C,F,H,W]
+            gt_physical = pad_to(gt_physical, orig_F)
+
+            vae_recon_physical = denormalize_fields(
+                vae_recon, stats["channel_mean"], stats["channel_std"], stats["normalization_clip"],
             )
+            dit_pred_physical = denormalize_fields(
+                dit_pred, stats["channel_mean"], stats["channel_std"], stats["normalization_clip"],
+            )
+
+            for label, pred_physical in (("vae_only", vae_recon_physical), ("vae_dit", dit_pred_physical)):
+                save_reconstruction_panels(
+                    prediction=pred_physical[0],
+                    target=gt_physical[0],
+                    sample_id=sid,
+                    label=label,
+                    frame_numbers=args.frame_numbers,
+                    channel_names=CHANNEL_NAMES,
+                    output_dir=args.out_dir,
+                    dpi=args.dpi,
+                )
 
         if device.type == "cuda":
             torch.cuda.empty_cache()
@@ -387,10 +405,11 @@ def main():
         vd = summary["vae_dit_vrmse_per_channel"][name]
         print(f"  {name:12s} vae_only={vo:.5f}  vae+dit={vd:.5f}  delta={vd - vo:+.5f}")
     print(f"\nSaved: {args.out_dir / 'vrmse_summary.json'}")
-    if args.save_npz_samples > 0:
-        print(f"Saved {min(args.save_npz_samples, n)} .npz prediction(s) to {npz_dir} -- render with:")
-        print(f"  python scripts/visualize_dit_predictions.py --pred_dir {npz_dir} "
-              f"--h5 {h5_path} --out_dir {args.out_dir / 'videos'}")
+    if args.save_vis_samples > 0:
+        print(f"Saved GT/Prediction/Residual panels for {min(args.save_vis_samples, n)} sample(s), "
+              f"frames {args.frame_numbers}, under:")
+        print(f"  {args.out_dir / 'visualizations' / 'vae_only'}/<sample_id>/frame_XXXX.png")
+        print(f"  {args.out_dir / 'visualizations' / 'vae_dit'}/<sample_id>/frame_XXXX.png")
 
 
 if __name__ == "__main__":

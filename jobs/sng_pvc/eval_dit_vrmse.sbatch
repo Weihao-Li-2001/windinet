@@ -31,7 +31,7 @@
 # whatever step you point it at.
 #
 # Usage:
-#   sbatch jobs/sng_pvc/eval_dit_vrmse.sbatch <PREPROCESSED_DATA_ROOT> <DIT_CHECKPOINT> <VAE_CHECKPOINT> [NUM_SAMPLES] [SAVE_NPZ_SAMPLES]
+#   sbatch jobs/sng_pvc/eval_dit_vrmse.sbatch <PREPROCESSED_DATA_ROOT> <DIT_CHECKPOINT> <VAE_CHECKPOINT> [NUM_SAMPLES] [SAVE_VIS_SAMPLES]
 #
 # PREPROCESSED_DATA_ROOT: e.g.
 #   /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_256res
@@ -45,10 +45,12 @@
 # VAE_CHECKPOINT: full path to the vae_shockwave_best.safetensors this
 #   PREPROCESSED_DATA_ROOT was encoded with.
 # NUM_SAMPLES: optional, default 50 (of up to 675 held-out sims).
-# SAVE_NPZ_SAMPLES: optional, default 3 -- also saves that many VAE+DiT
-#   predictions as .npz and renders them as GT/Prediction/Residual videos
-#   (via scripts/visualize_dit_predictions.py, run automatically at the end
-#   of this job) into <OUT_DIR>/videos/. Set to 0 to skip rendering.
+# SAVE_VIS_SAMPLES: optional, default 3 -- for that many samples, renders
+#   GT/Prediction/Residual panels at frames 25/50/75/100 (same convention
+#   as the VAE/DiT trainers' own periodic visualization) for BOTH passes,
+#   under <OUT_DIR>/visualizations/{vae_only,vae_dit}/<sample_id>/. These
+#   PNGs are gitignored (logs/**/*.png) -- pull them off the cluster
+#   directly (scp/rsync) rather than expecting them in the repo.
 
 set -eo pipefail
 
@@ -70,14 +72,14 @@ export HDF5_USE_FILE_LOCKING=FALSE
 
 if [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
     echo "error: PREPROCESSED_DATA_ROOT, DIT_CHECKPOINT, and VAE_CHECKPOINT are all required" >&2
-    echo "  usage: sbatch jobs/sng_pvc/eval_dit_vrmse.sbatch <PREPROCESSED_DATA_ROOT> <DIT_CHECKPOINT> <VAE_CHECKPOINT> [NUM_SAMPLES] [SAVE_NPZ_SAMPLES]" >&2
+    echo "  usage: sbatch jobs/sng_pvc/eval_dit_vrmse.sbatch <PREPROCESSED_DATA_ROOT> <DIT_CHECKPOINT> <VAE_CHECKPOINT> [NUM_SAMPLES] [SAVE_VIS_SAMPLES]" >&2
     exit 1
 fi
 PREPROCESSED_DATA_ROOT=$1
 DIT_CHECKPOINT=$2
 VAE_CHECKPOINT=$3
 NUM_SAMPLES=${4:-50}
-SAVE_NPZ_SAMPLES=${5:-3}
+SAVE_VIS_SAMPLES=${5:-3}
 
 # Sibling file, same stem -- see scripts/eval_dit_vrmse.py's own docstring
 # and jobs/lrz_ai/inference_dit.job's identical convention.
@@ -100,21 +102,7 @@ python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
     --vae_checkpoint "${VAE_CHECKPOINT}" \
     --normalization "${NORMALIZATION}" \
     --num_samples "${NUM_SAMPLES}" \
-    --save_npz_samples "${SAVE_NPZ_SAMPLES}" \
+    --save_vis_samples "${SAVE_VIS_SAMPLES}" \
     --out_dir "${OUT_DIR}"
-
-# Render the SAVE_NPZ_SAMPLES .npz predictions eval_dit_vrmse.py just wrote
-# as GT/Prediction/Residual videos (visualize_dit_predictions.py's own
-# format -- animated per-frame, not static PNGs), same H5 the manifest
-# points at.
-if [ "${SAVE_NPZ_SAMPLES}" -gt 0 ]; then
-    H5_PATH=$(python -c "import json; print(json.load(open('${PREPROCESSED_DATA_ROOT}/split_manifest.json'))['data_root'])")
-    echo "H5_PATH: ${H5_PATH}"
-    python scripts/visualize_dit_predictions.py \
-        --pred_dir "${OUT_DIR}/npz" \
-        --h5 "${H5_PATH}" \
-        --out_dir "${OUT_DIR}/videos"
-    echo "Videos: ${OUT_DIR}/videos"
-fi
 
 echo "END TIME: $(date)"
