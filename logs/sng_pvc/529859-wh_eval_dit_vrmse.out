@@ -38,3 +38,11 @@ VAE_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc
 NORMALIZATION: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_256res/training_config.yaml
 NUM_SAMPLES: 675
 OUT_DIR: logs/sng_pvc/eval_dit_vrmse/529859
+Held-out split: 675 sims (seed=42) from /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_256res/split_manifest.json
+h5: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/train.h5
+Evaluating 675 sim(s)
+Normalization from /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_256res/training_config.yaml: clip=5.0
+Latent space verified: fingerprint 322a8e5dedc3cfd6 matches the DiT's training latents
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_256res/checkpoints/vae_shockwave_best.safetensors (epoch=18, step=2160)
+Loading transformer: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_baseline/checkpoints/model_weights_step_09720.safetensors
+Loading scalar embedding: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_baseline/checkpoints/model_weights_step_09720.state.pt

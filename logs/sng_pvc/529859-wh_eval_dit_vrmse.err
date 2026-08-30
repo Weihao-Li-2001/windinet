@@ -2,3 +2,15 @@
   warnings.warn(
 There are modules in AutoencoderKLLTXVideo that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
 There are modules in LTXVideoTransformer3DModel that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/eval_dit_vrmse.py", line 416, in <module>
+    main()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/eval_dit_vrmse.py", line 273, in main
+    scalar_emb = load_scalar_embedding(scalar_checkpoint, scalar_cfg, device)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/eval_dit_vrmse.py", line 138, in load_scalar_embedding
+    emb.load_state_dict(load_file(str(checkpoint)))
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/safetensors/torch.py", line 359, in load_file
+    with safe_open(filename, framework="pt", device=device, backend=backend) as f:
+safetensors._safetensors_rust.SafetensorError: Error while deserializing header: header too large
