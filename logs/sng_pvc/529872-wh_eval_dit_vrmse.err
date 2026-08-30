@@ -1,0 +1,14 @@
+slurmstepd: error: Unable to create TMPDIR [/hppfs/scratch/0D/go76fuz2/tmp]: No such file or directory
+slurmstepd: error: Setting TMPDIR to /tmp
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/eval_dit_vrmse.py", line 416, in <module>
+    main()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/eval_dit_vrmse.py", line 228, in main
+    manifest = json.loads(manifest_path.read_text())
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/pathlib.py", line 1134, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/pathlib.py", line 1119, in open
+    return self._accessor.open(self, mode, buffering, encoding, errors,
+FileNotFoundError: [Errno 2] No such file or directory: '/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_256res/split_manifest.json'
