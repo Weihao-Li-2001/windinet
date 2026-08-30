@@ -7,9 +7,12 @@
 #SBATCH --account=pn82ku
 #SBATCH -o logs/sng_pvc/%j-%x.out
 #SBATCH -e logs/sng_pvc/%j-%x.err
-# See jobs/sng_pvc/latent_stats.sbatch's exclusion note -- add back
-# "--exclude=i20r02c04s06" here too if that node's scratch mount is still
-# broken when this is submitted.
+# Same broken-scratch-mount node jobs/sng_pvc/latent_stats.sbatch excludes
+# (see that file's own note) -- confirmed still broken 2026-08-31 by job
+# 529872 (a different script, eval_dit_vrmse.sbatch, landed on this node and
+# hit FileNotFoundError on a file that reads fine from every other node).
+# Remove once LRZ fixes the mount, not before.
+#SBATCH --exclude=i20r02c04s06
 
 # sng_pvc launcher for scripts/latent_shift_metrics.py -- paired z_before
 # (zero-init, freshly-inflated) vs z_after (finetuned) latent-shift

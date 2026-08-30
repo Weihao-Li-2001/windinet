@@ -7,6 +7,11 @@
 #SBATCH --account=pn82ku
 #SBATCH -o logs/sng_pvc/%j-%x.out
 #SBATCH -e logs/sng_pvc/%j-%x.err
+# Same broken-scratch-mount node jobs/sng_pvc/latent_stats.sbatch excludes
+# (see that file's own note) -- this is what killed job 529872 (FileNotFound
+# on split_manifest.json, a file that reads fine from every other node).
+# Remove once LRZ fixes the mount, not before.
+#SBATCH --exclude=i20r02c04s06
 
 # Single-tile launcher for scripts/eval_dit_vrmse.py -- compares VAE-only
 # reconstruction vs full VAE+DiT rollout on the SAME held-out sims the VAE
