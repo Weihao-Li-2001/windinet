@@ -1,0 +1,26 @@
+slurmstepd: error: Unable to create TMPDIR [/hppfs/scratch/0D/go76fuz2/tmp]: No such file or directory
+slurmstepd: error: Setting TMPDIR to /tmp
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/latent_shift_metrics.py", line 427, in <module>
+    app()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+    raise e
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+    return get_command(self)(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+    return self.main(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+    return _main(
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+    rv = self.invoke(ctx)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+    return callback(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+    return callback(**use_params)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/latent_shift_metrics.py", line 315, in main
+    full_dataset = ShockWaveDataset(Path(test_h5), num_sim_frames=cfg.data.num_sim_frames)
+  File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/shockwave_data.py", line 71, in __init__
+    raise FileNotFoundError(f"Shockwave HDF5 file not found: {self.h5_path}")
+FileNotFoundError: Shockwave HDF5 file not found: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/test.h5

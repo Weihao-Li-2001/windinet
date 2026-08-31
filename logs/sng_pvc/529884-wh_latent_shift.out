@@ -1,0 +1,48 @@
+START TIME: Sun 30 Aug 2026 07:16:50 PM CEST
+job=529884 node=i20r02c04s08
+config=configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_anchor_kl1e7.yaml (patched -> /tmp/latent_shift_sng_pvc_DOYj.yaml) checkpoint=/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res_anchor_kl1e7/checkpoints/vae_shockwave_best.safetensors test_h5=/hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/test.h5 num_samples=64 output=logs/sng_pvc/529884-latent_shift_metrics.json
+Device: xpu
+Encoding 64 sims from standalone test set 
+'/hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/test.h5' (of 
+500 total)
+
+z_before (zero-init, freshly-inflated, no finetuning == pretrained latent)
+
+z_after (finetuned checkpoint)
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res_anchor_kl1e7/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+  loaded finetuned checkpoint (epoch=20): 
+/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_wh
+ole_structure_baseline_ep20_256res_anchor_kl1e7/checkpoints/vae_shockwave_best.s
+afetensors
+z_before shape: (64, 128, 14, 8, 8)  z_after shape: (64, 128, 14, 8, 8)
+
+Per-sample channel correlation (PhD-advisor-requested)
+  heatmaps written: 
+logs/sng_pvc/529884-latent_shift_metrics_channel_corr_before.png, 
+logs/sng_pvc/529884-latent_shift_metrics_channel_corr_after.png, 
+logs/sng_pvc/529884-latent_shift_metrics_channel_corr_diff.png
+
+Full report written to logs/sng_pvc/529884-latent_shift_metrics.json
+   Latent shift summary (zero-init z_before vs finetuned    
+                    z_after, on test.h5)                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+┃ metric                                ┃            value ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+│ mean drift |avg|                      │           0.4384 │
+│ mean drift |max|                      │           1.8130 │
+│ std ratio avg                         │           1.3882 │
+│ std ratio range                       │ [0.7487, 3.6813] │
+│ Wasserstein-1 avg                     │           0.4962 │
+│ off-diag corr before (pooled)         │           0.1923 │
+│ off-diag corr after (pooled)          │           0.1201 │
+│ off-diag corr before (per-sample avg) │           0.1480 │
+│ off-diag corr after (per-sample avg)  │           0.1214 │
+│ off-diag corr after (per-sample max)  │           0.6933 │
+│ median relative displacement          │           1.0187 │
+│ affine-fit residual                   │           0.5692 │
+│ linear CKA                            │           0.5918 │
+└───────────────────────────────────────┴──────────────────┘
+Top-5 channels by Wasserstein-1: [[74, np.float64(1.811439)], [7, 
+np.float64(1.382768)], [1, np.float64(1.373377)], [43, np.float64(1.270299)], 
+[72, np.float64(1.222754)]]
+END TIME: Sun 30 Aug 2026 07:47:14 PM CEST
