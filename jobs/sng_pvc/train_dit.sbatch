@@ -7,6 +7,9 @@
 #SBATCH --account=pn82ku
 #SBATCH -o logs/sng_pvc/%j-%x.out
 #SBATCH -e logs/sng_pvc/%j-%x.err
+# Same broken-scratch-mount node jobs/sng_pvc/latent_stats.sbatch excludes
+# (see that file's own note). Remove once LRZ fixes the mount, not before.
+#SBATCH --exclude=i20r02c04s06
 
 # Batch submission for the ShockWaveNet DiT run on the sng_pvc cluster
 # (Intel Data Center GPU Max 1550 / XPU, 8 tiles per node). Companion to
@@ -101,6 +104,13 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline   # or WANDB_DISABLED=true
 export TOKENIZERS_PARALLELISM=false
+
+# See jobs/sng_pvc/finetune_vae.sbatch's own note: without this, Python's
+# stdout is block-buffered once redirected to a file, so a hard kill (24h
+# walltime SIGKILL included) loses whatever hadn't flushed yet -- job 529653
+# (shockwave_dit_ep20_baseline) logged only through step 8778 despite
+# training actually reaching at least step 9360.
+export PYTHONUNBUFFERED=1
 
 # Substitute the __PREPROCESSED_ROOT__ placeholder for the real path, same
 # pattern as jobs/lrz_ai/train_dit.job and jobs/lundquist/train_dit_2gpu.sbatch
