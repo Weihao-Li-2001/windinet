@@ -7,6 +7,9 @@
 #SBATCH --account=pn82ku
 #SBATCH -o logs/sng_pvc/%j-%x.out
 #SBATCH -e logs/sng_pvc/%j-%x.err
+# Same broken-scratch-mount node jobs/sng_pvc/latent_stats.sbatch excludes
+# (see that file's own note). Remove once LRZ fixes the mount, not before.
+#SBATCH --exclude=i20r02c04s06
 
 # 1-XPU-tile debug launcher for the overfit-8 capacity diagnostic (see
 # EXPERIMENTS.md Open Question 2 and Open Question 12), the sng_pvc
@@ -93,6 +96,11 @@ export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline
 export TOKENIZERS_PARALLELISM=false
 export HDF5_USE_FILE_LOCKING=FALSE
+
+# See jobs/sng_pvc/finetune_vae.sbatch's own note: without this, a hard kill
+# loses whatever's sitting in Python's block-buffered stdout, even though
+# metrics.csv/checkpoints (separate direct file I/O) survive untouched.
+export PYTHONUNBUFFERED=1
 
 BASE_CONFIG=${1:-configs/finetune_vae/finetune_vae_overfit.yaml}
 RUN_CONFIG=$(mktemp /tmp/finetune_vae_sng_pvc_debug_XXXX.yaml)
