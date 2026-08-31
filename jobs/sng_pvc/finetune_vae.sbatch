@@ -7,6 +7,12 @@
 #SBATCH --account=pn82ku
 #SBATCH -o logs/sng_pvc/%j-%x.out
 #SBATCH -e logs/sng_pvc/%j-%x.err
+# Same broken-scratch-mount node jobs/sng_pvc/latent_stats.sbatch excludes
+# (see that file's own note) -- confirmed still broken 2026-08-30 by job
+# 529848 (cosine_kl1e5 finetune): landed on this node and every rank hit
+# FileNotFoundError on train.h5 before a single training step.
+# Remove once LRZ fixes the mount, not before.
+#SBATCH --exclude=i20r02c04s06
 
 # Batch submission for VAE finetuning on the sng_pvc cluster (Intel Data
 # Center GPU Max 1550 / XPU, 8 tiles per node).
@@ -82,6 +88,17 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline   # or WANDB_DISABLED=true
 export TOKENIZERS_PARALLELISM=false
+
+# Without this, Python's stdout is block-buffered once redirected to a file
+# (SLURM's -o is exactly that) instead of line-buffered like a TTY. A clean
+# exit flushes it, but a hard kill (walltime SIGKILL, node/mount failure)
+# does not -- whatever was still sitting in the buffer is gone from the log
+# forever, even though metrics.csv/checkpoints (written via direct file I/O
+# in the training loop, not through this stream) survive untouched. Seen on
+# jobs 529846/529847/529849 (cosine_kl1e7/kl1e6/anchor): each .out froze
+# within the first few minutes of epoch 1 despite metrics.csv showing a
+# clean 20-epoch run all the way through.
+export PYTHONUNBUFFERED=1
 
 # 8 ranks all open train.h5 concurrently. HDF5's file locking is unreliable
 # on network filesystems like DSS/Lustre and throws "Unable to synchronously

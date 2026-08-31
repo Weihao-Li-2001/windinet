@@ -20,7 +20,16 @@
 # BATCH_SIZE=4, --time=15:00:00: same convention as every other 256res arm
 # in EXPERIMENTS.md's 2026-08-20 plan.
 #
-# Usage:
+# Usage (sng_pvc, 2026-08-31): moved here from the original lrz_ai plan below
+# -- never actually got submitted on lrz_ai, running the whole cosine sweep
+# on one cluster (sng_pvc, where the kl1e5/kl1e6/kl1e7/anchor/lr5e5 siblings
+# already ran) instead. jobs/sng_pvc/finetune_vae.sbatch forces batch_size=4
+# itself regardless of BATCH_SIZE, so that env var is lrz_ai-only.
+#   sbatch --time=18:00:00 jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr1e5.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+#
+# Usage (lrz_ai, original plan, unused):
 #   BATCH_SIZE=4 sbatch --time=15:00:00 jobs/lrz_ai/finetune_vae_2gpu.job \
 #       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr1e5.yaml \
 #       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds
