@@ -95,12 +95,18 @@ NUM_SAMPLES=${4:-50}
 SAVE_VIS_SAMPLES=${5:-3}
 NUM_INFERENCE_STEPS=${6:-}
 
-# Sibling file, same step -- see scripts/eval_dit_vrmse.py's own docstring
-# and jobs/lrz_ai/inference_dit.job's identical convention. NOT .state.pt
-# (that's optimizer/scheduler/RNG state, saved by _save_training_state --
-# ScalarEmbedding has its own separate safetensors file, see dit_trainer.py's
-# _save_checkpoint).
-SCALAR_CHECKPOINT=${DIT_CHECKPOINT/model_weights_step_/scalar_embedding_step_}
+# Sibling file, same step (or same "best" slot) -- see scripts/eval_dit_vrmse.py's
+# own docstring and jobs/lrz_ai/inference_dit.job's identical convention. NOT
+# .state.pt (that's optimizer/scheduler/RNG state, saved by
+# _save_training_state -- ScalarEmbedding has its own separate safetensors
+# file, see dit_trainer.py's _save_checkpoint). Substitutes on "model_weights_"
+# rather than "model_weights_step_" so this also covers the
+# model_weights_best.safetensors / scalar_embedding_best.safetensors pair
+# dit_trainer.py now saves (see its "New best checkpoint" log line) -- the
+# old model_weights_step_-only pattern silently no-ops on a _best path,
+# pointing SCALAR_CHECKPOINT at the DiT weights file instead of the scalar
+# embedding one.
+SCALAR_CHECKPOINT=${DIT_CHECKPOINT/model_weights_/scalar_embedding_}
 NORMALIZATION=$(dirname "$(dirname "${VAE_CHECKPOINT}")")/training_config.yaml
 OUT_DIR="logs/sng_pvc/eval_dit_vrmse/${SLURM_JOB_ID}"
 
