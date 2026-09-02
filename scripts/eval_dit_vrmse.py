@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Full-validation-set VRMSE: VAE-only reconstruction vs VAE+DiT rollout.
+Full-validation-set VRMSE: VAE-only reconstruction vs VAE+DiT rollout, in
+BOTH decoded pixel space and raw latent space.
 
 Answers "how much extra error does the DiT add on top of the VAE's own
 reconstruction floor" -- using the SAME held-out sims the VAE was validated
@@ -17,6 +18,21 @@ Two passes per sample, same ground truth, same metric:
   - vae_dit:   encode only frame 0 (the initial condition), let the DiT
                roll the rest out in latent space, decode, compare -- the
                full inference-time pipeline inference_shockwave.py runs.
+
+Both passes are reported in decoded pixel space (comparable to the VAE's
+own val_vrmse) AND in raw latent space (the vae_dit pass's rollout compared
+directly against the vae_only pass's own ground-truth latent, no decode in
+between -- 2026-08-31: merged in from the former standalone
+eval_dit_latent_vrmse.py, which existed only to avoid a second, separate
+DiT rollout for this. The DiT's own training loss (flow-matching loss at
+random noise levels) does not report this directly, and the pixel-space
+number alone conflates DiT rollout error with the VAE decoder's own
+reconstruction fidelity -- the latent-space number isolates DiT forecast
+quality from that). The vae_dit pass now pulls the rollout with
+output_type="latent" and decodes it explicitly (one extra decode, zero
+extra transformer forward passes) instead of letting the pipeline decode
+internally, purely so this same predicted latent is available for both
+comparisons.
 
 The DiT checkpoint can be a mid-training checkpoint (this run may not have
 finished) -- this script does not require or check a "final" checkpoint.
@@ -63,7 +79,7 @@ from windinet.checkpoints import ensure_checkpoint
 from windinet.config import ScalarConditioningConfig
 from windinet.inference.model_loader import load_ltxv_components, select_vae_env
 from windinet.inference.pipeline import LTXConditionPipeline
-from windinet.losses import vrms_loss, vrms_per_channel
+from windinet.losses import rmse_loss, vrms_loss, vrms_per_channel
 from windinet.scalar_embeddings import ScalarEmbedding
 from windinet.training.shockwave_data import (
     CHANNEL_NAMES,
@@ -184,6 +200,15 @@ def pad_to(t: torch.Tensor, n_frames: int) -> torch.Tensor:
     return t[:, :, :n_frames]
 
 
+def trim_latent_frames(a: torch.Tensor, b: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """[B, C, F, H, W] pair -> both trimmed to the shorter F. The DiT
+    rollout's latent and the ground-truth encode's latent are not
+    guaranteed to land on the exact same latent frame count -- same
+    alignment issue pad_to() handles in pixel space, here in latent space."""
+    n = min(a.shape[2], b.shape[2])
+    return a[:, :, :n], b[:, :, :n]
+
+
 def pick_gamma_spread_ids(val_ids: list[str], n: int) -> set[str]:
     """N sample ids spanning val_ids' gamma range: min/median/max for n=3,
     evenly-spaced quantiles otherwise -- same selection vae_trainer.py's
@@ -269,7 +294,6 @@ def main():
     num_inference_steps = cfg.get("num_inference_steps", 2)
     guidance_scale = cfg.get("guidance_scale", 1.0)
     num_frames = cfg.get("num_frames", 105)
-    num_output_frames = cfg.get("num_output_frames", 101)
     image_cond_noise_scale = cfg.get("image_cond_noise_scale", 0.0)
     seed = cfg.get("seed", 42)
 
@@ -305,6 +329,8 @@ def main():
     per_sample = []
     sum_overall = {"vae_only": 0.0, "vae_dit": 0.0}
     sum_channel = {"vae_only": [0.0] * 4, "vae_dit": [0.0] * 4}
+    sum_lat_vrmse, sum_lat_rmse = 0.0, 0.0
+    sum_lat_channel = None  # lazily sized to the latent's own channel count on first sample
 
     for i, sid in enumerate(val_ids):
         idx = dataset.ids.index(sid)
@@ -321,8 +347,11 @@ def main():
         target = pad_to(gt_video, orig_F).float()
 
         # --- VAE-only pass: encode + decode the full ground-truth sequence ---
-        latents = vae_encode(pipe.vae, gt_video.to(DTYPE))
-        vae_recon = vae_decode(pipe.vae, latents, args.default_temb).float()
+        # gt_latent doubles as the "correct answer" the vae_dit pass's own
+        # rollout latent is compared against below -- the VAE encoder's
+        # direct output, zero DiT involvement.
+        gt_latent = vae_encode(pipe.vae, gt_video.to(DTYPE))
+        vae_recon = vae_decode(pipe.vae, gt_latent, args.default_temb).float()
         vae_recon = pad_to(vae_recon, orig_F)
 
         vo_overall = float(vrms_loss(vae_recon, target).item())
@@ -351,30 +380,56 @@ def main():
                 prompt_attention_mask=prompt_mask,
                 negative_prompt_embeds=torch.zeros_like(prompt_embeds),
                 negative_prompt_attention_mask=prompt_mask.clone(),
-                output_type="pt",
+                output_type="latent",
             )
-        # out.frames: [B, F, C, H, W] in the SAME normalized [-1,1] space as
-        # `target` (do_normalize=False on the video processor) -- do not
-        # denormalize here, val_vrmse is a normalized-space metric.
-        dit_pred = out.frames[0].float().cpu()[:num_output_frames].permute(1, 0, 2, 3).unsqueeze(0)
-        dit_pred = pad_to(dit_pred.to(target.device), orig_F)
+        # out.frames is the raw predicted latent, [B, C, F_lat, H_lat, W_lat],
+        # in the SAME rescaled space vae_encode() returns (LTXConditionPipeline's
+        # output_type=="latent" branch returns the unpacked latents BEFORE
+        # _denormalize_latents, which is exactly the inverse of vae_encode's
+        # own rescale) -- directly comparable to gt_latent with no further
+        # conversion, and decodable with the same vae_decode() helper used
+        # for the vae_only pass above.
+        dit_pred_latent = out.frames.float()
+        pred_lat, cmp_gt_lat = trim_latent_frames(dit_pred_latent, gt_latent.float())
 
-        vd_overall = float(vrms_loss(dit_pred, target).item())
-        vd_channel = vrms_per_channel(dit_pred, target).tolist()
+        lat_vrmse = float(vrms_loss(pred_lat, cmp_gt_lat).item())
+        lat_rmse = float(rmse_loss(pred_lat, cmp_gt_lat).item())
+        lat_channel = vrms_per_channel(pred_lat, cmp_gt_lat)
+        if sum_lat_channel is None:
+            sum_lat_channel = torch.zeros(lat_channel.shape[0])
+        sum_lat_channel += lat_channel.cpu()
+
+        # Decoded pixel space -- same predicted latent, one extra decode
+        # (zero extra transformer forward passes), directly comparable to
+        # vo_overall/target above. out.frames: [B, F, C, H, W] in the SAME
+        # normalized [-1,1] space as `target` (do_normalize=False on the
+        # video processor) -- do not denormalize here, val_vrmse is a
+        # normalized-space metric.
+        dit_pred = vae_decode(pipe.vae, pred_lat.to(DTYPE), args.default_temb).float()
+        dit_pred = pad_to(dit_pred, orig_F)
+        n_px = min(dit_pred.shape[2], target.shape[2])
+        dit_pred, target_cmp = dit_pred[:, :, :n_px], target[:, :, :n_px]
+
+        vd_overall = float(vrms_loss(dit_pred, target_cmp).item())
+        vd_channel = vrms_per_channel(dit_pred, target_cmp).tolist()
 
         per_sample.append({
             "id": sid, "gamma": float(sample["meta"]["gamma"]),
             "vae_only_vrmse": vo_overall, "vae_dit_vrmse": vd_overall,
             "vae_only_per_channel": dict(zip(CHANNEL_NAMES, vo_channel)),
             "vae_dit_per_channel": dict(zip(CHANNEL_NAMES, vd_channel)),
+            "latent_vrmse": lat_vrmse, "latent_rmse": lat_rmse,
         })
         sum_overall["vae_only"] += vo_overall
         sum_overall["vae_dit"] += vd_overall
         for c in range(4):
             sum_channel["vae_only"][c] += vo_channel[c]
             sum_channel["vae_dit"][c] += vd_channel[c]
+        sum_lat_vrmse += lat_vrmse
+        sum_lat_rmse += lat_rmse
 
-        print(f"[{i+1}/{len(val_ids)}] {sid}: vae_only={vo_overall:.5f}  vae+dit={vd_overall:.5f}")
+        print(f"[{i+1}/{len(val_ids)}] {sid}: vae_only={vo_overall:.5f}  vae+dit={vd_overall:.5f}  "
+              f"latent_vrmse={lat_vrmse:.5f}")
 
         if sid in vis_ids:
             # Physical-units ground truth, straight from the dataset -- same
@@ -408,6 +463,8 @@ def main():
             torch.xpu.empty_cache()
 
     n = len(val_ids)
+    mean_lat_channel = (sum_lat_channel / n).tolist()
+    ranked = sorted(range(len(mean_lat_channel)), key=lambda c: mean_lat_channel[c], reverse=True)
     summary = {
         "n_samples": n,
         "h5": h5_path,
@@ -417,14 +474,19 @@ def main():
         "vae_dit_vrmse_mean": sum_overall["vae_dit"] / n,
         "vae_only_vrmse_per_channel": {name: sum_channel["vae_only"][c] / n for c, name in enumerate(CHANNEL_NAMES)},
         "vae_dit_vrmse_per_channel": {name: sum_channel["vae_dit"][c] / n for c, name in enumerate(CHANNEL_NAMES)},
+        "latent_vrmse_mean": sum_lat_vrmse / n,
+        "latent_rmse_mean": sum_lat_rmse / n,
+        "latent_vrmse_per_channel": mean_lat_channel,
+        "worst_5_latent_channels": [{"channel": c, "vrmse": mean_lat_channel[c]} for c in ranked[:5]],
+        "best_5_latent_channels": [{"channel": c, "vrmse": mean_lat_channel[c]} for c in ranked[-5:]],
         "per_sample": per_sample,
     }
     (args.out_dir / "vrmse_summary.json").write_text(json.dumps(summary, indent=2))
 
     print("\n" + "=" * 60)
     print(f"n={n} sims")
-    print(f"VAE-only  val_vrmse : {summary['vae_only_vrmse_mean']:.5f}")
-    print(f"VAE+DiT   val_vrmse : {summary['vae_dit_vrmse_mean']:.5f}")
+    print(f"VAE-only  val_vrmse (pixel)  : {summary['vae_only_vrmse_mean']:.5f}")
+    print(f"VAE+DiT   val_vrmse (pixel)  : {summary['vae_dit_vrmse_mean']:.5f}")
     delta = summary["vae_dit_vrmse_mean"] - summary["vae_only_vrmse_mean"]
     pct = delta / summary["vae_only_vrmse_mean"] * 100
     print(f"Delta (DiT forecasting cost on top of VAE recon): {delta:+.5f} ({pct:+.1f}%)")
@@ -432,6 +494,10 @@ def main():
         vo = summary["vae_only_vrmse_per_channel"][name]
         vd = summary["vae_dit_vrmse_per_channel"][name]
         print(f"  {name:12s} vae_only={vo:.5f}  vae+dit={vd:.5f}  delta={vd - vo:+.5f}")
+    print(f"\nDiT rollout vs VAE-encoder ground truth, LATENT space (isolated from VAE decode):")
+    print(f"  latent_vrmse : {summary['latent_vrmse_mean']:.5f}")
+    print(f"  latent_rmse  : {summary['latent_rmse_mean']:.5f}")
+    print(f"  worst 5 latent channels: {summary['worst_5_latent_channels']}")
     print(f"\nSaved: {args.out_dir / 'vrmse_summary.json'}")
     if vis_ids:
         print(f"Saved GT/Prediction/Residual panels for {len(vis_ids)} sample(s) spanning the gamma "

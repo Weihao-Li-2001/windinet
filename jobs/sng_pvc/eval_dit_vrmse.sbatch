@@ -17,19 +17,27 @@
 # reconstruction vs full VAE+DiT rollout on the SAME held-out sims the VAE
 # was validated on, using the SAME val_vrmse formula (normalized-space
 # variance-normalized RMSE), so the two are directly comparable to each
-# other and to the already-committed VAE val_vrmse numbers. No distributed
-# launch needed -- inference, batch_size 1, forward-only, same reasoning as
+# other and to the already-committed VAE val_vrmse numbers. Reports BOTH
+# decoded pixel-space VRMSE and raw latent-space VRMSE/RMSE (2026-08-31:
+# merged in from the former standalone eval_dit_latent_vrmse.py -- one
+# sbatch, one DiT rollout per sample, instead of two -- see
+# scripts/eval_dit_vrmse.py's own docstring for why the latent number
+# exists separately from the pixel one). No distributed launch needed --
+# inference, batch_size 1, forward-only, same reasoning as
 # jobs/sng_pvc/latent_stats.sbatch.
 #
-# --time=04:00:00 is an UNCALIBRATED GUESS (2026-08-30, first run of this
-# script) -- no full-validation-set DiT rollout has been timed on sng_pvc
-# yet. Budget per sample: one VAE encode+decode (fast) + one 20-step DiT
-# denoising rollout on a 2B-param transformer at 896 tokens (lrz_ai's own
-# inference_dit.job guesses "seconds, not minutes" per step on an H100;
-# sng_pvc's XPU tiles are the ones actually training these checkpoints, so
-# use that job's own per-step throughput as a better prior than the H100
-# guess). Start with a small NUM_SAMPLES (default 50) to get a real
-# per-sample time before committing to the full 675.
+# --time=04:00:00: CALIBRATED 2026-08-31 off jobs 529873/529874 (this
+# script's pixel-only predecessor, 675 samples each, ~2h00m wall time both
+# -- ~10.7s/sample). The latent-space addition here is pure tensor math on
+# already-computed latents (no extra transformer forward pass, one extra
+# decode that was happening either way, just moved from inside the pipe to
+# an explicit call) -- expect the same per-sample cost, not more. Kept at 2x
+# that observed budget rather than tightened to ~2h10m: job 529881 (50
+# samples, same checkpoint family) took ~94min for only 50 samples on a
+# different node -- an order of magnitude slower per-sample than
+# 529873/529874 saw, so node-to-node variance on this cluster is real and
+# worth the margin. Start with a small NUM_SAMPLES to sanity-check a new
+# checkpoint before committing to the full 675 regardless.
 #
 # Checkpoints passed here can be from a run that HAS NOT FINISHED -- this
 # script does not require or check a "final" checkpoint, it just evaluates
@@ -123,6 +131,23 @@ EXTRA_ARGS=()
 if [ -n "${NUM_INFERENCE_STEPS}" ]; then
     EXTRA_ARGS+=(--num_inference_steps "${NUM_INFERENCE_STEPS}")
 fi
+
+# Prewarm the big checkpoints with a plain sequential read before
+# safetensors.load_file() touches them (2026-08-31): that function mmaps the
+# file and materializes tensors via scattered, page-fault-driven reads --
+# each one a full network round-trip on this cluster's Lustre-backed
+# $SCRATCH, and MUCH more sensitive to a degraded node/network path than a
+# straight sequential stream. Jobs 529975/529978/529979 each sat for ~1h
+# past this exact point (all 3 on different nodes, 2 sharing one checkpoint
+# and the 3rd using an unrelated one -- ruling out same-file contention as
+# the cause) while `time cat <same checkpoint> > /dev/null` from the login
+# node finished in 30s. A plain `cat` here forces the same fast, sequential
+# path and populates the page cache, so the mmap reads that follow inside
+# Python hit cache instead of the network -- costs ~30-40s on a healthy
+# node, saves up to the ~1h this cluster has shown it can cost on a bad one.
+echo "Prewarming checkpoints (sequential read, see comment above)..."
+time cat "${DIT_CHECKPOINT}" "${SCALAR_CHECKPOINT}" "${VAE_CHECKPOINT}" > /dev/null
+echo "Prewarm done."
 
 python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
     --preprocessed_data_root "${PREPROCESSED_DATA_ROOT}" \
