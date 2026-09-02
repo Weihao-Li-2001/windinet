@@ -1,0 +1,66 @@
+START TIME: Mon 31 Aug 2026 06:22:12 AM CEST
+job=529975 node=i20r02c06s10
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_DATA_ROOT: /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res
+DIT_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+SCALAR_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+VAE_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors
+NORMALIZATION: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml
+NUM_SAMPLES: 2
+NUM_INFERENCE_STEPS: <config default>
+OUT_DIR: logs/sng_pvc/eval_dit_latent_vrmse/529975
+INFO     Failed to extract font properties from             font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     generated new fontManager                          font_manager.py:1639
+Held-out split: 675 sims (seed=42) from /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res/split_manifest.json
+h5: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/train.h5
+Evaluating 2 sim(s)
+Normalization from /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml: clip=5.0
+Latent space verified: fingerprint 22b5994360e2c75d matches the DiT's training latents
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+Loading transformer: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+Loading scalar embedding: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+[1/2] 0000_gamma1.1299999952: latent_vrmse=0.44851  latent_rmse=0.56687  pixel_vrmse(decoded)=0.29710
+[2/2] 0008_gamma1.1299999952: latent_vrmse=0.72882  latent_rmse=0.86789  pixel_vrmse(decoded)=0.58680
+
+============================================================
+n=2 sims
+Latent-space VRMSE (DiT rollout vs VAE-encoder ground truth): 0.58867
+Latent-space RMSE  (same comparison, unnormalized)          : 0.71738
+Pixel-space  VRMSE (same predicted latent, decoded)         : 0.44195
+Worst 5 latent channels (by VRMSE): [{'channel': 35, 'vrmse': 0.8557050824165344}, {'channel': 99, 'vrmse': 0.8524333834648132}, {'channel': 93, 'vrmse': 0.8518930673599243}, {'channel': 8, 'vrmse': 0.831294059753418}, {'channel': 39, 'vrmse': 0.824677586555481}]
+
+Saved: logs/sng_pvc/eval_dit_latent_vrmse/529975/latent_vrmse_summary.json
+END TIME: Mon 31 Aug 2026 07:25:35 AM CEST

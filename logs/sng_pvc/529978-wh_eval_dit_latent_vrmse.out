@@ -1,0 +1,114 @@
+START TIME: Mon 31 Aug 2026 06:32:25 AM CEST
+job=529978 node=i20r02c05s08
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_DATA_ROOT: /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res
+DIT_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+SCALAR_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+VAE_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors
+NORMALIZATION: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml
+NUM_SAMPLES: 50
+NUM_INFERENCE_STEPS: <config default>
+OUT_DIR: logs/sng_pvc/eval_dit_latent_vrmse/529978
+INFO     Failed to extract font properties from             font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     generated new fontManager                          font_manager.py:1639
+Held-out split: 675 sims (seed=42) from /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res/split_manifest.json
+h5: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/train.h5
+Evaluating 50 sim(s)
+Normalization from /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml: clip=5.0
+Latent space verified: fingerprint 22b5994360e2c75d matches the DiT's training latents
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+Loading transformer: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+Loading scalar embedding: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+[1/50] 0000_gamma1.1299999952: latent_vrmse=0.44826  latent_rmse=0.56656  pixel_vrmse(decoded)=0.29673
+[2/50] 0008_gamma1.1299999952: latent_vrmse=0.72854  latent_rmse=0.86755  pixel_vrmse(decoded)=0.58645
+[3/50] 0010_gamma1.1299999952: latent_vrmse=0.38882  latent_rmse=0.62101  pixel_vrmse(decoded)=0.25980
+[4/50] 0034_gamma1.1299999952: latent_vrmse=0.52731  latent_rmse=0.76694  pixel_vrmse(decoded)=0.59645
+[5/50] 0037_gamma1.1299999952: latent_vrmse=0.47435  latent_rmse=0.53767  pixel_vrmse(decoded)=0.34505
+[6/50] 0064_gamma1.1299999952: latent_vrmse=0.49775  latent_rmse=0.63279  pixel_vrmse(decoded)=0.36807
+[7/50] 0069_gamma1.1299999952: latent_vrmse=0.62662  latent_rmse=0.85993  pixel_vrmse(decoded)=0.43806
+[8/50] 0073_gamma1.1299999952: latent_vrmse=0.53820  latent_rmse=0.66012  pixel_vrmse(decoded)=0.39660
+[9/50] 0076_gamma1.1299999952: latent_vrmse=0.46503  latent_rmse=0.57072  pixel_vrmse(decoded)=0.31705
+[10/50] 0084_gamma1.1299999952: latent_vrmse=0.21339  latent_rmse=0.32058  pixel_vrmse(decoded)=0.16538
+[11/50] 0091_gamma1.1299999952: latent_vrmse=0.58352  latent_rmse=0.67895  pixel_vrmse(decoded)=0.41629
+[12/50] 0092_gamma1.1299999952: latent_vrmse=0.43615  latent_rmse=0.52172  pixel_vrmse(decoded)=0.29049
+[13/50] 0093_gamma1.1299999952: latent_vrmse=0.46946  latent_rmse=0.56768  pixel_vrmse(decoded)=0.41749
+[14/50] 0098_gamma1.1299999952: latent_vrmse=0.54777  latent_rmse=0.61424  pixel_vrmse(decoded)=0.35957
+[15/50] 0105_gamma1.1299999952: latent_vrmse=0.39624  latent_rmse=0.56882  pixel_vrmse(decoded)=0.29367
+[16/50] 0108_gamma1.1299999952: latent_vrmse=0.50180  latent_rmse=0.67269  pixel_vrmse(decoded)=0.49973
+[17/50] 0110_gamma1.1299999952: latent_vrmse=0.62326  latent_rmse=0.70012  pixel_vrmse(decoded)=0.57515
+[18/50] 0111_gamma1.1299999952: latent_vrmse=0.65429  latent_rmse=0.72977  pixel_vrmse(decoded)=0.55331
+[19/50] 0119_gamma1.1299999952: latent_vrmse=0.25298  latent_rmse=0.32669  pixel_vrmse(decoded)=0.19313
+[20/50] 0125_gamma1.1299999952: latent_vrmse=0.52729  latent_rmse=0.77191  pixel_vrmse(decoded)=0.41400
+[21/50] 0129_gamma1.1299999952: latent_vrmse=0.61557  latent_rmse=0.87172  pixel_vrmse(decoded)=0.50393
+[22/50] 0135_gamma1.1299999952: latent_vrmse=0.53907  latent_rmse=1.07781  pixel_vrmse(decoded)=0.38007
+[23/50] 0143_gamma1.1299999952: latent_vrmse=0.26235  latent_rmse=0.33510  pixel_vrmse(decoded)=0.19850
+[24/50] 0150_gamma1.1299999952: latent_vrmse=0.71922  latent_rmse=0.92323  pixel_vrmse(decoded)=0.60455
+[25/50] 0154_gamma1.1299999952: latent_vrmse=0.16693  latent_rmse=0.16379  pixel_vrmse(decoded)=0.13187
+[26/50] 0163_gamma1.1299999952: latent_vrmse=0.49917  latent_rmse=0.52399  pixel_vrmse(decoded)=0.37191
+[27/50] 0175_gamma1.1299999952: latent_vrmse=0.74488  latent_rmse=0.99565  pixel_vrmse(decoded)=0.60336
+[28/50] 0178_gamma1.1299999952: latent_vrmse=0.76086  latent_rmse=0.77953  pixel_vrmse(decoded)=0.68580
+[29/50] 0183_gamma1.1299999952: latent_vrmse=0.28822  latent_rmse=0.34508  pixel_vrmse(decoded)=0.23889
+[30/50] 0187_gamma1.1299999952: latent_vrmse=0.64951  latent_rmse=0.71342  pixel_vrmse(decoded)=0.47967
+[31/50] 0193_gamma1.1299999952: latent_vrmse=0.88061  latent_rmse=1.31467  pixel_vrmse(decoded)=0.88786
+[32/50] 0194_gamma1.1299999952: latent_vrmse=0.43600  latent_rmse=0.70995  pixel_vrmse(decoded)=0.30982
+[33/50] 0202_gamma1.1299999952: latent_vrmse=0.55448  latent_rmse=0.62070  pixel_vrmse(decoded)=0.48821
+[34/50] 0209_gamma1.1299999952: latent_vrmse=0.62850  latent_rmse=1.00387  pixel_vrmse(decoded)=0.46067
+[35/50] 0214_gamma1.1299999952: latent_vrmse=0.56379  latent_rmse=0.72251  pixel_vrmse(decoded)=0.47251
+[36/50] 0221_gamma1.1299999952: latent_vrmse=0.76728  latent_rmse=0.90194  pixel_vrmse(decoded)=0.62443
+[37/50] 0224_gamma1.1299999952: latent_vrmse=0.27069  latent_rmse=0.38055  pixel_vrmse(decoded)=0.24013
+[38/50] 0232_gamma1.1299999952: latent_vrmse=0.57470  latent_rmse=1.09884  pixel_vrmse(decoded)=0.40343
+[39/50] 0238_gamma1.1299999952: latent_vrmse=0.44386  latent_rmse=0.39392  pixel_vrmse(decoded)=0.37087
+[40/50] 0239_gamma1.1299999952: latent_vrmse=0.55622  latent_rmse=0.61867  pixel_vrmse(decoded)=0.40755
+[41/50] 0243_gamma1.1299999952: latent_vrmse=0.36631  latent_rmse=0.35256  pixel_vrmse(decoded)=0.21133
+[42/50] 0248_gamma1.1299999952: latent_vrmse=0.13923  latent_rmse=0.18354  pixel_vrmse(decoded)=0.15381
+[43/50] 0254_gamma1.1299999952: latent_vrmse=0.71949  latent_rmse=0.95567  pixel_vrmse(decoded)=0.55098
+[44/50] 0256_gamma1.1299999952: latent_vrmse=0.45736  latent_rmse=0.50493  pixel_vrmse(decoded)=0.27377
+[45/50] 0258_gamma1.1299999952: latent_vrmse=0.55677  latent_rmse=0.51089  pixel_vrmse(decoded)=0.34206
+[46/50] 0261_gamma1.1299999952: latent_vrmse=0.19012  latent_rmse=0.23320  pixel_vrmse(decoded)=0.19238
+[47/50] 0263_gamma1.1299999952: latent_vrmse=0.37118  latent_rmse=0.40189  pixel_vrmse(decoded)=0.24746
+[48/50] 0268_gamma1.1299999952: latent_vrmse=0.53195  latent_rmse=0.66918  pixel_vrmse(decoded)=0.50800
+[49/50] 0281_gamma1.1299999952: latent_vrmse=0.25965  latent_rmse=0.31733  pixel_vrmse(decoded)=0.17496
+[50/50] 0289_gamma1.1299999952: latent_vrmse=0.70101  latent_rmse=0.77302  pixel_vrmse(decoded)=0.54696
+
+============================================================
+n=50 sims
+Latent-space VRMSE (DiT rollout vs VAE-encoder ground truth): 0.50232
+Latent-space RMSE  (same comparison, unnormalized)          : 0.63907
+Pixel-space  VRMSE (same predicted latent, decoded)         : 0.39696
+Worst 5 latent channels (by VRMSE): [{'channel': 35, 'vrmse': 0.8389766216278076}, {'channel': 93, 'vrmse': 0.8266370892524719}, {'channel': 29, 'vrmse': 0.8239138126373291}, {'channel': 78, 'vrmse': 0.8070641160011292}, {'channel': 107, 'vrmse': 0.8027640581130981}]
+
+Saved: logs/sng_pvc/eval_dit_latent_vrmse/529978/latent_vrmse_summary.json
+END TIME: Mon 31 Aug 2026 07:32:49 AM CEST

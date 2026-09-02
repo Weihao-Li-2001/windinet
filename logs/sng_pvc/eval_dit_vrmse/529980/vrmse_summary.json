@@ -1,0 +1,58 @@
+{
+  "n_samples": 2,
+  "h5": "/hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/train.h5",
+  "checkpoint": "/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors",
+  "vae_checkpoint": "/hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors",
+  "vae_only_vrmse_mean": 0.07980025187134743,
+  "vae_dit_vrmse_mean": 0.4416608363389969,
+  "vae_only_vrmse_per_channel": {
+    "density": 0.10198203101754189,
+    "momentum_x": 0.08254771120846272,
+    "momentum_y": 0.08150010369718075,
+    "pressure": 0.12146396934986115
+  },
+  "vae_dit_vrmse_per_channel": {
+    "density": 0.5638343393802643,
+    "momentum_x": 0.47186534106731415,
+    "momentum_y": 0.4901792109012604,
+    "pressure": 0.4949314296245575
+  },
+  "per_sample": [
+    {
+      "id": "0000_gamma1.1299999952",
+      "gamma": 1.1299999952316284,
+      "vae_only_vrmse": 0.05003773421049118,
+      "vae_dit_vrmse": 0.2970503866672516,
+      "vae_only_per_channel": {
+        "density": 0.08117885887622833,
+        "momentum_x": 0.05261536315083504,
+        "momentum_y": 0.05412936583161354,
+        "pressure": 0.0897560864686966
+      },
+      "vae_dit_per_channel": {
+        "density": 0.47561514377593994,
+        "momentum_x": 0.3205944001674652,
+        "momentum_y": 0.3554566502571106,
+        "pressure": 0.40378493070602417
+      }
+    },
+    {
+      "id": "0008_gamma1.1299999952",
+      "gamma": 1.1299999952316284,
+      "vae_only_vrmse": 0.10956276953220367,
+      "vae_dit_vrmse": 0.5862712860107422,
+      "vae_only_per_channel": {
+        "density": 0.12278520315885544,
+        "momentum_x": 0.1124800592660904,
+        "momentum_y": 0.10887084156274796,
+        "pressure": 0.1531718522310257
+      },
+      "vae_dit_per_channel": {
+        "density": 0.6520535349845886,
+        "momentum_x": 0.6231362819671631,
+        "momentum_y": 0.6249017715454102,
+        "pressure": 0.5860779285430908
+      }
+    }
+  ]
+}

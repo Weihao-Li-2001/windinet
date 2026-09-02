@@ -1,0 +1,68 @@
+START TIME: Mon 31 Aug 2026 07:25:49 AM CEST
+job=529980 node=i20r02c06s04
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_DATA_ROOT: /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res
+DIT_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+SCALAR_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+VAE_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors
+NORMALIZATION: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml
+NUM_SAMPLES: 2
+NUM_INFERENCE_STEPS: <config default>
+OUT_DIR: logs/sng_pvc/eval_dit_vrmse/529980
+Held-out split: 675 sims (seed=42) from /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res/split_manifest.json
+h5: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/train.h5
+Evaluating 2 sim(s)
+Visualizing 2 sample(s) spanning the gamma range: ['0000_gamma1.1299999952', '0008_gamma1.1299999952']
+Normalization from /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml: clip=5.0
+Latent space verified: fingerprint 22b5994360e2c75d matches the DiT's training latents
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+Loading transformer: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+Loading scalar embedding: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+[1/2] 0000_gamma1.1299999952: vae_only=0.05004  vae+dit=0.29705
+[2/2] 0008_gamma1.1299999952: vae_only=0.10956  vae+dit=0.58627
+
+============================================================
+n=2 sims
+VAE-only  val_vrmse : 0.07980
+VAE+DiT   val_vrmse : 0.44166
+Delta (DiT forecasting cost on top of VAE recon): +0.36186 (+453.5%)
+  density      vae_only=0.10198  vae+dit=0.56383  delta=+0.46185
+  momentum_x   vae_only=0.08255  vae+dit=0.47187  delta=+0.38932
+  momentum_y   vae_only=0.08150  vae+dit=0.49018  delta=+0.40868
+  pressure     vae_only=0.12146  vae+dit=0.49493  delta=+0.37347
+
+Saved: logs/sng_pvc/eval_dit_vrmse/529980/vrmse_summary.json
+Saved GT/Prediction/Residual panels for 2 sample(s) spanning the gamma range, frames [25, 50, 75, 100], under:
+  logs/sng_pvc/eval_dit_vrmse/529980/visualizations/vae_only/<sample_id>/frame_XXXX.png
+  logs/sng_pvc/eval_dit_vrmse/529980/visualizations/vae_dit/<sample_id>/frame_XXXX.png
+END TIME: Mon 31 Aug 2026 08:23:33 AM CEST
