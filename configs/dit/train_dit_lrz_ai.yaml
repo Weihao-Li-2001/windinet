@@ -14,7 +14,7 @@
 # here only if you are running scripts/train.py directly, not through the
 # job script.
 #
-# 256x256 SEQUENCE-LENGTH CAVEAT (2026-08-20, updated 2026-08-30): the
+# 256x256 SEQUENCE-LENGTH CAVEAT (2026-08-20, updated 2026-09-03): the
 # comments this file inherited from configs/train_dit.yaml were sized
 # for 128x128 VAE latents (14 frames x 4x4 = 224 tokens, ~31GB estimated at
 # batch_size=4). Every VAE arm in EXPERIMENTS.md's current plan is 256x256
@@ -23,15 +23,21 @@
 # the square of that. optimization.batch_size/gradient_accumulation_steps
 # were raised from the original batch_size=1/accum=16 (each optimizer step
 # was 16 fully-serial micro-steps, wasting GPU parallelism) to
-# batch_size=2/accum=8 -- same effective batch (per this file's own,
-# already-known-stale "num_processes=2" comment below -- this is the
-# 4-GPU config, see EXPERIMENTS.md's open decision #1 on the effective-batch
-# mismatch, NOT fixed here, only the serial-step count is being addressed),
-# half as many serial steps per optimizer step -- as a conservative first
-# move, still NOT a confirmed-safe combination at 896 tokens: check the
-# actual peak GPU memory after the first few steps of a real run, and push
-# batch_size higher (lowering accum to match) if there's still headroom.
-# enable_gradient_checkpointing stays ON until that's confirmed.
+# batch_size=2/accum=8 on 2026-08-30, still NOT a confirmed-safe combination
+# at 896 tokens: check the actual peak GPU memory after the first few steps
+# of a real run, and push batch_size higher (lowering accum to match) if
+# there's still headroom. enable_gradient_checkpointing stays ON until
+# that's confirmed.
+#
+# EFFECTIVE-BATCH FIX (2026-09-03, resolves EXPERIMENTS.md open decision #1):
+# this file runs on 4 GPUs via train_dit_4gpu.job, so batch_size=2/accum=8
+# gave effective_batch = 2*8*4 = 64 -- double every other cluster/arm's 32,
+# meaning job 5762646's step-6099 checkpoint had already consumed ~2x the
+# intended data budget while its cosine schedule (authored for 10000 steps)
+# was still far from annealed. gradient_accumulation_steps dropped 8 -> 4
+# below to restore effective_batch = 2*4*4 = 32. This is a fresh restart,
+# not a resume of 5762646's checkpoint -- that run's progress belongs to a
+# different, no-longer-comparable schedule.
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -55,17 +61,14 @@ scalar_conditioning:
 optimization:
   learning_rate: 1e-5
   steps: 10000
-  # Effective batch = batch_size * grad_acc * num_processes. 2 * 8 * 2 = 32,
+  # Effective batch = batch_size * grad_acc * num_processes. 2 * 4 * 4 = 32,
   # matching the VAE runs' own effective batch (not load-bearing, just a
   # consistent choice) -- RECOMPUTE checkpoints.interval below if you change
   # any of these three or the GPU count jobs/lrz_ai/train_dit.job requests.
-  # (2026-08-30: raised from batch_size=1/accum=16 -- same effective batch,
-  # fewer serial accumulation steps per optimizer step -- see header caveat.
-  # This comment's "num_processes=2"/"=32" was already stale before this
-  # edit -- this file actually runs at 4 GPUs via train_dit_4gpu.job, real
-  # effective batch is 64, unchanged by this edit -- see header caveat.)
+  # (2026-09-03: dropped accum 8 -> 4 to fix the effective_batch=64 bug --
+  # see header's "EFFECTIVE-BATCH FIX" note.)
   batch_size: 2
-  gradient_accumulation_steps: 8
+  gradient_accumulation_steps: 4
   max_grad_norm: 1.0
   optimizer_type: "adamw"
   scheduler_type: "cosine"
@@ -102,8 +105,7 @@ validation:
 
 checkpoints:
   # One epoch = 3825 train sims / effective_batch 32 = ~120 optimizer steps
-  # (batch_size 2 x grad_acc 8 x 2 GPUs -- see optimization's own comment;
-  # stale GPU count as noted there -- this file is actually 4-GPU).
+  # (batch_size 2 x grad_acc 4 x 4 GPUs -- see optimization's own comment).
   interval: 120
   keep_last_n: 2
 

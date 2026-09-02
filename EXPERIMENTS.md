@@ -389,6 +389,14 @@ not assumed):
    arm targets at step 10000 -- before the mismatch was even noticed. See
    "Open decisions" below.
 
+   **Resolved (2026-09-03):** the 2026-08-30 partial fix (raising
+   `batch_size` 1->2 and dropping `accum` 16->8) only reduced serial
+   micro-steps per optimizer step -- effective batch stayed at `2x8x4=64`,
+   still double every other arm's 32 (the file's own comments flagged this
+   as still-stale at the time). `gradient_accumulation_steps` dropped to 4
+   (`2x4x4=32`) to actually fix it -- option (b) below, restarting this arm
+   from step 0 rather than resuming job 5762646's checkpoint.
+
 **Per-arm status (as of 2026-08-29, sng_pvc jobs just submitted, outcomes
 not yet known):**
 
