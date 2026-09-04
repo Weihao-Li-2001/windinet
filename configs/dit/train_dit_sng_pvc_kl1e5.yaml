@@ -46,7 +46,11 @@ scalar_conditioning:
 
 optimization:
   learning_rate: 1e-5
-  steps: 10000
+  # 2026-09-05: 10000 -> 8000. sng_pvc's 24h ceiling could not reliably finish
+  # 10000 steps (arms landed at step ~9360-9480/10000); lowered uniformly
+  # across every cluster/arm, not just sng_pvc, to keep steps x effective_batch
+  # comparable across arms (same reasoning as the effective-batch fix).
+  steps: 8000
   # Effective batch = batch_size * grad_acc * num_processes. 1 * 4 * 8 = 32,
   # matching the VAE runs' own effective batch (not load-bearing, just a
   # consistent choice) -- RECOMPUTE checkpoints.interval below if you change

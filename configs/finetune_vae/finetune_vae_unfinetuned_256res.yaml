@@ -1,0 +1,121 @@
+# NOT a training config -- a materializer. optimization.epochs: 0 means the
+# training loop (windinet/training/vae_trainer.py's `for epoch in range(...)`)
+# never executes a single step: no gradient update, no validation, nothing.
+# The ONLY thing this run does is build the inflated adapter (adapter.mode
+# "inflate", inflate_init "zeros" -- same init the current baseline uses) at
+# its freshly-initialized weights and save it, via train()'s unconditional
+# final checkpoint save (vae_trainer.py, the `if IS_MAIN_PROCESS:` block
+# after the loop, which always fires regardless of epoch count).
+#
+# PhD-advisor-requested control (2026-09-05): run DiT on latents from this
+# UN-finetuned VAE, to separate "does DiT training fail because of something
+# about VAE finetuning itself (KL weight, anchor loss, latent geometry
+# shaped by those)" from "does DiT training fail regardless of VAE
+# finetuning at all."
+#
+# CHECKPOINT OUTPUT: because checkpoints.save_best_only=true and no epoch
+# ever runs, `improved` is never set true -- _save_checkpoint's `best/` slot
+# is never written. Only vae_shockwave_last.safetensors gets saved (the
+# `last/` slot, save_last_state=true). Point preprocess_dit_data.sbatch's
+# VAE_CHECKPOINT at vae_shockwave_last.safetensors, NOT vae_shockwave_best
+# (that file will not exist for this run).
+#
+# training_config.yaml (needed by preprocess/eval's normalization lookup)
+# IS still written -- _save_config() runs before the loop, unconditionally.
+#
+# Every other field below is copied from finetune_vae_whole_structure_
+# baseline_ep20_256res.yaml UNCHANGED (LR/schedule/loss weights are inert
+# here -- no optimizer step ever runs -- kept identical only so this file
+# reads as "the same baseline, epochs=0" rather than a new variable).
+#
+# Usage (sng_pvc) -- runs in a couple minutes (model load + save, no data
+# pass), default --time is overkill but harmless:
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_unfinetuned_256res.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by the job script's DATA_DIR/$2
+  # argument (see Usage above).
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  # Same held-out split (seed 42) every other 256res arm uses, so this
+  # arm's DiT eval later reads split_manifest.json and lands on the SAME
+  # val sims as every other arm's eval_dit_vrmse comparison.
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  # THE variable: 20 -> 0. No training happens -- see header.
+  epochs: 0
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: false
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "unfinetuned", "control", "shockwave-cfd", "256res"]
+
+seed: 42
+output_dir: "finetune_vae_unfinetuned_256res"
+clean_output_dir: true

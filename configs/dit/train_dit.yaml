@@ -23,7 +23,11 @@ scalar_conditioning:
 
 optimization:
   learning_rate: 1e-5
-  steps: 10000
+  # 2026-09-05: 10000 -> 8000. sng_pvc's 24h ceiling could not reliably finish
+  # 10000 steps (arms landed at step ~9360-9480/10000); lowered uniformly
+  # across every cluster/arm, not just sng_pvc, to keep steps x effective_batch
+  # comparable across arms (same reasoning as the effective-batch fix).
+  steps: 8000
   # Effective batch = batch_size * grad_acc * num_gpus = 4 * 4 * 4 = 64, the same
   # as the old 1 * 16 * 4, so training dynamics are unchanged. The latent sequence
   # is only 224 tokens (14 latent frames x 4 x 4), so a batch-1 step spends nearly

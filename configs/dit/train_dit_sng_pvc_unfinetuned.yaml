@@ -1,0 +1,83 @@
+# ShockWaveNet (DiT) training config -- sng_pvc, PAIRED WITH THE UN-FINETUNED
+# VAE CONTROL (configs/finetune_vae/finetune_vae_unfinetuned_256res.yaml,
+# vae_shockwave_last.safetensors -- a freshly-inflated, zero-gradient-step
+# VAE checkpoint, not a trained one). PhD-advisor-requested control
+# (2026-09-05): does DiT training/quality actually depend on VAE finetuning
+# at all, or does it fail (or succeed) the same way regardless?
+#
+# Identical to train_dit_sng_pvc_ep20_baseline.yaml in every optimization/
+# architecture setting -- ONLY the preprocessed data root (set at launch,
+# same as every other sng_pvc DiT config) and output_dir differ, so this
+# arm is comparable to that one on every axis except which VAE produced its
+# latents.
+#
+# data.preprocessed_data_root / validation.data_root below are PLACEHOLDERS
+# ("__PREPROCESSED_ROOT__") -- jobs/sng_pvc/train_dit.sbatch substitutes the
+# real path from the PREPROCESSED_NAME argument at launch. Point that at
+# whatever OUTPUT_NAME preprocess_dit_data.sbatch wrote the un-finetuned
+# VAE's latents to (defaults to the VAE checkpoint's own run directory name,
+# i.e. "finetune_vae_unfinetuned_256res", unless overridden at launch).
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "unfinetuned-vae-control"]
+
+seed: 42
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_unfinetuned"
