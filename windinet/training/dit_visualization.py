@@ -20,22 +20,111 @@ latents (an inflate-mode finetuned checkpoint) is recorded in
 by preprocess_dataset.py); DitVisualizer loads that checkpoint separately,
 once, and caches it for the life of the run -- same load_inflated_vae() used
 by scripts/inference_shockwave.py.
+
+2026-09-05: also writes <output_dir>/dit_vrmse_metrics.csv + dit_vrmse_curve.png
+every call -- latent-space and pixel-space VRMSE (same normalized-space
+variance-normalized-RMSE formula/space VaeTrainer's own val_vrmse and
+scripts/eval_dit_vrmse.py use) on the SAME fixed samples, averaged across
+them, one row per training step this ran at. This was previously only
+obtainable by running scripts/eval_dit_vrmse.py as a separate, later job
+against a saved checkpoint; getting it here is close to free because the
+rollout this method already does for the PNG panels is switched to
+`output_type="latent"` and decoded explicitly (one extra decode, zero extra
+transformer forward passes) instead of letting the pipeline decode
+internally -- the same trick scripts/eval_dit_vrmse.py uses to get both
+numbers from one rollout. A resumed run reads back whatever's already on
+disk before appending, so the curve continues rather than restarting.
 """
 
 from __future__ import annotations
 
+import csv
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/windinet-matplotlib")
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import torch
 from torch.amp import autocast
 
 from windinet.inference.model_loader import load_inflated_vae
 from windinet.inference.pipeline import LTXConditionPipeline
+from windinet.losses import vrms_loss
 from windinet.training.shockwave_data import CHANNEL_NAMES, ShockWaveDataset, normalize_fields
 from windinet.training.vae_visualization import denormalize_fields, save_reconstruction_panels
 from windinet.utils import logger
+
+
+def _vae_encode(vae, video: torch.Tensor) -> torch.Tensor:
+    """video: [B, C, F, H, W], normalized. Returns rescaled latents.
+
+    Same formula as scripts/eval_dit_vrmse.py's vae_encode() / VaeTrainer._encode
+    (windinet/training/vae_trainer.py) -- kept in sync by hand across the three
+    copies (scripts/ has no __init__.py, so it isn't importable as a package).
+    """
+    out = vae.encode(video)
+    posterior_mean = out.latent_dist.mean
+    norm_mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(posterior_mean.device, posterior_mean.dtype)
+    norm_std = vae.latents_std.view(1, -1, 1, 1, 1).to(posterior_mean.device, posterior_mean.dtype)
+    sf = float(getattr(vae.config, "scaling_factor", 1.0))
+    return (posterior_mean - norm_mean) * sf / norm_std
+
+
+def _vae_decode(vae, latents: torch.Tensor, default_temb: float) -> torch.Tensor:
+    """Same formula as scripts/eval_dit_vrmse.py's vae_decode() / VaeTrainer._decode."""
+    mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(latents.device, latents.dtype)
+    std = vae.latents_std.view(1, -1, 1, 1, 1).to(latents.device, latents.dtype)
+    sf = float(getattr(vae.config, "scaling_factor", 1.0))
+    z = latents * std / sf + mean
+    temb = torch.full((z.shape[0],), default_temb, device=z.device, dtype=z.dtype)
+    return vae.decode(z, temb=temb, return_dict=True).sample
+
+
+def _trim_latent_frames(a: torch.Tensor, b: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """[B, C, F, H, W] pair -> both trimmed to the shorter F (same alignment
+    issue as pixel-space frame counts: the DiT rollout's latent and the
+    ground-truth encode's latent aren't guaranteed to land on the same count)."""
+    n = min(a.shape[2], b.shape[2])
+    return a[:, :, :n], b[:, :, :n]
+
+
+def _append_vrmse_metrics(output_dir: str | Path, row: dict[str, float]) -> tuple[Path, Path]:
+    """Append one row to <output_dir>/dit_vrmse_metrics.csv and redraw the curve PNG.
+
+    Mirrors windinet.training.vae_visualization.save_metrics_history's role for
+    the VAE trainer, but keyed on `step` (DiT has no epoch concept) and just
+    the two vrmse numbers -- reads back whatever's already on disk first so a
+    resumed run continues the same curve instead of restarting it.
+    """
+    metrics_path = Path(output_dir) / "dit_vrmse_metrics.csv"
+    rows: list[dict[str, float]] = []
+    if metrics_path.is_file():
+        with metrics_path.open(newline="") as handle:
+            rows = [{k: float(v) for k, v in r.items()} for r in csv.DictReader(handle)]
+    rows = [r for r in rows if r["step"] != row["step"]] + [row]
+    rows.sort(key=lambda r: r["step"])
+
+    with metrics_path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    steps = [r["step"] for r in rows]
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.plot(steps, [r["latent_vrmse_mean"] for r in rows], marker="o", label="latent VRMSE")
+    ax.plot(steps, [r["pixel_vrmse_mean"] for r in rows], marker="o", label="pixel VRMSE")
+    ax.set(title="DiT rollout VRMSE (fixed visualization samples)", xlabel="Step", ylabel="VRMSE")
+    ax.grid(alpha=0.3)
+    ax.legend()
+    curve_path = Path(output_dir) / "dit_vrmse_curve.png"
+    fig.savefig(curve_path, dpi=150)
+    plt.close(fig)
+    return metrics_path, curve_path
 
 
 def pick_fixed_visualization_sample_ids(
@@ -93,6 +182,7 @@ class DitVisualizer:
         seed: int,
         device: torch.device,
         dtype: torch.dtype = torch.bfloat16,
+        default_temb: float = 0.0,
     ) -> None:
         self._preprocessed_data_root = Path(preprocessed_data_root)
         self._model_source = model_source
@@ -105,6 +195,7 @@ class DitVisualizer:
         self._seed = seed
         self._device = device
         self._dtype = dtype
+        self._default_temb = default_temb
 
         self._samples: list[dict] | None = None  # lazy: fixed raw ShockWaveDataset rows
         self._stats: dict | None = None
@@ -191,18 +282,27 @@ class DitVisualizer:
         else:
             self._pipe.transformer = transformer
 
+        sum_latent_vrmse, sum_pixel_vrmse = 0.0, 0.0
+
         for i, sample in enumerate(self._samples):
             H, W = sample["density"].shape[-2:]
             gt = torch.stack([sample[name] for name in CHANNEL_NAMES]).unsqueeze(0)  # [1, C, F, H, W]
             num_frames_needed = gt.shape[2]
             num_frames_padded = ((num_frames_needed - 1) // 8 + 1) * 8 + 1  # LTX VAE needs 8k+1
 
-            cond = normalize_fields(
-                gt[:, :, 0],  # frame 0 as the initial condition, [1, C, H, W]
-                self._stats["channel_mean"],
-                self._stats["channel_std"],
-                self._stats["normalization_clip"],
-            ).unsqueeze(1).to(device=self._device, dtype=self._dtype)  # [1, 1, C, H, W]
+            # Full normalized ground truth -- used both as the VAE-encode input
+            # (for the latent-space comparison below) and as the pixel-space
+            # vrmse comparand (same normalized-space convention VaeTrainer's
+            # own val_vrmse and scripts/eval_dit_vrmse.py use -- NOT the
+            # denormalized-physical-units `gt` the panels below compare
+            # against).
+            gt_norm = normalize_fields(
+                gt, self._stats["channel_mean"], self._stats["channel_std"], self._stats["normalization_clip"],
+            ).to(device=self._device, dtype=self._dtype)  # [1, C, F, H, W]
+            # frame 0 as the initial condition -- [1, C, H, W] -> [1, 1, C, H, W]
+            # (frame-major, matching the pipe's expected `video` layout; NOT
+            # the same axis order as gt_norm itself, which stays [B,C,F,H,W]).
+            cond = gt_norm[:, :, 0].unsqueeze(1)
 
             scalar_values = [sample["meta"][name] for name in self._scalar_names]
             scalars = torch.tensor([scalar_values], device=self._device, dtype=self._dtype)
@@ -225,17 +325,38 @@ class DitVisualizer:
                     prompt_attention_mask=prompt_mask,
                     negative_prompt_embeds=torch.zeros_like(prompt_embeds),
                     negative_prompt_attention_mask=prompt_mask.clone(),
-                    output_type="pt",
+                    output_type="latent",
                 )
+            # out.frames is the raw predicted latent (rescaled, same space
+            # _vae_encode returns) -- decoding it ourselves (one extra decode,
+            # zero extra transformer forward passes) instead of letting the
+            # pipeline decode internally is what makes the latent-space
+            # comparison below "free": same rollout that already produced the
+            # panels, see scripts/eval_dit_vrmse.py's docstring for the same
+            # reasoning applied there.
+            pred_latent = out.frames.float()
 
-            pred = out.frames[0].float().cpu()[:num_frames_needed]  # [F, C, H, W], trim the padding
-            pred = pred.permute(1, 0, 2, 3).unsqueeze(0)  # [1, C, F, H, W]
-            pred = denormalize_fields(
-                pred, self._stats["channel_mean"], self._stats["channel_std"], self._stats["normalization_clip"],
+            gt_latent = _vae_encode(self._vae, gt_norm).float()
+            pred_lat_trim, gt_lat_trim = _trim_latent_frames(pred_latent, gt_latent)
+            sample_latent_vrmse = float(vrms_loss(pred_lat_trim, gt_lat_trim).item())
+            sum_latent_vrmse += sample_latent_vrmse
+
+            pred_norm = _vae_decode(self._vae, pred_lat_trim.to(self._dtype), self._default_temb).float()
+            gt_norm_f32 = gt_norm.float()
+            n_px = min(pred_norm.shape[2], gt_norm_f32.shape[2])
+            sample_pixel_vrmse = float(
+                vrms_loss(pred_norm[:, :, :n_px], gt_norm_f32[:, :, :n_px]).item()
+            )
+            sum_pixel_vrmse += sample_pixel_vrmse
+
+            pred_physical = pred_norm.cpu()[:, :, :num_frames_needed]  # [1, C, F, H, W], trim the padding
+            pred_physical = denormalize_fields(
+                pred_physical, self._stats["channel_mean"], self._stats["channel_std"],
+                self._stats["normalization_clip"],
             )
 
             save_reconstruction_panels(
-                prediction=pred[0],
+                prediction=pred_physical[0],
                 target=gt[0],
                 sample_id=sample["id"],
                 label=f"step_{step:06d}",
@@ -250,7 +371,17 @@ class DitVisualizer:
             elif self._device.type == "xpu":
                 torch.xpu.empty_cache()
 
+        n = len(self._samples)
+        latent_vrmse_mean = sum_latent_vrmse / n
+        pixel_vrmse_mean = sum_pixel_vrmse / n
+        metrics_path, curve_path = _append_vrmse_metrics(
+            self._output_dir,
+            {"step": float(step), "latent_vrmse_mean": latent_vrmse_mean, "pixel_vrmse_mean": pixel_vrmse_mean},
+        )
+
         logger.info(
             f"Saved DiT visualization panels for step {step} "
-            f"({len(self._samples)} samples x {len(self._frame_numbers)} frames)"
+            f"({len(self._samples)} samples x {len(self._frame_numbers)} frames); "
+            f"latent_vrmse={latent_vrmse_mean:.5f} pixel_vrmse={pixel_vrmse_mean:.5f} "
+            f"-> {metrics_path}, {curve_path}"
         )

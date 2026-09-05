@@ -94,6 +94,9 @@ export HDF5_USE_FILE_LOCKING=FALSE
 if [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
     echo "error: PREPROCESSED_DATA_ROOT, DIT_CHECKPOINT, and VAE_CHECKPOINT are all required" >&2
     echo "  usage: sbatch jobs/sng_pvc/eval_dit_vrmse.sbatch <PREPROCESSED_DATA_ROOT> <DIT_CHECKPOINT> <VAE_CHECKPOINT> [NUM_SAMPLES] [SAVE_VIS_SAMPLES]" >&2
+    echo "  DIT_CHECKPOINT: pass the literal string 'untrained' for the DiT-never-finetuned" >&2
+    echo "  control (scripts/eval_dit_vrmse.py --untrained_dit) -- stock pretrained transformer," >&2
+    echo "  freshly random-initialized ScalarEmbedding, no checkpoint files needed." >&2
     exit 1
 fi
 PREPROCESSED_DATA_ROOT=$1
@@ -103,24 +106,11 @@ NUM_SAMPLES=${4:-50}
 SAVE_VIS_SAMPLES=${5:-3}
 NUM_INFERENCE_STEPS=${6:-}
 
-# Sibling file, same step (or same "best" slot) -- see scripts/eval_dit_vrmse.py's
-# own docstring and jobs/lrz_ai/inference_dit.job's identical convention. NOT
-# .state.pt (that's optimizer/scheduler/RNG state, saved by
-# _save_training_state -- ScalarEmbedding has its own separate safetensors
-# file, see dit_trainer.py's _save_checkpoint). Substitutes on "model_weights_"
-# rather than "model_weights_step_" so this also covers the
-# model_weights_best.safetensors / scalar_embedding_best.safetensors pair
-# dit_trainer.py now saves (see its "New best checkpoint" log line) -- the
-# old model_weights_step_-only pattern silently no-ops on a _best path,
-# pointing SCALAR_CHECKPOINT at the DiT weights file instead of the scalar
-# embedding one.
-SCALAR_CHECKPOINT=${DIT_CHECKPOINT/model_weights_/scalar_embedding_}
 NORMALIZATION=$(dirname "$(dirname "${VAE_CHECKPOINT}")")/training_config.yaml
 OUT_DIR="logs/sng_pvc/eval_dit_vrmse/${SLURM_JOB_ID}"
 
 echo "PREPROCESSED_DATA_ROOT: ${PREPROCESSED_DATA_ROOT}"
 echo "DIT_CHECKPOINT: ${DIT_CHECKPOINT}"
-echo "SCALAR_CHECKPOINT: ${SCALAR_CHECKPOINT}"
 echo "VAE_CHECKPOINT: ${VAE_CHECKPOINT}"
 echo "NORMALIZATION: ${NORMALIZATION}"
 echo "NUM_SAMPLES: ${NUM_SAMPLES}"
@@ -132,32 +122,63 @@ if [ -n "${NUM_INFERENCE_STEPS}" ]; then
     EXTRA_ARGS+=(--num_inference_steps "${NUM_INFERENCE_STEPS}")
 fi
 
-# Prewarm the big checkpoints with a plain sequential read before
-# safetensors.load_file() touches them (2026-08-31): that function mmaps the
-# file and materializes tensors via scattered, page-fault-driven reads --
-# each one a full network round-trip on this cluster's Lustre-backed
-# $SCRATCH, and MUCH more sensitive to a degraded node/network path than a
-# straight sequential stream. Jobs 529975/529978/529979 each sat for ~1h
-# past this exact point (all 3 on different nodes, 2 sharing one checkpoint
-# and the 3rd using an unrelated one -- ruling out same-file contention as
-# the cause) while `time cat <same checkpoint> > /dev/null` from the login
-# node finished in 30s. A plain `cat` here forces the same fast, sequential
-# path and populates the page cache, so the mmap reads that follow inside
-# Python hit cache instead of the network -- costs ~30-40s on a healthy
-# node, saves up to the ~1h this cluster has shown it can cost on a bad one.
-echo "Prewarming checkpoints (sequential read, see comment above)..."
-time cat "${DIT_CHECKPOINT}" "${SCALAR_CHECKPOINT}" "${VAE_CHECKPOINT}" > /dev/null
-echo "Prewarm done."
+if [ "${DIT_CHECKPOINT}" = "untrained" ]; then
+    echo "DIT_CHECKPOINT=untrained: DiT-never-finetuned control, skipping checkpoint prewarm/load"
+    EXTRA_ARGS+=(--untrained_dit)
+    echo "Prewarming VAE checkpoint only (see prewarm comment further down for why)..."
+    time cat "${VAE_CHECKPOINT}" > /dev/null
+    echo "Prewarm done."
 
-python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
-    --preprocessed_data_root "${PREPROCESSED_DATA_ROOT}" \
-    --checkpoint "${DIT_CHECKPOINT}" \
-    --scalar_checkpoint "${SCALAR_CHECKPOINT}" \
-    --vae_checkpoint "${VAE_CHECKPOINT}" \
-    --normalization "${NORMALIZATION}" \
-    --num_samples "${NUM_SAMPLES}" \
-    --save_vis_samples "${SAVE_VIS_SAMPLES}" \
-    --out_dir "${OUT_DIR}" \
-    "${EXTRA_ARGS[@]}"
+    python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
+        --preprocessed_data_root "${PREPROCESSED_DATA_ROOT}" \
+        --vae_checkpoint "${VAE_CHECKPOINT}" \
+        --normalization "${NORMALIZATION}" \
+        --num_samples "${NUM_SAMPLES}" \
+        --save_vis_samples "${SAVE_VIS_SAMPLES}" \
+        --out_dir "${OUT_DIR}" \
+        "${EXTRA_ARGS[@]}"
+else
+    # Sibling file, same step (or same "best" slot) -- see scripts/eval_dit_vrmse.py's
+    # own docstring and jobs/lrz_ai/inference_dit.job's identical convention. NOT
+    # .state.pt (that's optimizer/scheduler/RNG state, saved by
+    # _save_training_state -- ScalarEmbedding has its own separate safetensors
+    # file, see dit_trainer.py's _save_checkpoint). Substitutes on "model_weights_"
+    # rather than "model_weights_step_" so this also covers the
+    # model_weights_best.safetensors / scalar_embedding_best.safetensors pair
+    # dit_trainer.py now saves (see its "New best checkpoint" log line) -- the
+    # old model_weights_step_-only pattern silently no-ops on a _best path,
+    # pointing SCALAR_CHECKPOINT at the DiT weights file instead of the scalar
+    # embedding one.
+    SCALAR_CHECKPOINT=${DIT_CHECKPOINT/model_weights_/scalar_embedding_}
+    echo "SCALAR_CHECKPOINT: ${SCALAR_CHECKPOINT}"
+
+    # Prewarm the big checkpoints with a plain sequential read before
+    # safetensors.load_file() touches them (2026-08-31): that function mmaps the
+    # file and materializes tensors via scattered, page-fault-driven reads --
+    # each one a full network round-trip on this cluster's Lustre-backed
+    # $SCRATCH, and MUCH more sensitive to a degraded node/network path than a
+    # straight sequential stream. Jobs 529975/529978/529979 each sat for ~1h
+    # past this exact point (all 3 on different nodes, 2 sharing one checkpoint
+    # and the 3rd using an unrelated one -- ruling out same-file contention as
+    # the cause) while `time cat <same checkpoint> > /dev/null` from the login
+    # node finished in 30s. A plain `cat` here forces the same fast, sequential
+    # path and populates the page cache, so the mmap reads that follow inside
+    # Python hit cache instead of the network -- costs ~30-40s on a healthy
+    # node, saves up to the ~1h this cluster has shown it can cost on a bad one.
+    echo "Prewarming checkpoints (sequential read, see comment above)..."
+    time cat "${DIT_CHECKPOINT}" "${SCALAR_CHECKPOINT}" "${VAE_CHECKPOINT}" > /dev/null
+    echo "Prewarm done."
+
+    python scripts/eval_dit_vrmse.py configs/dit/inference_dit.yaml \
+        --preprocessed_data_root "${PREPROCESSED_DATA_ROOT}" \
+        --checkpoint "${DIT_CHECKPOINT}" \
+        --scalar_checkpoint "${SCALAR_CHECKPOINT}" \
+        --vae_checkpoint "${VAE_CHECKPOINT}" \
+        --normalization "${NORMALIZATION}" \
+        --num_samples "${NUM_SAMPLES}" \
+        --save_vis_samples "${SAVE_VIS_SAMPLES}" \
+        --out_dir "${OUT_DIR}" \
+        "${EXTRA_ARGS[@]}"
+fi
 
 echo "END TIME: $(date)"

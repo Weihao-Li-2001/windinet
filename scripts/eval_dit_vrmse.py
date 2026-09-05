@@ -237,6 +237,14 @@ def parse_args():
                      help="How many val sims to evaluate (default: all in the manifest)")
     ap.add_argument("--checkpoint", type=Path, default=None, help="Override transformer checkpoint")
     ap.add_argument("--scalar_checkpoint", type=Path, default=None, help="Override scalar embedding checkpoint")
+    ap.add_argument("--untrained_dit", action="store_true",
+                     help="'DiT never finetuned' control: skip --checkpoint/--scalar_checkpoint entirely "
+                          "and use the stock pretrained LTX-Video transformer as-is (no finetuning on "
+                          "shockwave latents) plus a freshly random-initialized ScalarEmbedding (there is "
+                          "no pretrained scalar-conditioning module to fall back to -- LTX-Video has no "
+                          "notion of gamma conditioning). Answers the DiT-side analog of the un-finetuned-"
+                          "VAE control: how much does DiT training actually add on top of just running the "
+                          "untouched pretrained transformer on these latents.")
     ap.add_argument("--vae_checkpoint", type=Path, default=None, help="Override inflate-mode VAE checkpoint")
     ap.add_argument("--normalization", type=Path, default=None,
                      help="Override normalization source (a training_config.yaml or stats yaml) -- "
@@ -289,8 +297,8 @@ def main():
         print(f"Visualizing {len(vis_ids)} sample(s) spanning the gamma range: {sorted(vis_ids)}")
 
     model_source = cfg.get("model_source", "LTXV_2B_0.9.6_DEV")
-    checkpoint = ensure_checkpoint(cfg["checkpoint"])
-    scalar_checkpoint = ensure_checkpoint(cfg["scalar_checkpoint"])
+    checkpoint = None if args.untrained_dit else ensure_checkpoint(cfg["checkpoint"])
+    scalar_checkpoint = None if args.untrained_dit else ensure_checkpoint(cfg["scalar_checkpoint"])
     num_inference_steps = cfg.get("num_inference_steps", 2)
     guidance_scale = cfg.get("guidance_scale", 1.0)
     num_frames = cfg.get("num_frames", 105)
@@ -304,7 +312,10 @@ def main():
 
     stats = load_channel_normalization(cfg["normalization"])
     print(f"Normalization from {cfg['normalization']}: clip={stats['normalization_clip']}")
-    verify_latent_space(ensure_checkpoint(vae_ckpt), checkpoint, stats)
+    if args.untrained_dit:
+        print("--untrained_dit: skipping latent-space provenance check (no DiT training happened to verify against)")
+    else:
+        verify_latent_space(ensure_checkpoint(vae_ckpt), checkpoint, stats)
 
     sc = cfg.get("scalar_conditioning", {})
     scalar_cfg = ScalarConditioningConfig(
@@ -321,8 +332,13 @@ def main():
         raise SystemExit(f"val_ids not found in {h5_path}: {missing[:5]}...")
 
     pipe = make_pipe(model_source, device)  # pipe.vae is now the finetuned VAE from vae_ckpt
-    load_transformer_weights(pipe, checkpoint)
-    scalar_emb = load_scalar_embedding(scalar_checkpoint, scalar_cfg, device)
+    if args.untrained_dit:
+        print("--untrained_dit: leaving transformer at its stock pretrained weights (no checkpoint loaded)")
+        scalar_emb = ScalarEmbedding(scalar_cfg).to(device=device, dtype=DTYPE).eval()
+        print("--untrained_dit: using a freshly random-initialized ScalarEmbedding (no pretrained equivalent exists)")
+    else:
+        load_transformer_weights(pipe, checkpoint)
+        scalar_emb = load_scalar_embedding(scalar_checkpoint, scalar_cfg, device)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -468,7 +484,7 @@ def main():
     summary = {
         "n_samples": n,
         "h5": h5_path,
-        "checkpoint": str(checkpoint),
+        "checkpoint": str(checkpoint) if checkpoint else "untrained (stock pretrained transformer + random ScalarEmbedding)",
         "vae_checkpoint": str(vae_ckpt),
         "vae_only_vrmse_mean": sum_overall["vae_only"] / n,
         "vae_dit_vrmse_mean": sum_overall["vae_dit"] / n,
