@@ -751,6 +751,34 @@ class LtxvTrainer:
         scalar_embeds = scalar_embedding(batch.scalars)
 
         if torch.isnan(scalar_embeds).any() or torch.isinf(scalar_embeds).any():
+            # Diagnostic dump, not a fix: this has been observed crashing full
+            # multi-hour DiT runs (2026-09-05, sng_pvc, both a 3e-5 and a 3e-6
+            # LR arm, at the same global step under seed=42 -- same data order,
+            # so plausibly the same input triggers it regardless of LR) with no
+            # information beyond "NaN somewhere in here." Both the raw input
+            # scalars and this module's weights are already confirmed NaN-free
+            # above, so the blow-up happens inside forward() itself -- log the
+            # normalize()/FourierFeatures stage outputs too so the next
+            # occurrence pinpoints whether it's the Fourier encoding or the MLP
+            # that actually produces the NaN, instead of re-deriving this from
+            # scratch. Deliberately still raises: gracefully skipping this
+            # optimizer step would require an all-reduced cross-rank agreement
+            # (a bare per-rank skip risks a DDP collective hang if only some
+            # ranks' micro-batches trigger this), which is a bigger change than
+            # a logging-only diagnostic should carry.
+            with torch.no_grad():
+                normalized = scalar_embedding.normalize(batch.scalars)
+                fourier_out = scalar_embedding.fourier(normalized)
+                logger.error(
+                    f"Scalar embeddings contain NaN or Inf values\n"
+                    f"  raw scalars       : {batch.scalars.tolist()}\n"
+                    f"  normalized [0,1]  : {normalized.tolist()}\n"
+                    f"  fourier features  : nan={torch.isnan(fourier_out).any().item()} "
+                    f"inf={torch.isinf(fourier_out).any().item()} "
+                    f"min={fourier_out.min().item():.4g} max={fourier_out.max().item():.4g}\n"
+                    f"  scalar_embeds     : nan={torch.isnan(scalar_embeds).any().item()} "
+                    f"inf={torch.isinf(scalar_embeds).any().item()}"
+                )
             raise ValueError("Scalar embeddings contain NaN or Inf values")
 
         batch_size = batch.scalars.shape[0]

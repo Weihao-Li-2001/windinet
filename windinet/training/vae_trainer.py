@@ -766,7 +766,13 @@ class VaeTrainer:
         saved_path = None
         metrics_history: list[dict[str, float]] = []
 
-        if self._start_epoch > cfg.optimization.epochs:
+        # `self._start_epoch > 1` guard: epochs=0 with a fresh (non-resumed) run
+        # is a deliberate "materialize the freshly-inflated adapter, train zero
+        # steps" pass (e.g. an un-finetuned-VAE control) -- the for-loop below
+        # just never executes and the unconditional final checkpoint save still
+        # fires. Only an actual resume (start_epoch>1) landing past a smaller
+        # epochs is the real misconfiguration this originally guarded against.
+        if self._start_epoch > 1 and self._start_epoch > cfg.optimization.epochs:
             raise ValueError(
                 f"resume epoch {self._start_epoch} exceeds configured epochs "
                 f"{cfg.optimization.epochs}; increase optimization.epochs to train further."

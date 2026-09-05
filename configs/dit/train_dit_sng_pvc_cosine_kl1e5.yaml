@@ -1,0 +1,79 @@
+# ShockWaveNet (DiT) training config -- pairs with the COSINE-schedule VAE
+# KL sweep's kl=1e-5 arm (finetune_vae_whole_structure_baseline_ep20_256res_
+# cosine_kl1e5, preprocessed 2026-09-04, job 534488). NOT the same VAE arm as
+# train_dit_sng_pvc_kl1e5.yaml (that one already trained -- job 529654 --
+# against the plain/wsd-schedule kl1e5 arm; reusing it here would collide
+# output_dir and overwrite that run's checkpoints). Distinct output_dir below
+# so this is a separate, independently comparable run.
+#
+# Otherwise identical to train_dit_sng_pvc_ep20_baseline.yaml (steps=8000,
+# LR=1e-5, effective_batch=32) -- the LR-sweep siblings of that config
+# (_lr3e5/_lr3e6) both crashed around step 2000 on sng_pvc (2026-09-05,
+# NaN in ScalarEmbedding's forward output, see windinet/training/
+# dit_trainer.py's _embed_and_concat_scalars diagnostic logging added the
+# same day) and that line of investigation is on hold -- this config
+# deliberately keeps the plain 1e-5 LR, not one of those variants.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "cosine-vae", "kl1e5"]
+
+seed: 42
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e5"
