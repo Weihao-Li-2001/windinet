@@ -1,0 +1,80 @@
+# Timestep-sampling std variant of train_dit_sng_pvc_ep20_baseline.yaml.
+# SINGLE VARIABLE: flow_matching.timestep_sampling_params.std: 1.0 (default,
+# unset in every config so far) -> 0.5. Narrower spread around the sequence-
+# length-derived shift (windinet/training/timestep_samplers.py's
+# ShiftedLogitNormalTimestepSampler._get_shift_for_sequence_length) --
+# concentrates training on noise levels closer to that shift instead of
+# spreading across the full [0,1] range as widely. NOTE: our 896-token
+# sequence length (14 latent frames x 8x8 grid) is BELOW that function's
+# calibrated min_tokens=1024 -- the shift value it returns for us (~0.90) is
+# a linear extrapolation outside the range it was actually tuned on, not
+# just an untested std value; worth keeping in mind when reading results.
+#
+# Everything else (steps=8000, LR=1e-5, effective_batch=32, VAE arm) is
+# UNCHANGED from train_dit_sng_pvc_ep20_baseline.yaml.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  # THE variable: std 1.0 (default) -> 0.5.
+  timestep_sampling_params:
+    std: 0.5
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "ep20_baseline", "timestep-std-sweep", "std0p5"]
+
+seed: 42
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_ep20_baseline_std0p5"

@@ -26,9 +26,14 @@ class FourierFeatures(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        x = x.to(dtype=self.frequencies.dtype)
-        x = x.unsqueeze(-1)
-        x_f32 = x.float()
+        # Upcast straight to fp32 -- no longer round-tripping through
+        # self.frequencies.dtype first (2026-09-05): if that buffer were ever
+        # non-fp32, casting x down to it before immediately calling .float()
+        # again would throw away precision for no reason, right where this
+        # module's own forward is being hardened against a bf16-precision
+        # blow-up (see ScalarEmbedding.forward's comment).
+        x = x.unsqueeze(-1).float()
+        x_f32 = x
         freq_f32 = self.frequencies.float()
         freq_x = 2 * math.pi * x_f32 * freq_f32
         result = torch.cat([torch.sin(freq_x), torch.cos(freq_x)], dim=-1)
@@ -95,13 +100,28 @@ class ScalarEmbedding(nn.Module):
         return normalized.clamp(0.0, 1.0)
 
     def forward(self, scalars: Tensor) -> Tensor:
-        batch_size = scalars.shape[0]
-        normalized = self.normalize(scalars)
-        fourier_features = self.fourier(normalized)
-        embeddings = self.mlp(fourier_features)
-        embeddings = embeddings.view(
-            batch_size,
-            self.num_scalars * self.config.num_tokens_per_scalar,
-            self.config.embedding_dim,
-        )
+        # Force fp32 for this whole module regardless of an ambient autocast
+        # context (accelerate's Accelerator(mixed_precision="bf16") auto-wraps
+        # every prepare()'d module's forward, this one included -- there is no
+        # opt-out short of disabling autocast locally). Observed 2026-09-05:
+        # DiT training crashed with NaN scalar embeddings at a step where this
+        # module's own weights and the raw input scalars were both already
+        # confirmed finite (windinet/training/dit_trainer.py's
+        # _embed_and_concat_scalars checks both before calling here) -- i.e.
+        # the NaN was produced by this forward pass itself, consistent with a
+        # bf16-precision blow-up in the Fourier/MLP arithmetic (this module is
+        # tiny, hidden_dim=256 vs the transformer's billions of params, so
+        # keeping it in fp32 costs essentially nothing). The autocast-disabled
+        # region is the whole method, not just FourierFeatures, since Linear/
+        # LayerNorm under an active bf16 autocast get dispatched to bf16 too.
+        with torch.autocast(device_type=scalars.device.type, enabled=False):
+            batch_size = scalars.shape[0]
+            normalized = self.normalize(scalars)
+            fourier_features = self.fourier(normalized).float()
+            embeddings = self.mlp(fourier_features.to(self.mlp[0].weight.dtype))
+            embeddings = embeddings.view(
+                batch_size,
+                self.num_scalars * self.config.num_tokens_per_scalar,
+                self.config.embedding_dim,
+            )
         return embeddings
