@@ -1,0 +1,123 @@
+START TIME: Fri 04 Sep 2026 09:19:37 PM CEST
+job=534495 node=i20r04c03s06
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_DATA_ROOT: /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res
+DIT_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+SCALAR_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+VAE_CHECKPOINT: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors
+NORMALIZATION: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml
+NUM_SAMPLES: 50
+NUM_INFERENCE_STEPS: 60
+OUT_DIR: logs/sng_pvc/eval_dit_vrmse/534495
+Prewarming checkpoints (sequential read, see comment above)...
+Prewarm done.
+Held-out split: 675 sims (seed=42) from /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res/split_manifest.json
+h5: /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_dataset/256x256_ds/train.h5
+Evaluating 50 sim(s)
+Visualizing 3 sample(s) spanning the gamma range: ['0000_gamma1.1299999952', '0154_gamma1.1299999952', '0289_gamma1.1299999952']
+Normalization from /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/training_config.yaml: clip=5.0
+Latent space verified: fingerprint 22b5994360e2c75d matches the DiT's training latents
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+Loading transformer: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors
+Loading scalar embedding: /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/scalar_embedding_step_09360.safetensors
+[1/50] 0000_gamma1.1299999952: vae_only=0.05004  vae+dit=0.30274  latent_vrmse=0.46331
+[2/50] 0008_gamma1.1299999952: vae_only=0.10956  vae+dit=0.60573  latent_vrmse=0.76277
+[3/50] 0010_gamma1.1299999952: vae_only=0.03697  vae+dit=0.26435  latent_vrmse=0.40010
+[4/50] 0034_gamma1.1299999952: vae_only=0.12608  vae+dit=0.60759  latent_vrmse=0.54345
+[5/50] 0037_gamma1.1299999952: vae_only=0.03866  vae+dit=0.35075  latent_vrmse=0.48559
+[6/50] 0064_gamma1.1299999952: vae_only=0.04551  vae+dit=0.37057  latent_vrmse=0.50549
+[7/50] 0069_gamma1.1299999952: vae_only=0.04993  vae+dit=0.44020  latent_vrmse=0.63981
+[8/50] 0073_gamma1.1299999952: vae_only=0.06021  vae+dit=0.40801  latent_vrmse=0.55650
+[9/50] 0076_gamma1.1299999952: vae_only=0.04301  vae+dit=0.32275  latent_vrmse=0.47660
+[10/50] 0084_gamma1.1299999952: vae_only=0.02526  vae+dit=0.16654  latent_vrmse=0.21825
+[11/50] 0091_gamma1.1299999952: vae_only=0.06444  vae+dit=0.43097  latent_vrmse=0.60846
+[12/50] 0092_gamma1.1299999952: vae_only=0.03523  vae+dit=0.29408  latent_vrmse=0.44354
+[13/50] 0093_gamma1.1299999952: vae_only=0.04274  vae+dit=0.42765  latent_vrmse=0.48146
+[14/50] 0098_gamma1.1299999952: vae_only=0.06917  vae+dit=0.36546  latent_vrmse=0.56720
+[15/50] 0105_gamma1.1299999952: vae_only=0.03958  vae+dit=0.29887  latent_vrmse=0.40566
+[16/50] 0108_gamma1.1299999952: vae_only=0.08205  vae+dit=0.50816  latent_vrmse=0.51644
+[17/50] 0110_gamma1.1299999952: vae_only=0.16233  vae+dit=0.58857  latent_vrmse=0.65276
+[18/50] 0111_gamma1.1299999952: vae_only=0.06893  vae+dit=0.56229  latent_vrmse=0.67053
+[19/50] 0119_gamma1.1299999952: vae_only=0.03794  vae+dit=0.19535  latent_vrmse=0.25991
+[20/50] 0125_gamma1.1299999952: vae_only=0.07485  vae+dit=0.42108  latent_vrmse=0.54437
+[21/50] 0129_gamma1.1299999952: vae_only=0.08200  vae+dit=0.51655  latent_vrmse=0.63961
+[22/50] 0135_gamma1.1299999952: vae_only=0.06080  vae+dit=0.39156  latent_vrmse=0.55768
+[23/50] 0143_gamma1.1299999952: vae_only=0.02699  vae+dit=0.20278  latent_vrmse=0.27018
+[24/50] 0150_gamma1.1299999952: vae_only=0.10874  vae+dit=0.62297  latent_vrmse=0.74933
+[25/50] 0154_gamma1.1299999952: vae_only=0.02057  vae+dit=0.13350  latent_vrmse=0.17018
+[26/50] 0163_gamma1.1299999952: vae_only=0.04869  vae+dit=0.38123  latent_vrmse=0.51244
+[27/50] 0175_gamma1.1299999952: vae_only=0.09789  vae+dit=0.61855  latent_vrmse=0.77397
+[28/50] 0178_gamma1.1299999952: vae_only=0.10329  vae+dit=0.70244  latent_vrmse=0.78577
+[29/50] 0183_gamma1.1299999952: vae_only=0.04207  vae+dit=0.24387  latent_vrmse=0.29696
+[30/50] 0187_gamma1.1299999952: vae_only=0.08242  vae+dit=0.49520  latent_vrmse=0.67804
+[31/50] 0193_gamma1.1299999952: vae_only=0.12109  vae+dit=0.90419  latent_vrmse=0.90433
+[32/50] 0194_gamma1.1299999952: vae_only=0.03536  vae+dit=0.30942  latent_vrmse=0.44298
+[33/50] 0202_gamma1.1299999952: vae_only=0.11899  vae+dit=0.49550  latent_vrmse=0.57124
+[34/50] 0209_gamma1.1299999952: vae_only=0.07006  vae+dit=0.46918  latent_vrmse=0.64917
+[35/50] 0214_gamma1.1299999952: vae_only=0.06463  vae+dit=0.48075  latent_vrmse=0.58108
+[36/50] 0221_gamma1.1299999952: vae_only=0.11993  vae+dit=0.64405  latent_vrmse=0.80422
+[37/50] 0224_gamma1.1299999952: vae_only=0.05701  vae+dit=0.24266  latent_vrmse=0.27674
+[38/50] 0232_gamma1.1299999952: vae_only=0.04382  vae+dit=0.40718  latent_vrmse=0.58824
+[39/50] 0238_gamma1.1299999952: vae_only=0.08468  vae+dit=0.37364  latent_vrmse=0.45280
+[40/50] 0239_gamma1.1299999952: vae_only=0.05588  vae+dit=0.41082  latent_vrmse=0.56486
+[41/50] 0243_gamma1.1299999952: vae_only=0.03279  vae+dit=0.21368  latent_vrmse=0.37366
+[42/50] 0248_gamma1.1299999952: vae_only=0.02413  vae+dit=0.15651  latent_vrmse=0.14290
+[43/50] 0254_gamma1.1299999952: vae_only=0.11113  vae+dit=0.56016  latent_vrmse=0.74213
+[44/50] 0256_gamma1.1299999952: vae_only=0.04240  vae+dit=0.27522  latent_vrmse=0.46455
+[45/50] 0258_gamma1.1299999952: vae_only=0.05589  vae+dit=0.35153  latent_vrmse=0.57761
+[46/50] 0261_gamma1.1299999952: vae_only=0.04204  vae+dit=0.19537  latent_vrmse=0.19649
+[47/50] 0263_gamma1.1299999952: vae_only=0.03270  vae+dit=0.25306  latent_vrmse=0.38334
+[48/50] 0268_gamma1.1299999952: vae_only=0.13550  vae+dit=0.51844  latent_vrmse=0.55096
+[49/50] 0281_gamma1.1299999952: vae_only=0.03077  vae+dit=0.17622  latent_vrmse=0.26493
+[50/50] 0289_gamma1.1299999952: vae_only=0.08369  vae+dit=0.56311  latent_vrmse=0.72656
+
+============================================================
+n=50 sims
+VAE-only  val_vrmse (pixel)  : 0.06597
+VAE+DiT   val_vrmse (pixel)  : 0.40482
+Delta (DiT forecasting cost on top of VAE recon): +0.33885 (+513.6%)
+  density      vae_only=0.08079  vae+dit=0.53092  delta=+0.45013
+  momentum_x   vae_only=0.08744  vae+dit=0.53209  delta=+0.44465
+  momentum_y   vae_only=0.08167  vae+dit=0.50853  delta=+0.42686
+  pressure     vae_only=0.10871  vae+dit=0.42582  delta=+0.31711
+
+DiT rollout vs VAE-encoder ground truth, LATENT space (isolated from VAE decode):
+  latent_vrmse : 0.51790
+  latent_rmse  : 0.65880
+  worst 5 latent channels: [{'channel': 35, 'vrmse': 0.8652257323265076}, {'channel': 93, 'vrmse': 0.8534929752349854}, {'channel': 29, 'vrmse': 0.8510676026344299}, {'channel': 78, 'vrmse': 0.8319194316864014}, {'channel': 107, 'vrmse': 0.8303626179695129}]
+
+Saved: logs/sng_pvc/eval_dit_vrmse/534495/vrmse_summary.json
+Saved GT/Prediction/Residual panels for 3 sample(s) spanning the gamma range, frames [25, 50, 75, 100], under:
+  logs/sng_pvc/eval_dit_vrmse/534495/visualizations/vae_only/<sample_id>/frame_XXXX.png
+  logs/sng_pvc/eval_dit_vrmse/534495/visualizations/vae_dit/<sample_id>/frame_XXXX.png
+END TIME: Fri 04 Sep 2026 10:04:00 PM CEST

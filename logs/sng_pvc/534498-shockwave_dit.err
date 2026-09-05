@@ -1,0 +1,213 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+There are modules in LTXVideoTransformer3DModel that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+There are modules in AutoencoderKLLTXVideo that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank2]:     app()
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank2]:     raise e
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank2]:     return get_command(self)(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank2]:     return self.main(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank2]:     return _main(
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank2]:     rv = self.invoke(ctx)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank2]:     return ctx.invoke(self.callback, **ctx.params)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank2]:     return callback(*args, **kwargs)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank2]:     return callback(**use_params)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 49, in main
+[rank2]:     trainer.train()
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 470, in train
+[rank2]:     loss = self._training_step(batch)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 710, in _training_step
+[rank2]:     training_batch = self._embed_and_concat_scalars(training_batch)
+[rank2]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 754, in _embed_and_concat_scalars
+[rank2]:     raise ValueError("Scalar embeddings contain NaN or Inf values")
+[rank2]: ValueError: Scalar embeddings contain NaN or Inf values
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank4]:     app()
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank4]:     raise e
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank4]:     return get_command(self)(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank4]:     return self.main(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank4]:     return _main(
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank4]:     rv = self.invoke(ctx)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank4]:     return ctx.invoke(self.callback, **ctx.params)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank4]:     return callback(*args, **kwargs)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank4]:     return callback(**use_params)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 49, in main
+[rank4]:     trainer.train()
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 470, in train
+[rank4]:     loss = self._training_step(batch)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 710, in _training_step
+[rank4]:     training_batch = self._embed_and_concat_scalars(training_batch)
+[rank4]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 754, in _embed_and_concat_scalars
+[rank4]:     raise ValueError("Scalar embeddings contain NaN or Inf values")
+[rank4]: ValueError: Scalar embeddings contain NaN or Inf values
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank7]:     app()
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank7]:     raise e
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank7]:     return get_command(self)(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank7]:     return self.main(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank7]:     return _main(
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank7]:     rv = self.invoke(ctx)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank7]:     return ctx.invoke(self.callback, **ctx.params)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank7]:     return callback(*args, **kwargs)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank7]:     return callback(**use_params)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 49, in main
+[rank7]:     trainer.train()
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 470, in train
+[rank7]:     loss = self._training_step(batch)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 710, in _training_step
+[rank7]:     training_batch = self._embed_and_concat_scalars(training_batch)
+[rank7]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 754, in _embed_and_concat_scalars
+[rank7]:     raise ValueError("Scalar embeddings contain NaN or Inf values")
+[rank7]: ValueError: Scalar embeddings contain NaN or Inf values
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank6]:     app()
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank6]:     raise e
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank6]:     return get_command(self)(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank6]:     return self.main(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank6]:     return _main(
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank6]:     rv = self.invoke(ctx)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank6]:     return ctx.invoke(self.callback, **ctx.params)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank6]:     return callback(*args, **kwargs)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank6]:     return callback(**use_params)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 49, in main
+[rank6]:     trainer.train()
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 470, in train
+[rank6]:     loss = self._training_step(batch)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 710, in _training_step
+[rank6]:     training_batch = self._embed_and_concat_scalars(training_batch)
+[rank6]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 754, in _embed_and_concat_scalars
+[rank6]:     raise ValueError("Scalar embeddings contain NaN or Inf values")
+[rank6]: ValueError: Scalar embeddings contain NaN or Inf values
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank5]:     app()
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank5]:     raise e
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank5]:     return get_command(self)(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank5]:     return self.main(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank5]:     return _main(
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank5]:     rv = self.invoke(ctx)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank5]:     return ctx.invoke(self.callback, **ctx.params)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank5]:     return callback(*args, **kwargs)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank5]:     return callback(**use_params)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 49, in main
+[rank5]:     trainer.train()
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 470, in train
+[rank5]:     loss = self._training_step(batch)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 710, in _training_step
+[rank5]:     training_batch = self._embed_and_concat_scalars(training_batch)
+[rank5]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 754, in _embed_and_concat_scalars
+[rank5]:     raise ValueError("Scalar embeddings contain NaN or Inf values")
+[rank5]: ValueError: Scalar embeddings contain NaN or Inf values
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank3]:     app()
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank3]:     raise e
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank3]:     return get_command(self)(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank3]:     return self.main(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank3]:     return _main(
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank3]:     rv = self.invoke(ctx)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank3]:     return ctx.invoke(self.callback, **ctx.params)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank3]:     return callback(*args, **kwargs)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank3]:     return callback(**use_params)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 49, in main
+[rank3]:     trainer.train()
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 470, in train
+[rank3]:     loss = self._training_step(batch)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 710, in _training_step
+[rank3]:     training_batch = self._embed_and_concat_scalars(training_batch)
+[rank3]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 754, in _embed_and_concat_scalars
+[rank3]:     raise ValueError("Scalar embeddings contain NaN or Inf values")
+[rank3]: ValueError: Scalar embeddings contain NaN or Inf values
+level_zero backend failed with error: level_zero backend failed with error: level_zero backend failed with error: level_zero backend failed with error: level_zero backend failed with error: level_zero backend failed with error: 20 (UR_RESULT_ERROR_DEVICE_LOST)
+20 (UR_RESULT_ERROR_DEVICE_LOST)
+20 (UR_RESULT_ERROR_DEVICE_LOST)
+20 (UR_RESULT_ERROR_DEVICE_LOST)
+20 (UR_RESULT_ERROR_DEVICE_LOST)
+20 (UR_RESULT_ERROR_DEVICE_LOST)
