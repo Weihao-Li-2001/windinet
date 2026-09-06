@@ -1,0 +1,139 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+There are modules in LTXVideoTransformer3DModel that should be kept in float32: []. Casting directly with `to()` can lead to inconsistent results; set `torch_dtype` in `from_pretrained()` instead to keep these modules in float32.
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 53, in <module>
+[rank1]:     app()
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1154, in __call__
+[rank1]:     raise e
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1137, in __call__
+[rank1]:     return get_command(self)(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 807, in __call__
+[rank1]:     return self.main(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 970, in main
+[rank1]:     return _main(
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 189, in _main
+[rank1]:     rv = self.invoke(ctx)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 746, in invoke
+[rank1]:     return ctx.invoke(self.callback, **ctx.params)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/_click/core.py", line 489, in invoke
+[rank1]:     return callback(*args, **kwargs)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1524, in wrapper
+[rank1]:     return callback(**use_params)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/scripts/train.py", line 49, in main
+[rank1]:     trainer.train()
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 470, in train
+[rank1]:     loss = self._training_step(batch)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 710, in _training_step
+[rank1]:     training_batch = self._embed_and_concat_scalars(training_batch)
+[rank1]:   File "/dss/dsshome1/0D/go76fuz2/windinet/windinet/training/dit_trainer.py", line 749, in _embed_and_concat_scalars
+[rank1]:     raise ValueError(f"Scalar embedding weights contain NaN or Inf: {name}")
+[rank1]: ValueError: Scalar embedding weights contain NaN or Inf: module.mlp.8.weight
+W0905 18:22:01.910000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 151689 closing signal SIGTERM
+W0905 18:22:01.911000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 151691 closing signal SIGTERM
+W0905 18:22:01.912000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 151692 closing signal SIGTERM
+W0905 18:22:01.913000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 151693 closing signal SIGTERM
+W0905 18:22:01.913000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 151694 closing signal SIGTERM
+W0905 18:22:01.914000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 151695 closing signal SIGTERM
+W0905 18:22:01.914000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 151696 closing signal SIGTERM
+E0905 18:22:02.045000 151538 site-packages/torch/distributed/elastic/multiprocessing/api.py:984] failed (exitcode: 1) local_rank: 1 (pid: 151690) of binary: /dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/python3.10
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/accelerate", line 6, in <module>
+    sys.exit(main())
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1398, in launch_command
+    multi_gpu_launcher(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 982, in run
+    elastic_launch(
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 317, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/train.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-09-05_18:22:02
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 0 (local_rank: 0)
+  exitcode  : -15 (pid: 151689)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 151689
+[2]:
+  time      : 2026-09-05_18:22:02
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 2 (local_rank: 2)
+  exitcode  : -15 (pid: 151691)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 151691
+[3]:
+  time      : 2026-09-05_18:22:02
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 3 (local_rank: 3)
+  exitcode  : -15 (pid: 151692)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 151692
+[4]:
+  time      : 2026-09-05_18:22:02
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 4 (local_rank: 4)
+  exitcode  : -15 (pid: 151693)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 151693
+[5]:
+  time      : 2026-09-05_18:22:02
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 5 (local_rank: 5)
+  exitcode  : -15 (pid: 151694)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 151694
+[6]:
+  time      : 2026-09-05_18:22:02
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 6 (local_rank: 6)
+  exitcode  : -15 (pid: 151695)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 151695
+[7]:
+  time      : 2026-09-05_18:22:02
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 7 (local_rank: 7)
+  exitcode  : -15 (pid: 151696)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 151696
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-09-05_18:22:01
+  host      : i20r02c06s02.sng.lrz.de
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 151690)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+srun: error: i20r02c06s02: task 0: Exited with exit code 1
+srun: Terminating StepId=534575.0
