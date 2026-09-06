@@ -55,7 +55,12 @@ from torch.amp import autocast
 from windinet.inference.model_loader import load_inflated_vae
 from windinet.inference.pipeline import LTXConditionPipeline
 from windinet.losses import vrms_loss
-from windinet.training.shockwave_data import CHANNEL_NAMES, ShockWaveDataset, normalize_fields
+from windinet.training.shockwave_data import (
+    CHANNEL_NAMES,
+    ShockWaveDataset,
+    normalize_fields,
+    pad_frames_8n1,
+)
 from windinet.training.vae_visualization import denormalize_fields, save_reconstruction_panels
 from windinet.utils import logger
 
@@ -336,7 +341,13 @@ class DitVisualizer:
             # reasoning applied there.
             pred_latent = out.frames.float()
 
-            gt_latent = _vae_encode(self._vae, gt_norm).float()
+            # LTX VAE's temporal encoder requires F = 8n+1 (same requirement
+            # num_frames_padded above satisfies for the rollout side) --
+            # gt_norm itself stays unpadded (real sim length) since it's
+            # also the pixel-space vrmse comparand below; pad a separate
+            # copy just for this encode, same convention build_shockwave_video
+            # uses via pad_frames_8n1 elsewhere in the codebase.
+            gt_latent = _vae_encode(self._vae, pad_frames_8n1(gt_norm)).float()
             pred_lat_trim, gt_lat_trim = _trim_latent_frames(pred_latent, gt_latent)
             sample_latent_vrmse = float(vrms_loss(pred_lat_trim, gt_lat_trim).item())
             sum_latent_vrmse += sample_latent_vrmse
