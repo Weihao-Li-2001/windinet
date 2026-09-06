@@ -1,0 +1,199 @@
+START TIME: Sun 06 Sep 2026 02:19:45 PM CEST
+job=534765 node=i20r05c02s02
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5
+BASE_CONFIG: configs/dit/train_dit_sng_pvc_cosine_kl1e5_vizfix_smoketest.yaml
+STEPS override: <none, using BASE_CONFIG default>
+MASTER_ADDR: i20r05c02s02  MASTER_PORT: 49295
+preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5 output_dir=$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e5_vizfix_smoketest steps=20
+INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 3] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 5] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] generated new fontManager                 font_manager.py:1639
+INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 2] generated new fontManager                 font_manager.py:1639
+INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 1] generated new fontManager                 font_manager.py:1639
+INFO     [rank 4] generated new fontManager                 font_manager.py:1639
+INFO     [rank 6] generated new fontManager                 font_manager.py:1639
+INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+INFO     [rank 3] generated new fontManager                 font_manager.py:1639
+INFO     [rank 5] generated new fontManager                 font_manager.py:1639
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 1e-05                                 │
+│ optimization.steps                   │ 20                                    │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ data.num_dataloader_workers          │ 4                                     │
+│ validation.data_root                 │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ validation.interval                  │ 600                                   │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 120                                   │
+│ checkpoints.keep_last_n              │ 2                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ visualization.enabled                │ True                                  │
+│ visualization.interval               │ 10                                    │
+│ visualization.num_samples            │ 3                                     │
+│ visualization.frame_numbers          │ 25, 50, 75, 100                       │
+│ visualization.num_inference_steps    │ 20                                    │
+│ visualization.dpi                    │ 150                                   │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ cfd, full, 2b, scalar-only, sng_pvc,  │
+│                                      │ 256res, cosine-vae, kl1e5, vizfix...  │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1369
+         processes                                                              
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1375
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:822
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:845
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:849
+2026:09:06-14:38:40:193764 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:09:06-14:38:40:193764 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:09:06-14:38:40:193769 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:06-14:38:40:193766 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:06-14:38:40:193765 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+
+2026:09:06-14:38:40:193768 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:06-14:38:40:193771 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:06-14:38:40:193764 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:06-14:38:40:193767 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:06-14:38:40:193770 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:388
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1048
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1131
+         /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocesse                    
+         d/finetune_vae_whole_structure_baseline_ep20_256res                    
+         _cosine_kl1e5/val                                                      
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1361
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1092
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_whole_structure_baseline                    
+         _ep20_256res_cosine_kl1e5/checkpoints/vae_shockwave                    
+         _best.safetensors (fingerprint 124522492c8f4a5e);                      
+         recorded in latent_provenance.json                                     
+INFO     [rank 0] Starting training...                        dit_trainer.py:409
+[train] step=1 loss=0.101753 lr=1.000e-05
+[train] step=2 loss=0.130702 lr=9.939e-06
+[train] step=3 loss=0.074825 lr=9.756e-06
+[train] step=4 loss=0.058616 lr=9.456e-06
+[train] step=5 loss=0.051022 lr=9.046e-06
+[train] step=6 loss=0.087177 lr=8.537e-06
+[train] step=7 loss=0.043588 lr=7.941e-06
+[train] step=8 loss=0.043227 lr=7.273e-06
+[train] step=9 loss=0.048654 lr=6.549e-06
+[train] step=10 loss=0.131805 lr=5.786e-06
+INFO     [rank 0] DiT visualization fixed on 3 samples  dit_visualization.py:249
+         from                                                                   
+         /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_d                         
+         ataset/256x256_ds/train.h5:                                            
+         ['0000_gamma1.1299999952',                                             
+         '2159_gamma1.3650000095',                                              
+         '4498_gamma1.7599999905']                                              
+INFO     [rank 0] Loading DiT-visualization VAE from    dit_visualization.py:254
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_v                         
+         ae_outputs_sng_pvc/finetune_vae_whole_structur                         
+         e_baseline_ep20_256res_cosine_kl1e5/checkpoint                         
+         s/vae_shockwave_best.safetensors                                       
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+INFO     [rank 0] Saved DiT visualization panels for    dit_visualization.py:393
+         step 10 (3 samples x 4 frames);                                        
+         latent_vrmse=6.28249 pixel_vrmse=3.53300 ->                            
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/sh                         
+         ockwave_dit_cosine_kl1e5_vizfix_smoketest/dit_                         
+         vrmse_metrics.csv,                                                     
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/sh                         
+         ockwave_dit_cosine_kl1e5_vizfix_smoketest/dit_                         
+         vrmse_curve.png                                                        
+[train] step=11 loss=0.058047 lr=5.005e-06
