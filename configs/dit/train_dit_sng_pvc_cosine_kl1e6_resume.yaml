@@ -1,0 +1,93 @@
+# Resume of train_dit_sng_pvc_cosine_kl1e6.yaml -- NOT a new experiment, no variable changes
+# vs that config except resuming. This arm crashed mid-run because of
+# the same DitVisualizer VAE-encode crash as the kl1e5 sibling (fixed in commit
+# c403786), not because of anything about the arm itself.
+#
+# model.load_checkpoint points at the checkpoints/ directory rather than a
+# specific step file -- LtxvTrainer._find_checkpoint
+# (windinet/training/dit_trainer.py) globs "model_weights_step_*.safetensors"
+# in that case and picks the max step automatically, so this resumes from
+# whatever the latest surviving checkpoint actually is without needing to look
+# it up by hand (the glob was narrowed 2026-09-06 to exclude
+# scalar_embedding_step_*.safetensors, which used to tie with the transformer
+# checkpoint on step number and make the max()-pick ambiguous -- see that same
+# commit).
+#
+# resume_weights_only is not set -- LtxvTrainerConfig defaults it to false, so
+# optimizer/scheduler/global_step/RNG restore from the checkpoint's sibling
+# .state.pt too, continuing the cosine LR schedule instead of restarting it.
+#
+# CHECK BEFORE SUBMITTING: confirm at least one
+# model_weights_step_*.safetensors actually exists under
+#   /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_cosine_kl1e6/checkpoints/
+# (ls it) -- if that arm crashed before its first checkpoints.interval=120
+# boundary, this directory has nothing to resume from and you should submit the
+# original train_dit_sng_pvc_cosine_kl1e6.yaml fresh instead.
+#
+# Usage:
+#   sbatch --time=24:00:00 jobs/sng_pvc/train_dit.sbatch \
+#       <PREPROCESSED_NAME> configs/dit/train_dit_sng_pvc_cosine_kl1e6_resume.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: "/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_cosine_kl1e6/checkpoints"
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "sng_pvc", "256res", "cosine-vae", "kl1e6"]
+
+seed: 42
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e6"

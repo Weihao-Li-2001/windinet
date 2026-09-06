@@ -130,6 +130,7 @@ class LtxvTrainer:
         self._print_config(trainer_config)
         self._setup_accelerator()
         self._load_models()
+        self._apply_lora()
         self._init_scalar_embedding()
         self._compile_transformer()
         self._collect_trainable_params()
@@ -817,6 +818,42 @@ class LtxvTrainer:
         self._vae.requires_grad_(False)
         self._transformer.requires_grad_(False)
 
+    def _apply_lora(self) -> None:
+        """Inject LoRA adapters in place, keeping the base transformer frozen.
+
+        Uses peft.inject_adapter_in_model rather than get_peft_model so the
+        transformer keeps its own class/attribute structure (e.g.
+        transformer_blocks, used by _compile_transformer) instead of being
+        wrapped in a PeftModel. Injection replaces each targeted nn.Linear
+        with a peft LoRA layer that nests the original weight under
+        `<module>.base_layer.*`, so checkpoints saved after this point are
+        not key-compatible with a full-fine-tune checkpoint saved before it
+        (and vice versa) -- resuming a LoRA run expects a checkpoint that
+        was itself saved with lora.enabled=true.
+        """
+        if not self._config.lora.enabled:
+            return
+
+        from peft import LoraConfig as PeftLoraConfig
+        from peft import inject_adapter_in_model
+
+        lora_cfg = self._config.lora
+        peft_config = PeftLoraConfig(
+            r=lora_cfg.rank,
+            lora_alpha=lora_cfg.alpha,
+            lora_dropout=lora_cfg.dropout,
+            target_modules=lora_cfg.target_modules,
+        )
+        inject_adapter_in_model(peft_config, self._transformer)
+
+        n_trainable = sum(p.numel() for p in self._transformer.parameters() if p.requires_grad)
+        n_total = sum(p.numel() for p in self._transformer.parameters())
+        logger.info(
+            f"LoRA adapters injected (rank={lora_cfg.rank}, alpha={lora_cfg.alpha}, "
+            f"targets={lora_cfg.target_modules}): {n_trainable:,} / {n_total:,} "
+            f"trainable params ({n_trainable / n_total:.3%})"
+        )
+
     def _init_scalar_embedding(self) -> None:
         if self._config.scalar_conditioning.enabled:
             logger.info(
@@ -837,7 +874,11 @@ class LtxvTrainer:
         )
 
     def _collect_trainable_params(self) -> None:
-        self._transformer.requires_grad_(True)
+        if not self._config.lora.enabled:
+            self._transformer.requires_grad_(True)
+        # With LoRA enabled, _apply_lora already left only the injected
+        # adapter params trainable -- re-unfreezing everything here would
+        # defeat the point.
         self._trainable_params = [p for p in self._transformer.parameters() if p.requires_grad]
 
         if self._scalar_embedding is not None:
@@ -974,7 +1015,13 @@ class LtxvTrainer:
             return checkpoint_path
 
         if checkpoint_path.is_dir():
-            checkpoints = list(checkpoint_path.rglob("*step_*.safetensors"))
+            # "model_weights_step_*" specifically, not "*step_*" -- the
+            # broader glob also matches scalar_embedding_step_NNNNN.safetensors,
+            # which can tie on step number with the transformer checkpoint and
+            # make max()'s pick between them unpredictable (filesystem-order
+            # dependent), silently loading the wrong file as the transformer's
+            # state_dict.
+            checkpoints = list(checkpoint_path.rglob("model_weights_step_*.safetensors"))
             if not checkpoints:
                 return None
 
@@ -1205,6 +1252,11 @@ class LtxvTrainer:
     def _save_checkpoint(self) -> Path:
         save_dir = Path(self._config.output_dir) / "checkpoints"
         save_dir.mkdir(exist_ok=True, parents=True)
+
+        if self._config.lora.enabled:
+            lora_config_path = save_dir / "lora_config.json"
+            if not lora_config_path.exists():
+                lora_config_path.write_text(json.dumps(self._config.lora.model_dump(), indent=2))
 
         filename = f"model_weights_step_{self._global_step:05d}.safetensors"
         saved_weights_path = save_dir / filename
