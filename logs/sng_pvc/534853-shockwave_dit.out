@@ -147,3 +147,140 @@ INFO     [rank 0] Loading checkpoint from                     dit_trainer.py:907
          /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
          e_dit_cosine_kl1e5/checkpoints/model_weights_step_01                   
          920.safetensors                                                        
+INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:914
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_cosine_kl1e5/checkpoints/scalar_embedding_step                   
+         _01920.safetensors                                                     
+INFO     [rank 0] Loaded training state from                  dit_trainer.py:954
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_cosine_kl1e5/checkpoints/model_weights_step_01                   
+         920.state.pt: resuming at global_step 1920                             
+2026:09:07-06:33:58:208679 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:09:07-06:33:58:208679 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:09:07-06:33:58:208680 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-06:33:58:208684 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-06:33:58:208683 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-06:33:58:208681 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-06:33:58:208685 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-06:33:58:208679 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-06:33:58:208686 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-06:33:58:208682 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:389
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1095
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1178
+         /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocesse                    
+         d/finetune_vae_whole_structure_baseline_ep20_256res                    
+         _cosine_kl1e5/val                                                      
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1413
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1139
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_whole_structure_baseline                    
+         _ep20_256res_cosine_kl1e5/checkpoints/vae_shockwave                    
+         _best.safetensors (fingerprint 124522492c8f4a5e);                      
+         recorded in latent_provenance.json                                     
+INFO     [rank 0] Starting training...                        dit_trainer.py:410
+INFO     [rank 0] Resuming training at global_step 1920       dit_trainer.py:439
+[train] step=1921 loss=0.019910 lr=8.646e-06
+[train] step=1922 loss=0.034074 lr=8.645e-06
+[train] step=1923 loss=0.019621 lr=8.644e-06
+[train] step=1924 loss=0.020373 lr=8.642e-06
+[train] step=1925 loss=0.018223 lr=8.641e-06
+[train] step=1926 loss=0.020888 lr=8.639e-06
+[train] step=1927 loss=0.013680 lr=8.638e-06
+[train] step=1928 loss=0.019986 lr=8.637e-06
+[train] step=1929 loss=0.014513 lr=8.635e-06
+[train] step=1930 loss=0.040868 lr=8.634e-06
+[train] step=1931 loss=0.018356 lr=8.633e-06
+[train] step=1932 loss=0.029281 lr=8.631e-06
+[train] step=1933 loss=0.071849 lr=8.630e-06
+[train] step=1934 loss=0.027265 lr=8.629e-06
+[train] step=1935 loss=0.015096 lr=8.627e-06
+[train] step=1936 loss=0.015698 lr=8.626e-06
+[train] step=1937 loss=0.031879 lr=8.625e-06
+[train] step=1938 loss=0.027192 lr=8.623e-06
+[train] step=1939 loss=0.018443 lr=8.622e-06
+[train] step=1940 loss=0.021340 lr=8.621e-06
+[train] step=1941 loss=0.015150 lr=8.619e-06
+[train] step=1942 loss=0.022186 lr=8.618e-06
+[train] step=1943 loss=0.021879 lr=8.617e-06
+[train] step=1944 loss=0.015113 lr=8.615e-06
+[train] step=1945 loss=0.013481 lr=8.614e-06
+[train] step=1946 loss=0.012969 lr=8.612e-06
+[train] step=1947 loss=0.014288 lr=8.611e-06
+[train] step=1948 loss=0.030887 lr=8.610e-06
+[train] step=1949 loss=0.012743 lr=8.608e-06
+[train] step=1950 loss=0.028505 lr=8.607e-06
+[train] step=1951 loss=0.053504 lr=8.606e-06
+[train] step=1952 loss=0.023268 lr=8.604e-06
+[train] step=1953 loss=0.010330 lr=8.603e-06
+[train] step=1954 loss=0.015434 lr=8.602e-06
+[train] step=1955 loss=0.010611 lr=8.600e-06
+[train] step=1956 loss=0.024334 lr=8.599e-06
+[train] step=1957 loss=0.015187 lr=8.597e-06
+[train] step=1958 loss=0.016304 lr=8.596e-06
+[train] step=1959 loss=0.033729 lr=8.595e-06
+[train] step=1960 loss=0.021285 lr=8.593e-06
+[train] step=1961 loss=0.017987 lr=8.592e-06
+[train] step=1962 loss=0.024100 lr=8.591e-06
+[train] step=1963 loss=0.066472 lr=8.589e-06
+[train] step=1964 loss=0.020437 lr=8.588e-06
+[train] step=1965 loss=0.025125 lr=8.587e-06
+[train] step=1966 loss=0.036354 lr=8.585e-06
+[train] step=1967 loss=0.025239 lr=8.584e-06
+[train] step=1968 loss=0.016570 lr=8.582e-06
+[train] step=1969 loss=0.014132 lr=8.581e-06
+[train] step=1970 loss=0.036723 lr=8.580e-06
+[train] step=1971 loss=0.018077 lr=8.578e-06
+[train] step=1972 loss=0.036852 lr=8.577e-06
+[train] step=1973 loss=0.021960 lr=8.576e-06
+[train] step=1974 loss=0.013346 lr=8.574e-06
+[train] step=1975 loss=0.016288 lr=8.573e-06
+[train] step=1976 loss=0.015073 lr=8.572e-06
+[train] step=1977 loss=0.015058 lr=8.570e-06
+[train] step=1978 loss=0.022379 lr=8.569e-06
+[train] step=1979 loss=0.015072 lr=8.567e-06
+[train] step=1980 loss=0.024260 lr=8.566e-06
+[train] step=1981 loss=0.021878 lr=8.565e-06
+[train] step=1982 loss=0.025105 lr=8.563e-06
+[train] step=1983 loss=0.017568 lr=8.562e-06
+[train] step=1984 loss=0.019570 lr=8.560e-06
+[train] step=1985 loss=0.026879 lr=8.559e-06
+[train] step=1986 loss=0.014952 lr=8.558e-06
+[train] step=1987 loss=0.023244 lr=8.556e-06
+[train] step=1988 loss=0.030004 lr=8.555e-06
+[train] step=1989 loss=0.010614 lr=8.554e-06
+[train] step=1990 loss=0.012547 lr=8.552e-06
+[train] step=1991 loss=0.012164 lr=8.551e-06
+[train] step=1992 loss=0.037114 lr=8.549e-06
+[train] step=1993 loss=0.026789 lr=8.548e-06
+[train] step=1994 loss=0.022309 lr=8.547e-06
+[train] step=1995 loss=0.013146 lr=8.545e-06
+[train] step=1996 loss=0.016006 lr=8.544e-06
+[train] step=1997 loss=0.021312 lr=8.543e-06
+[train] step=1998 loss=0.018487 lr=8.541e-06
+[train] step=1999 loss=0.016413 lr=8.540e-06
+[train] step=2000 loss=0.017144 lr=8.538e-06
+INFO     [rank 0] DiT visualization fixed on 3 samples  dit_visualization.py:249
+         from                                                                   
+         /hppfs/scratch/0D/go76fuz2/windinet/euler_mq_d                         
+         ataset/256x256_ds/train.h5:                                            
+         ['0000_gamma1.1299999952',                                             
+         '2159_gamma1.3650000095',                                              
+         '4498_gamma1.7599999905']                                              
+INFO     [rank 0] Loading DiT-visualization VAE from    dit_visualization.py:254
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_v                         
+         ae_outputs_sng_pvc/finetune_vae_whole_structur                         
+         e_baseline_ep20_256res_cosine_kl1e5/checkpoint                         
+         s/vae_shockwave_best.safetensors                                       
+[windinet] loaded inflated VAE checkpoint: /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_outputs_sng_pvc/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+INFO     [rank 0] Saved DiT visualization panels for    dit_visualization.py:393
+         step 2000 (3 samples x 4 frames);                                      
+         latent_vrmse=5.95900 pixel_vrmse=1.71782 ->                            
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/sh                         
+         ockwave_dit_cosine_kl1e5/dit_vrmse_metrics.csv                         
+         ,                                                                      
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/sh                         
+         ockwave_dit_cosine_kl1e5/dit_vrmse_curve.png                           
+[train] step=2001 loss=0.019888 lr=8.537e-06
