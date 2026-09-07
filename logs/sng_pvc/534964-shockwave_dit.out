@@ -1,5 +1,5 @@
-START TIME: Mon 07 Sep 2026 10:50:57 AM CEST
-job=534942 node=i20r02c06s02
+START TIME: Mon 07 Sep 2026 02:28:11 PM CEST
+job=534964 node=i20r02c05s04
 +-----------+--------------------------------------------------------------------------------------+
 | Device ID | Device Information                                                                   |
 +-----------+--------------------------------------------------------------------------------------+
@@ -31,29 +31,12 @@ job=534942 node=i20r02c06s02
 |           | DRM Device: /dev/dri/card3                                                           |
 |           | Function Type: physical                                                              |
 +-----------+--------------------------------------------------------------------------------------+
-PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5
-BASE_CONFIG: configs/dit/train_dit_sng_pvc_cosine_kl1e5_resume.yaml
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e6
+BASE_CONFIG: configs/dit/train_dit_sng_pvc_cosine_kl1e6_resume.yaml
 STEPS override: <none, using BASE_CONFIG default>
-MASTER_ADDR: i20r02c06s02  MASTER_PORT: 59639
-preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5 output_dir=$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e5 steps=8000
-INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
+MASTER_ADDR: i20r02c05s04  MASTER_PORT: 35157
+preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e6 output_dir=$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e6 steps=8000
 INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 1] generated new fontManager                 font_manager.py:1639
-INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
@@ -61,7 +44,7 @@ INFO     [rank 3] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
-INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
+INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
@@ -69,13 +52,30 @@ INFO     [rank 5] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
-INFO     [rank 7] generated new fontManager                 font_manager.py:1639
-INFO     [rank 4] generated new fontManager                 font_manager.py:1639
-INFO     [rank 6] generated new fontManager                 font_manager.py:1639
-INFO     [rank 2] generated new fontManager                 font_manager.py:1639
-INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 1] generated new fontManager                 font_manager.py:1639
+INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
 INFO     [rank 3] generated new fontManager                 font_manager.py:1639
+INFO     [rank 6] generated new fontManager                 font_manager.py:1639
 INFO     [rank 5] generated new fontManager                 font_manager.py:1639
+INFO     [rank 4] generated new fontManager                 font_manager.py:1639
+INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+INFO     [rank 7] generated new fontManager                 font_manager.py:1639
+INFO     [rank 2] generated new fontManager                 font_manager.py:1639
                              Training Configuration                             
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Parameter                            ┃ Value                                 ┃
@@ -131,37 +131,181 @@ INFO     [rank 5] generated new fontManager                 font_manager.py:1639
 │ wandb.project                        │ shockwavenet                          │
 │ wandb.entity                         │ None                                  │
 │ wandb.tags                           │ cfd, full, 2b, scalar-only, sng_pvc,  │
-│                                      │ 256res, cosine-vae, kl1e5             │
+│                                      │ 256res, cosine-vae, kl1e6             │
 │ seed                                 │ 42                                    │
 │ output_dir                           │ /hppfs/scratch/0D/go76fuz2/windinet/… │
 │ resume_weights_only                  │ False                                 │
 └──────────────────────────────────────┴───────────────────────────────────────┘
-INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1439
+INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1421
          processes                                                              
-INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1445
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1427
 INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:859
          ['gamma']                                                              
 DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:886
 DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:890
 INFO     [rank 0] Loading checkpoint from                     dit_trainer.py:907
          /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
-         e_dit_cosine_kl1e5/checkpoints/model_weights_step_01                   
+         e_dit_cosine_kl1e6/checkpoints/model_weights_step_01                   
          920.safetensors                                                        
-2026:09:07-11:10:19:52369 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52364 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52370 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52366 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52368 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:07-11:10:19:52365 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:07-11:10:19:52367 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-
-
-2026:09:07-11:39:57:52363 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
-2026:09:07-11:39:57:52363 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
-2026:09:07-11:39:57:52363 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:923
+INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:914
          /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
-         e_dit_cosine_kl1e5/checkpoints/scalar_embedding_step                   
+         e_dit_cosine_kl1e6/checkpoints/scalar_embedding_step                   
          _01920.safetensors                                                     
-INFO     [rank 0] Loaded training state from                  dit_trainer.py:972
+INFO     [rank 0] Loaded training state from                  dit_trainer.py:954
          /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
-         e_dit_cosine_kl1e5/checkpoints/model_weights_step_01                   
+         e_dit_cosine_kl1e6/checkpoints/model_weights_step_01                   
          920.state.pt: resuming at global_step 1920                             
+2026:09:07-15:14:31:32139 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:09:07-15:14:31:32139 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:09:07-15:14:31:32145 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:32141 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:32143 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:32140 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:32142 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:07-15:14:31:32139 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+
+2026:09:07-15:14:31:32146 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:32144 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:389
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1095
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1178
+         /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocesse                    
+         d/finetune_vae_whole_structure_baseline_ep20_256res                    
+         _cosine_kl1e6/val                                                      
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1413
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1139
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_whole_structure_baseline                    
+         _ep20_256res_cosine_kl1e6/checkpoints/vae_shockwave                    
+         _best.safetensors (fingerprint aee7528403514c08);                      
+         recorded in latent_provenance.json                                     
+INFO     [rank 0] Starting training...                        dit_trainer.py:410
+INFO     [rank 0] Resuming training at global_step 1920       dit_trainer.py:439
+[train] step=1921 loss=0.086903 lr=8.646e-06
+[train] step=1922 loss=0.102325 lr=8.645e-06
+[train] step=1923 loss=0.061872 lr=8.644e-06
+[train] step=1924 loss=0.075575 lr=8.642e-06
+[train] step=1925 loss=0.063683 lr=8.641e-06
+[train] step=1926 loss=0.095597 lr=8.639e-06
+[train] step=1927 loss=0.059235 lr=8.638e-06
+[train] step=1928 loss=0.070532 lr=8.637e-06
+[train] step=1929 loss=0.062344 lr=8.635e-06
+[train] step=1930 loss=0.120075 lr=8.634e-06
+[train] step=1931 loss=0.067818 lr=8.633e-06
+[train] step=1932 loss=0.100629 lr=8.631e-06
+[train] step=1933 loss=0.194501 lr=8.630e-06
+[train] step=1934 loss=0.088850 lr=8.629e-06
+[train] step=1935 loss=0.056895 lr=8.627e-06
+[train] step=1936 loss=0.068195 lr=8.626e-06
+[train] step=1937 loss=0.108829 lr=8.625e-06
+[train] step=1938 loss=0.085093 lr=8.623e-06
+[train] step=1939 loss=0.084338 lr=8.622e-06
+[train] step=1940 loss=0.078741 lr=8.621e-06
+[train] step=1941 loss=0.069654 lr=8.619e-06
+[train] step=1942 loss=0.071199 lr=8.618e-06
+[train] step=1943 loss=0.074053 lr=8.617e-06
+[train] step=1944 loss=0.063547 lr=8.615e-06
+[train] step=1945 loss=0.051601 lr=8.614e-06
+[train] step=1946 loss=0.056667 lr=8.612e-06
+[train] step=1947 loss=0.061592 lr=8.611e-06
+[train] step=1948 loss=0.107876 lr=8.610e-06
+[train] step=1949 loss=0.057689 lr=8.608e-06
+[train] step=1950 loss=0.096207 lr=8.607e-06
+[train] step=1951 loss=0.169135 lr=8.606e-06
+[train] step=1952 loss=0.093446 lr=8.604e-06
+[train] step=1953 loss=0.039781 lr=8.603e-06
+[train] step=1954 loss=0.068255 lr=8.602e-06
+[train] step=1955 loss=0.053722 lr=8.600e-06
+[train] step=1956 loss=0.079355 lr=8.599e-06
+[train] step=1957 loss=0.068687 lr=8.597e-06
+[train] step=1958 loss=0.066326 lr=8.596e-06
+[train] step=1959 loss=0.117576 lr=8.595e-06
+[train] step=1960 loss=0.079542 lr=8.593e-06
+[train] step=1961 loss=0.061653 lr=8.592e-06
+[train] step=1962 loss=0.081824 lr=8.591e-06
+[train] step=1963 loss=0.198168 lr=8.589e-06
+[train] step=1964 loss=0.071032 lr=8.588e-06
+[train] step=1965 loss=0.092658 lr=8.587e-06
+[train] step=1966 loss=0.115472 lr=8.585e-06
+[train] step=1967 loss=0.080639 lr=8.584e-06
+[train] step=1968 loss=0.070522 lr=8.582e-06
+[train] step=1969 loss=0.047087 lr=8.581e-06
+[train] step=1970 loss=0.116816 lr=8.580e-06
+[train] step=1971 loss=0.081338 lr=8.578e-06
+[train] step=1972 loss=0.116753 lr=8.577e-06
+[train] step=1973 loss=0.091669 lr=8.576e-06
+[train] step=1974 loss=0.056153 lr=8.574e-06
+[train] step=1975 loss=0.081869 lr=8.573e-06
+[train] step=1976 loss=0.054241 lr=8.572e-06
+[train] step=1977 loss=0.064346 lr=8.570e-06
+[train] step=1978 loss=0.077047 lr=8.569e-06
+[train] step=1979 loss=0.064582 lr=8.567e-06
+[train] step=1980 loss=0.098909 lr=8.566e-06
+[train] step=1981 loss=0.077514 lr=8.565e-06
+[train] step=1982 loss=0.086639 lr=8.563e-06
+[train] step=1983 loss=0.087600 lr=8.562e-06
+[train] step=1984 loss=0.110920 lr=8.560e-06
+[train] step=1985 loss=0.099617 lr=8.559e-06
+[train] step=1986 loss=0.076997 lr=8.558e-06
+[train] step=1987 loss=0.082944 lr=8.556e-06
+[train] step=1988 loss=0.097503 lr=8.555e-06
+[train] step=1989 loss=0.039239 lr=8.554e-06
+[train] step=1990 loss=0.064633 lr=8.552e-06
+[train] step=1991 loss=0.039997 lr=8.551e-06
+[train] step=1992 loss=0.113282 lr=8.549e-06
+[train] step=1993 loss=0.086056 lr=8.548e-06
+[train] step=1994 loss=0.079173 lr=8.547e-06
+[train] step=1995 loss=0.054080 lr=8.545e-06
+[train] step=1996 loss=0.062394 lr=8.544e-06
+[train] step=1997 loss=0.120457 lr=8.543e-06
+[train] step=1998 loss=0.065851 lr=8.541e-06
+[train] step=1999 loss=0.081712 lr=8.540e-06
+[train] step=2000 loss=0.065478 lr=8.538e-06
+[train] step=2001 loss=0.067888 lr=8.537e-06
+[train] step=2002 loss=0.109835 lr=8.536e-06
+[train] step=2003 loss=0.068187 lr=8.534e-06
+[train] step=2004 loss=0.095833 lr=8.533e-06
+[train] step=2005 loss=0.090588 lr=8.531e-06
+[train] step=2006 loss=0.102223 lr=8.530e-06
+[train] step=2007 loss=0.078455 lr=8.529e-06
+[train] step=2008 loss=0.069119 lr=8.527e-06
+[train] step=2009 loss=0.049242 lr=8.526e-06
+[train] step=2010 loss=0.136175 lr=8.524e-06
+[train] step=2011 loss=0.200028 lr=8.523e-06
+[train] step=2012 loss=0.061059 lr=8.522e-06
+[train] step=2013 loss=0.069326 lr=8.520e-06
+[train] step=2014 loss=0.064644 lr=8.519e-06
+[train] step=2015 loss=0.074469 lr=8.518e-06
+[train] step=2016 loss=0.044201 lr=8.516e-06
+[train] step=2017 loss=0.157679 lr=8.515e-06
+[train] step=2018 loss=0.082465 lr=8.513e-06
+[train] step=2019 loss=0.069498 lr=8.512e-06
+[train] step=2020 loss=0.083652 lr=8.511e-06
+[train] step=2021 loss=0.074842 lr=8.509e-06
+[train] step=2022 loss=0.068394 lr=8.508e-06
+[train] step=2023 loss=0.077277 lr=8.506e-06
+[train] step=2024 loss=0.072032 lr=8.505e-06
+[train] step=2025 loss=0.067666 lr=8.504e-06
+[train] step=2026 loss=0.099794 lr=8.502e-06
+[train] step=2027 loss=0.114274 lr=8.501e-06
+[train] step=2028 loss=0.056478 lr=8.499e-06
+[train] step=2029 loss=0.091399 lr=8.498e-06
+[train] step=2030 loss=0.122699 lr=8.497e-06
+[train] step=2031 loss=0.061947 lr=8.495e-06
+[train] step=2032 loss=0.068122 lr=8.494e-06
+[train] step=2033 loss=0.078002 lr=8.492e-06
+[train] step=2034 loss=0.058686 lr=8.491e-06
+[train] step=2035 loss=0.097773 lr=8.490e-06
+[train] step=2036 loss=0.092504 lr=8.488e-06
+[train] step=2037 loss=0.081600 lr=8.487e-06
+[train] step=2038 loss=0.129453 lr=8.485e-06
+[train] step=2039 loss=0.090184 lr=8.484e-06
+[train] step=2040 loss=0.080443 lr=8.482e-06
+INFO     [rank 0] Model weights for step 2040 saved in       dit_trainer.py:1268
+         checkpoints/model_weights_step_02040.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 2040     dit_trainer.py:1277
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1365
+         checkpoints/model_weights_step_02040.state.pt                          
+[epoch 17] step=2040 train_loss=0.083786

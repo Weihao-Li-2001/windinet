@@ -1,5 +1,5 @@
-START TIME: Mon 07 Sep 2026 10:50:57 AM CEST
-job=534942 node=i20r02c06s02
+START TIME: Mon 07 Sep 2026 02:28:11 PM CEST
+job=534979 node=i20r02c05s06
 +-----------+--------------------------------------------------------------------------------------+
 | Device ID | Device Information                                                                   |
 +-----------+--------------------------------------------------------------------------------------+
@@ -34,26 +34,9 @@ job=534942 node=i20r02c06s02
 PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5
 BASE_CONFIG: configs/dit/train_dit_sng_pvc_cosine_kl1e5_resume.yaml
 STEPS override: <none, using BASE_CONFIG default>
-MASTER_ADDR: i20r02c06s02  MASTER_PORT: 59639
+MASTER_ADDR: i20r02c05s06  MASTER_PORT: 36607
 preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5 output_dir=$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e5 steps=8000
-INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
 INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
-         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
-         not load face (SFNT font table missing; error code                     
-         0x8e)                                                                  
-INFO     [rank 1] generated new fontManager                 font_manager.py:1639
-INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
@@ -65,17 +48,34 @@ INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
+INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
 INFO     [rank 5] Failed to extract font properties from    font_manager.py:1107
          /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
          not load face (SFNT font table missing; error code                     
          0x8e)                                                                  
-INFO     [rank 7] generated new fontManager                 font_manager.py:1639
+INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
 INFO     [rank 4] generated new fontManager                 font_manager.py:1639
+INFO     [rank 1] generated new fontManager                 font_manager.py:1639
+INFO     [rank 7] generated new fontManager                 font_manager.py:1639
+INFO     [rank 5] generated new fontManager                 font_manager.py:1639
 INFO     [rank 6] generated new fontManager                 font_manager.py:1639
 INFO     [rank 2] generated new fontManager                 font_manager.py:1639
-INFO     [rank 0] generated new fontManager                 font_manager.py:1639
 INFO     [rank 3] generated new fontManager                 font_manager.py:1639
-INFO     [rank 5] generated new fontManager                 font_manager.py:1639
                              Training Configuration                             
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Parameter                            ┃ Value                                 ┃
@@ -136,9 +136,9 @@ INFO     [rank 5] generated new fontManager                 font_manager.py:1639
 │ output_dir                           │ /hppfs/scratch/0D/go76fuz2/windinet/… │
 │ resume_weights_only                  │ False                                 │
 └──────────────────────────────────────┴───────────────────────────────────────┘
-INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1439
+INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1421
          processes                                                              
-INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1445
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1427
 INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:859
          ['gamma']                                                              
 DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:886
@@ -147,21 +147,38 @@ INFO     [rank 0] Loading checkpoint from                     dit_trainer.py:907
          /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
          e_dit_cosine_kl1e5/checkpoints/model_weights_step_01                   
          920.safetensors                                                        
-2026:09:07-11:10:19:52369 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52364 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52370 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52366 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-2026:09:07-11:10:19:52368 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:07-11:10:19:52365 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:07-11:10:19:52367 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-
-
-2026:09:07-11:39:57:52363 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
-2026:09:07-11:39:57:52363 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
-2026:09:07-11:39:57:52363 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
-INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:923
+INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:914
          /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
          e_dit_cosine_kl1e5/checkpoints/scalar_embedding_step                   
          _01920.safetensors                                                     
-INFO     [rank 0] Loaded training state from                  dit_trainer.py:972
+INFO     [rank 0] Loaded training state from                  dit_trainer.py:954
          /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
          e_dit_cosine_kl1e5/checkpoints/model_weights_step_01                   
          920.state.pt: resuming at global_step 1920                             
+2026:09:07-15:14:31:199561 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:09:07-15:14:31:199561 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:09:07-15:14:31:199565 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:199562 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:199561 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:199567 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:199563 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:07-15:14:31:199564 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+
+2026:09:07-15:14:31:199568 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:07-15:14:31:199566 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:389
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1095
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1178
+         /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocesse                    
+         d/finetune_vae_whole_structure_baseline_ep20_256res                    
+         _cosine_kl1e5/val                                                      
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1413
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1139
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_whole_structure_baseline                    
+         _ep20_256res_cosine_kl1e5/checkpoints/vae_shockwave                    
+         _best.safetensors (fingerprint 124522492c8f4a5e);                      
+         recorded in latent_provenance.json                                     
+INFO     [rank 0] Starting training...                        dit_trainer.py:410
+INFO     [rank 0] Resuming training at global_step 1920       dit_trainer.py:439
