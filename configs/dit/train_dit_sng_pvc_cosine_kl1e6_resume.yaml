@@ -81,7 +81,12 @@ flow_matching:
   timestep_sampling_params: {}
 
 visualization:
-  enabled: true
+  enabled: false  # disabled 2026-09-07: killed every sng_pvc run at the first
+  # trigger (job 534853/534884) with UR_RESULT_ERROR_OUT_OF_RESOURCES on ranks
+  # 2-7 one step after the pass -- cause still unconfirmed (NOT the DitVisualizer
+  # VAE residency fix in dit_visualization.py, since rank 0 -- the one actually
+  # running visualization -- never crashes). Re-enable once root-caused; backfill
+  # PNG panels/VRMSE curve post-hoc against saved checkpoints in the meantime.
   interval: 2000
 
 wandb:
