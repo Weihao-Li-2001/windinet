@@ -7,9 +7,21 @@
 #SBATCH --account=pn82ku
 #SBATCH -o logs/sng_pvc/%j-%x.out
 #SBATCH -e logs/sng_pvc/%j-%x.err
-# Same broken-scratch-mount node jobs/sng_pvc/latent_stats.sbatch excludes
-# (see that file's own note). Remove once LRZ fixes the mount, not before.
-#SBATCH --exclude=i20r02c04s06
+# i20r02c04s06: same broken-scratch-mount node jobs/sng_pvc/latent_stats.sbatch
+# excludes (see that file's own note). Remove once LRZ fixes the mount, not
+# before.
+#
+# i20r03c06s08 (2026-09-07): three separate DiT job submissions (534770,
+# 534853, 534856) all landed here and all three died for different reasons --
+# a missing config field, an OOM one step after the first visualization pass,
+# and finally a bare SIGKILL (exitcode -9, no Python traceback) on one rank
+# moments after resuming, with sibling ranks then failing to read that rank's
+# memory over CMA -- consistent with the OS OOM-killer, i.e. a host-RAM
+# problem specific to this node rather than anything in our code. sacct was
+# down (slurm_persist_conn_open_without_init timeout against sl04) when this
+# was excluded, so it's unconfirmed by MaxRSS -- remove if a later job
+# lands here cleanly and this turns out to have been a fluke.
+#SBATCH --exclude=i20r02c04s06,i20r03c06s08
 
 # Batch submission for the ShockWaveNet DiT run on the sng_pvc cluster
 # (Intel Data Center GPU Max 1550 / XPU, 8 tiles per node). Companion to
