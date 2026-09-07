@@ -24,25 +24,41 @@
 # looks off relative to the 256res baseline, compute real 512 stats and diff
 # before assuming it's a modeling problem.
 #
-# 4-GPU / --time=12:00:00: both are USER-CHOSEN (2026-08-30), not calibrated
-# -- no confirmed per-epoch timing exists for 512res anywhere in this
-# project (it was deprioritized back on 2026-08-16 before a real run ever
-# happened). 512x512 is a 16x16 latent grid vs 256res's 8x8 (4x the
-# tokens/sample of 128res, per the same doubling pattern the 256res config
-# itself documents) -- if the job is still mid-epoch-1 when --time runs out,
-# that is a real signal 12h isn't enough at 4 GPUs, not a bug; check the
-# per-epoch phase-timing log line before assuming otherwise.
+# TWO-SEGMENT PLAN (2026-09-03): job 5767882 (this config pre-fix, accum=16)
+# ran 12h and completed 14 clean epochs before its time-limit kill -- from
+# its own per-epoch timing log lines (train=2546-2712s + eval=370s +
+# ckpt=17.5s + viz~44s/4th-epoch), ~3000s/epoch. Note the accum 16->8 fix
+# above does NOT change this: VaeTrainer.train() stops at a fixed epoch
+# count, not a fixed step count (unlike the DiT trainer), so one epoch is
+# always one full dataset pass regardless of how many micro-steps accum
+# groups it into -- accum only fixes effective_batch, not wall-clock. 20
+# epochs @ ~3000s/epoch ~= 16.7h total, split into two ~10h segments (each
+# ~20% buffer over the 10-epoch/8.3h half): segment 1 is this file as-is
+# (fresh start, epochs 1-10); segment 2 is
+# finetune_vae_whole_structure_baseline_ep20_512res_resume.yaml (epochs
+# 11-20, resume_from segment 1's last checkpoint).
 #
-# BATCH_SIZE: not hardcoded here -- jobs/lrz_ai/finetune_vae_4gpu.job's own
-# BATCH_SIZE env var (default 4, see that script's header) applies as-is.
-# 512res's memory footprint is unconfirmed at any batch_size; watch the
-# first epoch's .err log for OOM and lower via BATCH_SIZE=<n> if it hits one
-# -- the 256res family's own kl=0/kl1e7 arms already confirmed OOM at
-# batch_size=16, so 512res inheriting the same conservative default-4 is
-# the safe starting point, not a guess pulled from nowhere.
+# BATCH_SIZE env var correction (2026-09-03): the note this header used to
+# carry ("jobs/lrz_ai/finetune_vae_4gpu.job's own BATCH_SIZE env var, default
+# 4") was wrong -- only finetune_vae_2gpu.job has a BATCH_SIZE override;
+# finetune_vae_4gpu.job has no such env var, so job 5767882 actually ran at
+# this file's own hardcoded optimization.batch_size: 1 (confirmed by that
+# job's own printed config table), not "4".
 #
-# Usage:
-#   sbatch --time=12:00:00 jobs/lrz_ai/finetune_vae_4gpu.job \
+# EFFECTIVE-BATCH FIX (2026-09-03): this file was copied unchanged from
+# finetune_vae_whole_structure_baseline_ep20_256res.yaml, which is a 2-GPU
+# config (jobs 5757480/5757489, windinet_2gpu) -- batch_size=1 x accum=16 x
+# 2 GPUs = effective_batch 32. Launched here via finetune_vae_4gpu.job (4
+# GPUs) with the same accum=16, job 5767882 actually ran at effective_batch
+# 1*16*4=64 -- the same doubling bug found and fixed in
+# configs/dit/train_dit_lrz_ai.yaml's 4-GPU config. gradient_accumulation_steps
+# dropped 16 -> 8 below to restore effective_batch=32. Job 5767882 (killed by
+# the 12h time limit at epoch 15/20, see logs/lrz_ai/5767882-windinet_4gpu.out)
+# is NOT to be resumed -- its progress belongs to the wrong-effective-batch
+# schedule; restart this arm from step 0 under the corrected config instead.
+#
+# Usage (segment 1/2, epochs 1-10 -- see TWO-SEGMENT PLAN above):
+#   sbatch --time=10:00:00 jobs/lrz_ai/finetune_vae_4gpu.job \
 #       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_512res.yaml \
 #       /dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/512x512_orig
 
@@ -80,7 +96,9 @@ optimization:
   stable_fraction: 0.7
   epochs: 20
   batch_size: 1
-  gradient_accumulation_steps: 16
+  # 16 -> 8 (2026-09-03): restores effective_batch = 1*8*4 = 32 on this
+  # file's actual 4-GPU launcher -- see header's "EFFECTIVE-BATCH FIX" note.
+  gradient_accumulation_steps: 8
   max_grad_norm: 5.0
   weight_decay: 0.0
   warmup_steps: 200
