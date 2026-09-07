@@ -19,7 +19,7 @@ import torch
 import wandb
 import yaml
 from accelerate import Accelerator
-from accelerate.utils import broadcast_object_list, set_seed
+from accelerate.utils import set_seed
 from pydantic import BaseModel, ConfigDict, computed_field
 from rich.live import Live
 from rich.panel import Panel
@@ -905,25 +905,15 @@ class LtxvTrainer:
         transformer = self._accelerator.unwrap_model(self._transformer)
 
         logger.info(f"Loading checkpoint from {checkpoint_path}")
-        # Only rank 0 reads the checkpoint off disk; the rest get it via a
-        # broadcast over the fast intra-node interconnect instead of every
-        # rank independently re-reading the same multi-GB file from network
-        # scratch storage. All ranks here live on one node and share a single
-        # link to that storage, so N-way redundant reads just contend with
-        # each other for the same bandwidth (job 534884 sat on this exact
-        # step for 50+ minutes -- see EXPERIMENTS.md/session notes).
-        transformer_state = [load_file(checkpoint_path) if IS_MAIN_PROCESS else None]
-        broadcast_object_list(transformer_state, from_process=0)
-        transformer.load_state_dict(transformer_state[0])
+        state_dict = load_file(checkpoint_path)
+        transformer.load_state_dict(state_dict)
 
         if self._scalar_embedding is not None:
             scalar_checkpoint = self._find_scalar_checkpoint(checkpoint_path)
             if scalar_checkpoint:
-                if IS_MAIN_PROCESS:
-                    logger.info(f"Loading scalar embedding from {scalar_checkpoint}")
-                scalar_state = [load_file(scalar_checkpoint) if IS_MAIN_PROCESS else None]
-                broadcast_object_list(scalar_state, from_process=0)
-                self._scalar_embedding.load_state_dict(scalar_state[0])
+                logger.info(f"Loading scalar embedding from {scalar_checkpoint}")
+                scalar_state_dict = load_file(scalar_checkpoint)
+                self._scalar_embedding.load_state_dict(scalar_state_dict)
 
         self._load_resume_state(checkpoint_path)
 
@@ -954,19 +944,11 @@ class LtxvTrainer:
                 "will start fresh (step 0)."
             )
             return
-        # Same rank-0-then-broadcast rationale as the transformer/scalar-embedding
-        # loads above -- this file additionally carries the optimizer state
-        # (2x model size, the single biggest read in the resume path).
-        holder = [None]
-        if IS_MAIN_PROCESS:
-            state = torch.load(state_path, map_location="cpu", weights_only=False)
-            if "optimizer" in state:
-                # Undo _save_training_state's bf16 downcast -- the live optimizer
-                # (and AdamW's own arithmetic) expects fp32 moment buffers.
-                state["optimizer"] = self._cast_optimizer_state(state["optimizer"], torch.float32)
-            holder[0] = state
-        broadcast_object_list(holder, from_process=0)
-        state = holder[0]
+        state = torch.load(state_path, map_location="cpu", weights_only=False)
+        if "optimizer" in state:
+            # Undo _save_training_state's bf16 downcast -- the live optimizer
+            # (and AdamW's own arithmetic) expects fp32 moment buffers.
+            state["optimizer"] = self._cast_optimizer_state(state["optimizer"], torch.float32)
         self._resume_state = state
         self._resume_global_step = int(state.get("global_step", 0))
         logger.info(
