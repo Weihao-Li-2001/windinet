@@ -252,8 +252,15 @@ class DitVisualizer:
         )
 
         logger.info(f"Loading DiT-visualization VAE from {vae_checkpoint}")
+        # Loaded onto CPU, not self._device: this VAE is only needed for the
+        # few seconds `run()` is active (every visualization.interval steps),
+        # but if left resident on the training device it never gets freed --
+        # `run()` moves it to self._device for its own duration and back to
+        # CPU when done, so it doesn't permanently eat into the training
+        # step's memory headroom for the rest of the run (see run()'s own
+        # comment for the OOM this caused before that fix).
         self._vae = load_inflated_vae(
-            self._model_source, vae_checkpoint, dtype=self._dtype, device=str(self._device)
+            self._model_source, vae_checkpoint, dtype=self._dtype, device="cpu"
         )
         self._vae.requires_grad_(False)
         self._vae.eval()
@@ -269,6 +276,11 @@ class DitVisualizer:
         saving and validation -- not enforced here either, callers gate it.
         """
         self._lazy_init()
+        # _lazy_init loads self._vae onto CPU, not self._device (see its own
+        # comment) -- move it here, for this call only, and back to CPU in
+        # the `finally` below so it doesn't sit on the training device for
+        # the steps between visualization.interval calls.
+        self._vae.to(self._device)
 
         if self._pipe is None:
             self._pipe = LTXConditionPipeline(
@@ -287,6 +299,19 @@ class DitVisualizer:
         else:
             self._pipe.transformer = transformer
 
+        try:
+            self._run_samples(scalar_embedding=scalar_embedding, step=step)
+        finally:
+            # Undo the self._vae.to(self._device) above regardless of success --
+            # this VAE must not stay resident on the training device between
+            # visualization.interval calls (see _lazy_init's comment).
+            self._vae.to("cpu")
+            if self._device.type == "cuda":
+                torch.cuda.empty_cache()
+            elif self._device.type == "xpu":
+                torch.xpu.empty_cache()
+
+    def _run_samples(self, *, scalar_embedding, step: int) -> None:
         sum_latent_vrmse, sum_pixel_vrmse = 0.0, 0.0
 
         for i, sample in enumerate(self._samples):
