@@ -56,6 +56,26 @@ class ConditioningConfig(ConfigBaseModel):
     first_frame_conditioning_p: float = Field(default=0.1, ge=0.0, le=1.0)
 
 
+class LoraConfig(ConfigBaseModel):
+    """LoRA adapter config for the DiT transformer.
+
+    When enabled, the base transformer stays frozen and only low-rank
+    adapters injected into target_modules are trained. target_modules
+    matches by (dotted) submodule name suffix, so "to_q" hits both attn1
+    (self-attention) and attn2 -- attn2 is where scalar conditioning
+    (see ScalarConditioningConfig) enters via cross-attention, so it's
+    included by default rather than only adapting self-attention.
+    """
+
+    enabled: bool = Field(default=False)
+    rank: int = Field(default=16, gt=0)
+    alpha: int = Field(default=16, gt=0)
+    dropout: float = Field(default=0.0, ge=0.0, lt=1.0)
+    target_modules: list[str] = Field(
+        default_factory=lambda: ["to_q", "to_k", "to_v", "to_out.0"],
+    )
+
+
 class ScalarConditioningConfig(ConfigBaseModel):
     """Configuration for scalar embeddings (e.g., inlet_speed, field_size)."""
 
@@ -746,6 +766,7 @@ class LtxvTrainerConfig(ConfigBaseModel):
 
     model: ModelConfig = Field(default_factory=ModelConfig)
     conditioning: ConditioningConfig = Field(default_factory=ConditioningConfig)
+    lora: LoraConfig = Field(default_factory=LoraConfig)
     scalar_conditioning: ScalarConditioningConfig = Field(default_factory=ScalarConditioningConfig)
     optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
     acceleration: AccelerationConfig = Field(default_factory=AccelerationConfig)

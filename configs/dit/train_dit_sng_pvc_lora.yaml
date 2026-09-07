@@ -1,0 +1,92 @@
+# ShockWaveNet (DiT) training config -- sng_pvc LoRA arm, mirrors
+# train_dit_sng_pvc_baseline.yaml (full fine-tuning) with only `lora` added
+# and learning_rate bumped, so the two arms are otherwise comparable.
+#
+# lora.target_modules defaults to the attention projections (to_q/to_k/to_v/
+# to_out.0) in BOTH attn1 (self-attention) and attn2 -- attn2 is where the
+# scalar conditioning (gamma) enters via cross-attention (see
+# ScalarConditioningConfig / LtxvTrainer._prepare_scalar_conditioning), so
+# leaving it out of target_modules would adapt spatial mixing but not the
+# conditioning pathway itself. See windinet/config.py's LoraConfig docstring
+# and LtxvTrainer._apply_lora for the injection mechanics.
+#
+# learning_rate raised 1e-5 -> 1e-4: LoRA has ~100x fewer trainable params
+# than full fine-tuning (rank=16 on attention projections only), so the
+# per-step update from the same LR is proportionally smaller -- common
+# practice is a 5-10x higher LR than the full-FT arm; adjust based on the
+# loss curve rather than treating this as tuned.
+#
+# After training, merge before running eval_dit_vrmse.py /
+# visualize_dit_predictions.py -- see scripts/merge_dit_lora.py's docstring
+# for why a raw LoRA checkpoint can't be pointed at those scripts directly.
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+lora:
+  enabled: true
+  rank: 16
+  alpha: 16
+  dropout: 0.0
+  target_modules: ["to_q", "to_k", "to_v", "to_out.0"]
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-4
+  steps: 8000
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "lora", "2b", "scalar-only", "sng_pvc", "256res", "baseline"]
+
+seed: 42
+output_dir: "$SCRATCH/windinet/outputs/shockwave_dit_lora"
