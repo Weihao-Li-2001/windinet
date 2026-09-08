@@ -1,5 +1,5 @@
 START TIME: Tue 08 Sep 2026 06:46:45 AM CEST
-job=534979 node=i20r01c04s04
+job=535061 node=i20r01c06s04
 +-----------+--------------------------------------------------------------------------------------+
 | Device ID | Device Information                                                                   |
 +-----------+--------------------------------------------------------------------------------------+
@@ -31,8 +31,8 @@ job=534979 node=i20r01c04s04
 |           | DRM Device: /dev/dri/card3                                                           |
 |           | Function Type: physical                                                              |
 +-----------+--------------------------------------------------------------------------------------+
-PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5
-BASE_CONFIG: configs/dit/train_dit_sng_pvc_cosine_kl1e5_resume.yaml
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res
+BASE_CONFIG: configs/dit/train_dit_sng_pvc_ep20_baseline_lr3e5_resume.yaml
 STEPS override: <none, using BASE_CONFIG default>
-MASTER_ADDR: i20r01c04s04  MASTER_PORT: 33445
-preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e5 output_dir=$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e5 steps=8000
+MASTER_ADDR: i20r01c06s04  MASTER_PORT: 45655
+preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res output_dir=$SCRATCH/windinet/outputs/shockwave_dit_ep20_baseline_lr3e5 steps=8000
