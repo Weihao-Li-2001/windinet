@@ -67,6 +67,7 @@ from windinet.loss_weighting.utils import (
 )
 
 from windinet.training.shockwave_data import ShockWaveDataset, build_shockwave_video, parse_gamma
+from windinet.training.sds_loss import SdsDistillationLoss
 from windinet.training.vae_visualization import (
     denormalize_fields,
     save_metrics_history,
@@ -151,6 +152,14 @@ class VaeTrainer:
 
         self.loss_weighter = build_loss_weighting(
             config.loss_weighting
+        )
+
+        # Opt-in and expensive (a full frozen-2B-transformer forward pass
+        # every active step) -- only load it when actually enabled, so every
+        # config that doesn't use this feature pays nothing. See
+        # SdsLossConfig's docstring for the loss itself.
+        self._sds_loss = (
+            SdsDistillationLoss(config.sds, self._accelerator.device) if config.sds.enabled else None
         )
 
     # ------------------------------------------------------------------
@@ -843,6 +852,16 @@ class VaeTrainer:
                         compute_mlw=cfg.loss_weighting.weights.get("mlw", 0.0) != 0.0,
                     )
 
+                    # Same "skip the expensive one when its weight is 0"
+                    # pattern as compute_mlw above, but for a full frozen-DiT
+                    # forward pass rather than a wavelet transform -- see
+                    # SdsLossConfig's docstring.
+                    losses["sds"] = (
+                        self._sds_loss.compute(latents.float(), batch["meta"]["gamma"])
+                        if self._sds_loss is not None and cfg.loss_weighting.weights.get("sds", 0.0) != 0.0
+                        else recon.new_zeros(())
+                    )
+
                     grad_norms = None
 
 
@@ -1143,6 +1162,11 @@ class VaeTrainer:
                 latent_logvar=posterior_logvar.float(),
                 latents=latents.float(),
                 compute_mlw=weights.get("mlw", 0.0) != 0.0,
+            )
+            losses["sds"] = (
+                self._sds_loss.compute(latents.float(), batch["meta"]["gamma"])
+                if self._sds_loss is not None and weights.get("sds", 0.0) != 0.0
+                else recon.new_zeros(())
             )
             # .get(name, 0.0): see the matching comment in train()'s backward
             # total_loss -- an opt-in loss absent from this config's weights

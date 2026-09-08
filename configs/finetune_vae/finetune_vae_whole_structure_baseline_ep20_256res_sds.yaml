@@ -1,0 +1,152 @@
+# VAE finetuning config -- SDS (score-distillation) ablation on top of the
+# ep20 256res whole-structure baseline. SINGLE VARIABLE vs
+# finetune_vae_whole_structure_baseline_ep20_256res.yaml: adds the "sds"
+# loss term (windinet.training.sds_loss.SdsDistillationLoss, see
+# windinet/config.py's SdsLossConfig docstring for the full formula and
+# rationale). Everything else (resolution, LR, schedule, adapter, the other
+# four loss weights) is UNCHANGED from that file.
+#
+# WHAT THIS TESTS: PhD-advisor-provided idea (2026-09-08) -- distill an
+# already-trained, frozen DiT checkpoint's flow-matching velocity prediction
+# back into VAE encoder training, so the encoder is pushed to keep producing
+# latents the DiT is actually good at denoising, not just latents that
+# reconstruct pixels well. Concretely:
+#   z = E_theta(x); z_sigma = (1-sigma)z + sigma*eps; v_hat = v_phi(z_sigma; sigma, y)
+#   target = eps - z; loss = w(sigma)*||v_hat - target||^2   (w(sigma) = 1, uniform)
+#
+# CHECK BEFORE SUBMITTING: sds.dit_checkpoint below is a best-guess path to
+# the current best DiT arm (shockwave_dit_ep20_baseline, per
+# project_dit_stage2_multicluster notes -- ~5-7x the VAE floor, the best
+# real DiT result so far) -- CONFIRM the exact file actually exists on
+# whichever cluster this launches on (`ls` it) before submitting; if this
+# run predates the model_weights_best.safetensors "best" slot, point at a
+# specific model_weights_step_NNNNN.safetensors instead (same directory).
+#
+# WEIGHT (sds: 0.1 below) is an UNTUNED FIRST GUESS, not a swept value --
+# chosen only to be roughly the same order of magnitude of influence as
+# rmse (weight 1.0) under the assumption the raw SDS residual lands in a
+# similar 0.01-1 range LtxvTrainer's own converged flow-matching loss does
+# (see training logs, e.g. job 534573's loss~0.01-0.06 by step 2000).
+# Confirm this is actually the case (log the unweighted "sds" loss column,
+# same as every other reconstruction_losses component) before trusting the
+# weighted contribution, and treat this as one variable to sweep later
+# (protocol point 1, EXPERIMENTS.md), not a tuned default.
+#
+# NOTE: this loads a SECOND frozen model (the 2B-parameter DiT transformer,
+# on top of the VAE already being finetuned) into memory for the whole run
+# and runs an extra full transformer forward pass every train/eval step --
+# expect materially higher memory and wall-clock than the non-sds baseline;
+# have not yet been measured at 256res/sng_pvc.
+#
+# Usage (sng_pvc, mirroring the baseline's own launch):
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_sds.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by the job script's DATA_DIR argument.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable vs the ep20_256res baseline -- see header. Untuned first
+    # guess, not swept.
+    sds: 0.1
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+# THE other half of the variable above -- see header for the full formula
+# and windinet/config.py's SdsLossConfig for every field's meaning.
+sds:
+  enabled: true
+  model_source: "LTXV_2B_0.9.6_DEV"
+  # Literal resolved path, not "$SCRATCH/..." -- unlike output_dir (whose
+  # field_validator expands env vars), this field does not expand them, same
+  # convention as every DiT resume config's model.load_checkpoint (e.g.
+  # configs/dit/train_dit_sng_pvc_ep20_baseline_lr3e5_resume.yaml). This is
+  # sng_pvc's own $SCRATCH resolved -- adjust the prefix for another cluster.
+  dit_checkpoint: "/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_best.safetensors"
+  scalar_conditioning:
+    enabled: true
+    scalar_names: ["gamma"]
+    scalar_ranges:
+      gamma: [1.0, 2.0]
+    embedding_dim: 4096
+    num_tokens_per_scalar: 4
+    fourier_features: 64
+    mlp_hidden_dim: 256
+    dropout: 0.1
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "sds"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_256res_sds"
+clean_output_dir: true

@@ -641,8 +641,12 @@ REQUIRED_LOSS_NAMES = {"rmse", "h1", "ssim", "mlw"}
 # VaeTrainer._encode's posterior mean/logvar to be non-None to actually do
 # anything -- see reconstruction_losses' docstring. "anchor" (added
 # 2026-08-16, windinet.losses.latent_anchor) similarly needs the rescaled
-# latents, which VaeTrainer._forward_pass always supplies.
-OPTIONAL_LOSS_NAMES = {"h2", "pcc", "vrms", "kl", "anchor"}
+# latents, which VaeTrainer._forward_pass always supplies. "sds" (added
+# 2026-09-08, windinet.training.sds_loss) additionally needs sds.enabled=true
+# -- unlike the others here, it isn't computed for free; it's a full forward
+# pass through a frozen 2B-parameter transformer, gated by its own explicit
+# switch (see SdsLossConfig).
+OPTIONAL_LOSS_NAMES = {"h2", "pcc", "vrms", "kl", "anchor", "sds"}
 
 
 class LossWeightingConfig(ConfigBaseModel):
@@ -699,6 +703,107 @@ class VaeVisualizationConfig(ConfigBaseModel):
         return values
 
 
+class SdsLossConfig(ConfigBaseModel):
+    """Frozen-DiT score-distillation loss, for VAE latent fine-tuning.
+
+    Runs a flow-matching forward pass against an already-trained, frozen DiT
+    checkpoint on this run's own freshly-encoded latents, and uses the
+    residual as an auxiliary VAE loss term (see OPTIONAL_LOSS_NAMES' "sds"
+    and reconstruction_losses' docstring for how it composes with the other
+    terms):
+
+        z = E_theta(x)                          (this run's own VAE encoder)
+        z_sigma = (1 - sigma) * z + sigma * eps  sigma ~ timestep_sampling_mode, eps ~ N(0, I)
+        v_hat = v_phi(z_sigma; sigma, y)         (frozen DiT, y = scalar conditioning)
+        target = eps - z
+        loss = w(sigma) * ||v_hat - target||^2
+
+    Intent: keep this run's latent space inside the region an already-good
+    DiT is actually able to denoise, instead of shaping the encoder purely
+    from pixel/structural reconstruction losses that have no notion of what
+    the downstream DiT needs -- a concrete instance of the "latent shift"
+    concern in latent_space_shift_measure.md.
+
+    w(sigma) is fixed at 1.0 (uniform), not a tunable schedule:
+    LtxvTrainer._compute_loss (windinet/training/dit_trainer.py) uses the
+    same unweighted masked-MSE for the DiT's own flow-matching loss, so this
+    reuses the one weighting choice already exercised in this project rather
+    than introducing an unproven curve alongside a brand-new loss term.
+
+    The frozen forward pass runs under torch.no_grad() (see
+    windinet.training.sds_loss.SdsDistillationLoss) -- besides the obvious
+    memory/compute savings of not backpropagating through a 2B-parameter
+    transformer used purely as a fixed critic, this IS the score-distillation
+    trick: the only path left for gradient to reach the encoder is through
+    `target`'s own `z` term, not through the frozen network's Jacobian --
+    exactly the term the standard SDS gradient (Poole et al., DreamFusion)
+    keeps after dropping the (expensive, noisy) score-network-Jacobian term.
+
+    First-frame conditioning is replicated here (forced on, matching
+    LtxvTrainer._prepare_batch's validation path) rather than omitted: the
+    frozen DiT was only ever trained with frame 0 clean, so querying it with
+    every token noised would push the query off its training distribution
+    and make the resulting gradient direction unreliable.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description="Opt-in and expensive: unlike h2/pcc/vrms/kl/anchor (a few extra flops "
+        "on tensors already in memory), this runs a full forward pass through a frozen "
+        "2B-parameter transformer every active training/eval step, so it needs an explicit "
+        "switch rather than 'compute unconditionally, opt in via loss_weighting.weights' "
+        "alone -- this flag also gates whether VaeTrainer.__init__ loads the frozen "
+        "transformer/scalar-embedding checkpoints at all.",
+    )
+    model_source: str | Path | LtxvModelVersion = Field(
+        default=LtxvModelVersion.latest(),
+        description="Base transformer architecture dit_checkpoint was trained from -- same "
+        "field/semantics as ModelConfig.model_source. Every current DiT config in this repo "
+        "uses 'LTXV_2B_0.9.6_DEV'.",
+    )
+    dit_checkpoint: str | Path | None = Field(
+        default=None,
+        description="Path to the exact model_weights_step_NNNNN.safetensors (or "
+        "model_weights_best.safetensors) of an already-trained DiT run to distill from. "
+        "Required when enabled=true. The sibling scalar_embedding_*.safetensors is derived "
+        "automatically by substituting 'model_weights_' -> 'scalar_embedding_' (same "
+        "convention jobs/sng_pvc/eval_dit_vrmse.sbatch and LtxvTrainer._find_scalar_checkpoint "
+        "already use) -- it must exist; unlike eval_dit_vrmse.py's --untrained_dit control, "
+        "this loss has no meaningful fallback to a freshly-initialized ScalarEmbedding.",
+    )
+    scalar_conditioning: ScalarConditioningConfig = Field(
+        default_factory=lambda: ScalarConditioningConfig(
+            enabled=True,
+            scalar_names=["gamma"],
+            scalar_ranges={"gamma": (1.0, 2.0)},
+            dropout=0.1,
+        ),
+        description="Must match the scalar_conditioning block of the DiT run dit_checkpoint "
+        "came from -- a mismatch (e.g. a different embedding_dim) will crash on a shape "
+        "mismatch loading the checkpoint, or silently load garbage into a same-shaped layer. "
+        "Defaults to the single-scalar 'gamma' setup every current DiT config in this repo uses.",
+    )
+    timestep_sampling_mode: Literal["uniform", "shifted_logit_normal"] = Field(default="shifted_logit_normal")
+    timestep_sampling_params: dict = Field(default_factory=dict)
+
+    # noinspection PyNestedDecorators
+    @field_validator("model_source", mode="before")
+    @classmethod
+    def validate_model_source(cls, v):  # noqa: ANN001, ANN206
+        if isinstance(v, (str, LtxvModelVersion)):
+            try:
+                return LtxvModelVersion(v)
+            except ValueError:
+                return v
+        return v
+
+    @model_validator(mode="after")
+    def validate_dit_checkpoint_when_enabled(self):
+        if self.enabled and not self.dit_checkpoint:
+            raise ValueError("sds.enabled=true requires sds.dit_checkpoint to be set")
+        return self
+
+
 class VaeTrainerConfig(ConfigBaseModel):
     """Configuration for shockwave VAE decoder-and-adapter finetuning."""
 
@@ -708,6 +813,7 @@ class VaeTrainerConfig(ConfigBaseModel):
     optimization: VaeOptimizationConfig = Field(default_factory=VaeOptimizationConfig)
     loss: VaeReconstructionLossConfig = Field(default_factory=VaeReconstructionLossConfig)
     loss_weighting: LossWeightingConfig = Field(default_factory=LossWeightingConfig)
+    sds: SdsLossConfig = Field(default_factory=SdsLossConfig)
     visualization: VaeVisualizationConfig = Field(default_factory=VaeVisualizationConfig)
     acceleration: AccelerationConfig = Field(default_factory=AccelerationConfig)
     checkpoints: CheckpointsConfig = Field(default_factory=CheckpointsConfig)

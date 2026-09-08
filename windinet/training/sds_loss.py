@@ -1,0 +1,170 @@
+"""Frozen-DiT score-distillation (SDS) loss for VAE latent fine-tuning.
+
+See windinet.config.SdsLossConfig's docstring for the loss definition, the
+no_grad/score-distillation reasoning, and why first-frame conditioning is
+replicated here. This module only loads the frozen models and runs the
+flow-matching forward pass; composing the result into the training
+objective (weighting, opt-in gating) is VaeTrainer's job.
+"""
+
+from pathlib import Path
+
+import torch
+from safetensors.torch import load_file
+from torch import Tensor
+
+from windinet.config import SdsLossConfig
+from windinet.inference.model_loader import load_transformer
+from windinet.latent_utils import get_rope_scale_factors, pack_latents
+from windinet.scalar_embeddings import ScalarEmbedding
+from windinet.training.timestep_samplers import SAMPLERS
+from windinet.utils import logger
+
+# No fps in the CFD dataset (unlike LTX-Video's own source videos) --
+# LtxvTrainer._prepare_batch falls back to the same constant when a batch
+# carries no fps, so this stays consistent with how the frozen checkpoint
+# was itself trained.
+DEFAULT_FPS = 24.0
+
+
+def _find_scalar_checkpoint(dit_checkpoint: Path) -> Path | None:
+    """Same substitution convention as LtxvTrainer._find_scalar_checkpoint
+    (dit_trainer.py) and jobs/sng_pvc/eval_dit_vrmse.sbatch, generalized to
+    also cover the "_best" checkpoint slot (dit_trainer.py's own
+    "_step_"-only version predates that slot existing).
+    """
+    if "model_weights_" not in dit_checkpoint.name:
+        return None
+    scalar_path = dit_checkpoint.parent / dit_checkpoint.name.replace("model_weights_", "scalar_embedding_")
+    return scalar_path if scalar_path.exists() else None
+
+
+class SdsDistillationLoss:
+    """Loads a frozen DiT + its scalar embedding once, then scores fresh VAE latents against it."""
+
+    def __init__(self, config: SdsLossConfig, device: torch.device) -> None:
+        self._config = config
+
+        dit_checkpoint = Path(config.dit_checkpoint)
+        if not dit_checkpoint.is_file():
+            raise FileNotFoundError(f"sds.dit_checkpoint not found: {dit_checkpoint}")
+
+        transformer = load_transformer(config.model_source, dtype=torch.float32)
+        transformer.load_state_dict(load_file(dit_checkpoint))
+        transformer.requires_grad_(False)
+        transformer.eval()
+        self._transformer = transformer.to(device)
+
+        scalar_checkpoint = _find_scalar_checkpoint(dit_checkpoint)
+        if scalar_checkpoint is None:
+            raise FileNotFoundError(
+                f"No sibling scalar_embedding_*.safetensors found next to {dit_checkpoint} -- "
+                "the SDS loss needs the exact ScalarEmbedding the frozen DiT was trained with; "
+                "unlike eval_dit_vrmse.py's --untrained_dit control it has no meaningful "
+                "fallback to a freshly-initialized one."
+            )
+        scalar_embedding = ScalarEmbedding(config.scalar_conditioning)
+        scalar_embedding.load_state_dict(load_file(scalar_checkpoint))
+        scalar_embedding.requires_grad_(False)
+        scalar_embedding.eval()
+        self._scalar_embedding = scalar_embedding.to(device)
+
+        logger.info(
+            f"SDS distillation loss: loaded frozen DiT from {dit_checkpoint} "
+            f"(+ scalar embedding {scalar_checkpoint})"
+        )
+
+        sampler_cls = SAMPLERS[config.timestep_sampling_mode]
+        self._timestep_sampler = sampler_cls(**config.timestep_sampling_params)
+
+    @torch.no_grad()
+    def _frozen_forward(
+        self,
+        z_detached: Tensor,
+        num_frames: int,
+        height: int,
+        width: int,
+        gamma: Tensor,
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """Everything that must NOT carry gradient into the VAE encoder: the
+        noise draw, the conditioning setup, and the frozen transformer
+        forward itself. Returns (model_pred, conditioning_mask, noise) --
+        `compute` combines `noise` with the gradient-carrying (non-detached)
+        latents outside this method, since that is the one place gradient
+        must flow (see SdsLossConfig's docstring on the SDS Jacobian-drop).
+        """
+        batch_size, seq_length, _ = z_detached.shape
+        sigmas = self._timestep_sampler.sample_for(z_detached)
+        noise = torch.randn_like(z_detached)
+        sigmas_bc = sigmas.view(-1, 1, 1)
+        noisy = (1 - sigmas_bc) * z_detached + sigmas_bc * noise
+
+        # Force first-frame conditioning (no Bernoulli draw) -- see
+        # SdsLossConfig's docstring for why this stays on unconditionally.
+        conditioning_mask = torch.zeros(batch_size, seq_length, dtype=torch.bool, device=z_detached.device)
+        first_frame_end_idx = height * width
+        if first_frame_end_idx < seq_length:
+            conditioning_mask[:, :first_frame_end_idx] = True
+        noisy = torch.where(conditioning_mask.unsqueeze(-1), z_detached, noisy)
+
+        sampled_timestep_values = torch.round(sigmas * 1000.0).long()
+        expanded_timesteps = sampled_timestep_values.unsqueeze(1).expand_as(conditioning_mask)
+        timesteps = torch.where(conditioning_mask, 0, expanded_timesteps)
+
+        gamma_in = gamma.to(device=z_detached.device, dtype=torch.float32).view(-1, 1)
+        scalar_embeds = self._scalar_embedding(gamma_in)
+        prompt_attention_mask = torch.ones(
+            batch_size, scalar_embeds.shape[1], dtype=torch.bool, device=z_detached.device
+        )
+        rope_scale = get_rope_scale_factors(DEFAULT_FPS)
+
+        # bf16 autocast, matching how this checkpoint was actually trained
+        # (every DiT config in this repo sets acceleration.mixed_precision_mode:
+        # bf16) -- this whole call is already inside torch.no_grad() from the
+        # decorator above, so there is no backward-pass dtype concern, only a
+        # forward-pass speed/memory one. VaeTrainer's own accelerator isn't
+        # threaded into this class (kept decoupled from VaeTrainer on purpose),
+        # so this uses a plain torch.autocast rather than accelerator.autocast().
+        with torch.autocast(device_type=noisy.device.type, dtype=torch.bfloat16):
+            model_pred = self._transformer(
+                hidden_states=noisy,
+                encoder_hidden_states=scalar_embeds,
+                timestep=timesteps,
+                encoder_attention_mask=prompt_attention_mask,
+                num_frames=num_frames,
+                height=height,
+                width=width,
+                rope_interpolation_scale=rope_scale,
+                return_dict=False,
+            )[0]
+
+        return model_pred.float(), conditioning_mask, noise
+
+    def compute(self, latents: Tensor, gamma: Tensor) -> Tensor:
+        """SDS loss on this step's freshly-encoded VAE latents.
+
+        Args:
+            latents: rescaled VAE latents, [B, C, T, H, W], WITH gradient
+                (VaeTrainer._encode's first return value) -- this is `z`.
+            gamma: raw physical scalar conditioning values, [B].
+
+        Returns:
+            Scalar loss.
+        """
+        _, _, num_frames, height, width = latents.shape
+        z_packed = pack_latents(latents, spatial_patch_size=1, temporal_patch_size=1)
+
+        model_pred, conditioning_mask, noise = self._frozen_forward(
+            z_packed.detach(), num_frames, height, width, gamma
+        )
+
+        # Outside the no_grad forward: `targets` uses the ORIGINAL
+        # (non-detached) z_packed, so gradient flows from the loss into it
+        # (and hence into the VAE encoder) through this subtraction alone --
+        # model_pred has no grad_fn at all, so autograd treats it as a
+        # constant here, never differentiating through the frozen transformer.
+        targets = noise - z_packed
+        residual = (model_pred - targets).pow(2)
+        loss_mask = (~conditioning_mask.unsqueeze(-1)).float()
+        loss = residual.mul(loss_mask).div(loss_mask.mean().clamp_min(1e-8))
+        return loss.mean()
