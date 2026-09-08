@@ -36,3 +36,92 @@ There are modules in LTXVideoTransformer3DModel that should be kept in float32: 
   return torch.rms_norm(input, normalized_shape, weight, eps)
 /dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
   return torch.rms_norm(input, normalized_shape, weight, eps)
+W0908 06:52:53.304000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 221069 closing signal SIGTERM
+W0908 06:52:53.327000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 221071 closing signal SIGTERM
+W0908 06:52:53.329000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 221072 closing signal SIGTERM
+W0908 06:52:53.329000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 221073 closing signal SIGTERM
+W0908 06:52:53.330000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 221074 closing signal SIGTERM
+W0908 06:52:53.330000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 221075 closing signal SIGTERM
+W0908 06:52:53.331000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 221076 closing signal SIGTERM
+E0908 06:53:00.063000 220908 site-packages/torch/distributed/elastic/multiprocessing/api.py:984] failed (exitcode: -9) local_rank: 1 (pid: 221070) of binary: /dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/python3.10
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/accelerate", line 6, in <module>
+    sys.exit(main())
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1398, in launch_command
+    multi_gpu_launcher(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 982, in run
+    elastic_launch(
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 317, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+========================================================
+scripts/train.py FAILED
+--------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-09-08_06:53:00
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 0 (local_rank: 0)
+  exitcode  : -15 (pid: 221069)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 221069
+[2]:
+  time      : 2026-09-08_06:53:00
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 2 (local_rank: 2)
+  exitcode  : -15 (pid: 221071)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 221071
+[3]:
+  time      : 2026-09-08_06:53:00
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 3 (local_rank: 3)
+  exitcode  : -15 (pid: 221072)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 221072
+[4]:
+  time      : 2026-09-08_06:53:00
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 4 (local_rank: 4)
+  exitcode  : -15 (pid: 221073)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 221073
+[5]:
+  time      : 2026-09-08_06:53:00
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 5 (local_rank: 5)
+  exitcode  : -15 (pid: 221074)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 221074
+[6]:
+  time      : 2026-09-08_06:53:00
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 6 (local_rank: 6)
+  exitcode  : -15 (pid: 221075)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 221075
+[7]:
+  time      : 2026-09-08_06:53:00
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 7 (local_rank: 7)
+  exitcode  : -15 (pid: 221076)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 221076
+--------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-09-08_06:52:53
+  host      : i20r05c06s06.sng.lrz.de
+  rank      : 1 (local_rank: 1)
+  exitcode  : -9 (pid: 221070)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 221070
+========================================================
+srun: error: i20r05c06s06: task 0: Exited with exit code 1
+srun: Terminating StepId=535059.0
