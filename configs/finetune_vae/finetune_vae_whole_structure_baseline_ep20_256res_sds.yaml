@@ -110,7 +110,13 @@ sds:
   # convention as every DiT resume config's model.load_checkpoint (e.g.
   # configs/dit/train_dit_sng_pvc_ep20_baseline_lr3e5_resume.yaml). This is
   # sng_pvc's own $SCRATCH resolved -- adjust the prefix for another cluster.
-  dit_checkpoint: "/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_best.safetensors"
+  # 2026-09-08: model_weights_best.safetensors did NOT exist for this run
+  # (job 535151 FileNotFoundError'd on it -- this run predates the "best"
+  # slot per the header's own warning) -- pointed at the specific step
+  # instead. model_weights_step_09360.safetensors is confirmed to exist:
+  # it's the exact DIT_CHECKPOINT eval_dit_vrmse jobs 529874/534493-534495
+  # already loaded successfully from this same directory.
+  dit_checkpoint: "/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors"
   scalar_conditioning:
     enabled: true
     scalar_names: ["gamma"]
