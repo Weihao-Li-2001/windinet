@@ -985,6 +985,18 @@ class LtxvTrainer:
             if rng.get("cuda") is not None and torch.cuda.is_available():
                 torch.cuda.set_rng_state_all(rng["cuda"])
 
+        # Drop the reference now that every field has been copied into the
+        # live optimizer/scheduler/RNG -- this dict holds a full fp32 copy of
+        # the optimizer state (~15GB for the 1.92B-param transformer, see
+        # _save_training_state's docstring), and nothing after this point
+        # reads self._resume_state again. Left alive, it leaks that ~15GB for
+        # the rest of the run on top of the live optimizer's own state,
+        # narrowing the headroom every subsequent checkpoint save has to work
+        # with -- the likely cause of resumed arms (e.g. 535059/535062)
+        # SIGKILL-ing shortly after a mid-training checkpoint save while
+        # from-scratch arms sail through the same save unaffected.
+        self._resume_state = None
+
     def _find_scalar_checkpoint(self, model_checkpoint: Path) -> Path | None:
         stem = model_checkpoint.stem
         if "_step_" not in stem:
