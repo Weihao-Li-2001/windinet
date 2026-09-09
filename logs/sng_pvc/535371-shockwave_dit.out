@@ -1,0 +1,311 @@
+START TIME: Wed 09 Sep 2026 05:55:37 AM CEST
+job=535371 node=i20r04c03s04
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res
+BASE_CONFIG: configs/dit/train_dit_sng_pvc_ep20_baseline_lr3e5_resume.yaml
+STEPS override: <none, using BASE_CONFIG default>
+MASTER_ADDR: i20r04c03s04  MASTER_PORT: 58549
+preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res output_dir=$SCRATCH/windinet/outputs/shockwave_dit_ep20_baseline_lr3e5 steps=8000
+INFO     [rank 5] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+INFO     [rank 3] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] generated new fontManager                 font_manager.py:1639
+INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 1] generated new fontManager                 font_manager.py:1639
+INFO     [rank 5] generated new fontManager                 font_manager.py:1639
+INFO     [rank 4] generated new fontManager                 font_manager.py:1639
+INFO     [rank 6] generated new fontManager                 font_manager.py:1639
+INFO     [rank 3] generated new fontManager                 font_manager.py:1639
+INFO     [rank 2] generated new fontManager                 font_manager.py:1639
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ lora.enabled                         │ False                                 │
+│ lora.rank                            │ 16                                    │
+│ lora.alpha                           │ 16                                    │
+│ lora.dropout                         │ 0.0                                   │
+│ lora.target_modules                  │ to_q, to_k, to_v, to_out.0            │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 3e-05                                 │
+│ optimization.steps                   │ 8000                                  │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ data.num_dataloader_workers          │ 4                                     │
+│ validation.data_root                 │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ validation.interval                  │ 600                                   │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 120                                   │
+│ checkpoints.keep_last_n              │ 2                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ visualization.enabled                │ False                                 │
+│ visualization.interval               │ 2000                                  │
+│ visualization.num_samples            │ 3                                     │
+│ visualization.frame_numbers          │ 25, 50, 75, 100                       │
+│ visualization.num_inference_steps    │ 20                                    │
+│ visualization.dpi                    │ 150                                   │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ cfd, full, 2b, scalar-only, sng_pvc,  │
+│                                      │ 256res, ep20_baseline, lr-sweep, ...  │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1441
+         processes                                                              
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1447
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:867
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:894
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:898
+INFO     [rank 0] Loading checkpoint from                     dit_trainer.py:915
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_ep20_baseline_lr3e5/checkpoints/model_weights_                   
+         step_01920.safetensors                                                 
+INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:922
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_ep20_baseline_lr3e5/checkpoints/scalar_embeddi                   
+         ng_step_01920.safetensors                                              
+INFO     [rank 0] Loaded training state from                  dit_trainer.py:962
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_ep20_baseline_lr3e5/checkpoints/model_weights_                   
+         step_01920.state.pt: resuming at global_step 1920                      
+2026:09:09-06:45:33:227091 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:09:09-06:45:33:227091 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:09:09-06:45:33:227094 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:09-06:45:33:227091 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+
+2026:09:09-06:45:33:227097 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:09-06:45:33:227092 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+
+2026:09:09-06:45:33:227098 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:33:227095 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:33:227093 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:33:227096 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:389
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1115
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1198
+         /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocesse                    
+         d/finetune_vae_whole_structure_baseline_ep20_256res                    
+         /val                                                                   
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1433
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1159
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_whole_structure_baseline                    
+         _ep20_256res/checkpoints/vae_shockwave_best.safeten                    
+         sors (fingerprint 22b5994360e2c75d); recorded in                       
+         latent_provenance.json                                                 
+INFO     [rank 0] Starting training...                        dit_trainer.py:410
+INFO     [rank 0] Resuming training at global_step 1920       dit_trainer.py:439
+[train] step=1921 loss=0.234558 lr=2.594e-05
+[train] step=1922 loss=0.212159 lr=2.593e-05
+[train] step=1923 loss=0.137705 lr=2.593e-05
+[train] step=1924 loss=0.177338 lr=2.592e-05
+[train] step=1925 loss=0.144521 lr=2.592e-05
+[train] step=1926 loss=0.323759 lr=2.592e-05
+[train] step=1927 loss=0.167482 lr=2.591e-05
+[train] step=1928 loss=0.165375 lr=2.591e-05
+[train] step=1929 loss=0.162075 lr=2.590e-05
+[train] step=1930 loss=0.230402 lr=2.590e-05
+[train] step=1931 loss=0.147563 lr=2.590e-05
+[train] step=1932 loss=0.224622 lr=2.589e-05
+[train] step=1933 loss=0.345207 lr=2.589e-05
+[train] step=1934 loss=0.193815 lr=2.588e-05
+[train] step=1935 loss=0.133022 lr=2.588e-05
+[train] step=1936 loss=0.174674 lr=2.588e-05
+[train] step=1937 loss=0.248017 lr=2.587e-05
+[train] step=1938 loss=0.176319 lr=2.587e-05
+[train] step=1939 loss=0.239724 lr=2.586e-05
+[train] step=1940 loss=0.178879 lr=2.586e-05
+[train] step=1941 loss=0.195353 lr=2.585e-05
+[train] step=1942 loss=0.147751 lr=2.585e-05
+[train] step=1943 loss=0.155860 lr=2.585e-05
+[train] step=1944 loss=0.155372 lr=2.584e-05
+[train] step=1945 loss=0.118820 lr=2.584e-05
+[train] step=1946 loss=0.140311 lr=2.583e-05
+[train] step=1947 loss=0.151055 lr=2.583e-05
+[train] step=1948 loss=0.241731 lr=2.583e-05
+[train] step=1949 loss=0.153637 lr=2.582e-05
+[train] step=1950 loss=0.211568 lr=2.582e-05
+[train] step=1951 loss=0.350176 lr=2.581e-05
+[train] step=1952 loss=0.232663 lr=2.581e-05
+[train] step=1953 loss=0.098296 lr=2.581e-05
+[train] step=1954 loss=0.190536 lr=2.580e-05
+[train] step=1955 loss=0.177752 lr=2.580e-05
+[train] step=1956 loss=0.169231 lr=2.579e-05
+[train] step=1957 loss=0.195957 lr=2.579e-05
+[train] step=1958 loss=0.163862 lr=2.579e-05
+[train] step=1959 loss=0.265897 lr=2.578e-05
+[train] step=1960 loss=0.186649 lr=2.578e-05
+[train] step=1961 loss=0.137639 lr=2.577e-05
+[train] step=1962 loss=0.176114 lr=2.577e-05
+[train] step=1963 loss=0.380985 lr=2.577e-05
+[train] step=1964 loss=0.162278 lr=2.576e-05
+[train] step=1965 loss=0.210493 lr=2.576e-05
+[train] step=1966 loss=0.238416 lr=2.575e-05
+[train] step=1967 loss=0.162865 lr=2.575e-05
+[train] step=1968 loss=0.186186 lr=2.574e-05
+[train] step=1969 loss=0.103738 lr=2.574e-05
+[train] step=1970 loss=0.246070 lr=2.574e-05
+[train] step=1971 loss=0.237975 lr=2.573e-05
+[train] step=1972 loss=0.245665 lr=2.573e-05
+[train] step=1973 loss=0.264527 lr=2.572e-05
+[train] step=1974 loss=0.143149 lr=2.572e-05
+[train] step=1975 loss=0.260693 lr=2.572e-05
+[train] step=1976 loss=0.128201 lr=2.571e-05
+[train] step=1977 loss=0.161879 lr=2.571e-05
+[train] step=1978 loss=0.167438 lr=2.570e-05
+[train] step=1979 loss=0.156328 lr=2.570e-05
+[train] step=1980 loss=0.265310 lr=2.570e-05
+[train] step=1981 loss=0.165308 lr=2.569e-05
+[train] step=1982 loss=0.191022 lr=2.569e-05
+[train] step=1983 loss=0.268719 lr=2.568e-05
+[train] step=1984 loss=0.600354 lr=2.568e-05
+[train] step=1985 loss=0.225327 lr=2.567e-05
+[train] step=1986 loss=0.288497 lr=2.567e-05
+[train] step=1987 loss=0.183942 lr=2.567e-05
+[train] step=1988 loss=0.194526 lr=2.566e-05
+[train] step=1989 loss=0.090114 lr=2.566e-05
+[train] step=1990 loss=0.224664 lr=2.565e-05
+[train] step=1991 loss=0.088700 lr=2.565e-05
+[train] step=1992 loss=0.227475 lr=2.565e-05
+[train] step=1993 loss=0.188573 lr=2.564e-05
+[train] step=1994 loss=0.182230 lr=2.564e-05
+[train] step=1995 loss=0.128256 lr=2.563e-05
+[train] step=1996 loss=0.148489 lr=2.563e-05
+[train] step=1997 loss=0.451621 lr=2.562e-05
+[train] step=1998 loss=0.146147 lr=2.562e-05
+[train] step=1999 loss=0.224906 lr=2.562e-05
+[train] step=2000 loss=0.160168 lr=2.561e-05
+[train] step=2001 loss=0.152197 lr=2.561e-05
+[train] step=2002 loss=0.238130 lr=2.560e-05
+[train] step=2003 loss=0.153616 lr=2.560e-05
+[train] step=2004 loss=0.215065 lr=2.560e-05
+[train] step=2005 loss=0.179511 lr=2.559e-05
+[train] step=2006 loss=0.318992 lr=2.559e-05
+[train] step=2007 loss=0.258462 lr=2.558e-05
+[train] step=2008 loss=0.216153 lr=2.558e-05
+[train] step=2009 loss=0.170012 lr=2.557e-05
+[train] step=2010 loss=0.380317 lr=2.557e-05
+[train] step=2011 loss=0.379019 lr=2.557e-05
+[train] step=2012 loss=0.171490 lr=2.556e-05
+[train] step=2013 loss=0.156453 lr=2.556e-05
+[train] step=2014 loss=0.139407 lr=2.555e-05
+[train] step=2015 loss=0.159603 lr=2.555e-05
+[train] step=2016 loss=0.094596 lr=2.555e-05
+[train] step=2017 loss=0.332808 lr=2.554e-05
+[train] step=2018 loss=0.223670 lr=2.554e-05
+[train] step=2019 loss=0.169207 lr=2.553e-05
+[train] step=2020 loss=0.190409 lr=2.553e-05
+[train] step=2021 loss=0.182407 lr=2.552e-05
+[train] step=2022 loss=0.146823 lr=2.552e-05
+[train] step=2023 loss=0.177014 lr=2.552e-05
+[train] step=2024 loss=0.176061 lr=2.551e-05
+[train] step=2025 loss=0.144802 lr=2.551e-05
+[train] step=2026 loss=0.351441 lr=2.550e-05
+[train] step=2027 loss=0.254637 lr=2.550e-05
+[train] step=2028 loss=0.124883 lr=2.550e-05
+[train] step=2029 loss=0.259982 lr=2.549e-05
+[train] step=2030 loss=0.266885 lr=2.549e-05
+[train] step=2031 loss=0.136142 lr=2.548e-05
+[train] step=2032 loss=0.158066 lr=2.548e-05
+[train] step=2033 loss=0.195154 lr=2.547e-05
+[train] step=2034 loss=0.123913 lr=2.547e-05
+[train] step=2035 loss=0.212929 lr=2.547e-05
+[train] step=2036 loss=0.197841 lr=2.546e-05
+[train] step=2037 loss=0.175962 lr=2.546e-05
+[train] step=2038 loss=0.269028 lr=2.545e-05
+[train] step=2039 loss=0.206342 lr=2.545e-05
+[train] step=2040 loss=0.170444 lr=2.544e-05
+INFO     [rank 0] Model weights for step 2040 saved in       dit_trainer.py:1288
+         checkpoints/model_weights_step_02040.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 2040     dit_trainer.py:1297
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1385
+         checkpoints/model_weights_step_02040.state.pt                          
+[epoch 17] step=2040 train_loss=0.203312

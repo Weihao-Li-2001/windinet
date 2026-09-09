@@ -1,0 +1,637 @@
+START TIME: Wed 09 Sep 2026 05:55:37 AM CEST
+job=535369 node=i20r08c06s10
++-----------+--------------------------------------------------------------------------------------+
+| Device ID | Device Information                                                                   |
++-----------+--------------------------------------------------------------------------------------+
+| 0         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-003a-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:3a:00.0                                                        |
+|           | DRM Device: /dev/dri/card0                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 1         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-004b-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:4b:00.0                                                        |
+|           | DRM Device: /dev/dri/card1                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 2         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00ca-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:ca:00.0                                                        |
+|           | DRM Device: /dev/dri/card2                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+| 3         | Device Name: Intel(R) Data Center GPU Max 1550                                       |
+|           | Vendor Name: Intel(R) Corporation                                                    |
+|           | SOC UUID: 00000000-0000-00da-0000-002f0bd58086                                       |
+|           | PCI BDF Address: 0000:da:00.0                                                        |
+|           | DRM Device: /dev/dri/card3                                                           |
+|           | Function Type: physical                                                              |
++-----------+--------------------------------------------------------------------------------------+
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e6
+BASE_CONFIG: configs/dit/train_dit_sng_pvc_cosine_kl1e6_resume.yaml
+STEPS override: <none, using BASE_CONFIG default>
+MASTER_ADDR: i20r08c06s10  MASTER_PORT: 55545
+preprocessed_data_root=/hppfs/scratch/0D/go76fuz2/windinet/dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e6 output_dir=$SCRATCH/windinet/outputs/shockwave_dit_cosine_kl1e6 steps=8000
+INFO     [rank 1] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 6] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 4] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 7] generated new fontManager                 font_manager.py:1639
+INFO     [rank 3] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 0] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 5] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 1] generated new fontManager                 font_manager.py:1639
+INFO     [rank 5] generated new fontManager                 font_manager.py:1639
+INFO     [rank 2] Failed to extract font properties from    font_manager.py:1107
+         /usr/share/fonts/truetype/Cantarell-VF.otf: Can                        
+         not load face (SFNT font table missing; error code                     
+         0x8e)                                                                  
+INFO     [rank 2] generated new fontManager                 font_manager.py:1639
+INFO     [rank 4] generated new fontManager                 font_manager.py:1639
+INFO     [rank 6] generated new fontManager                 font_manager.py:1639
+INFO     [rank 3] generated new fontManager                 font_manager.py:1639
+INFO     [rank 0] generated new fontManager                 font_manager.py:1639
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ lora.enabled                         │ False                                 │
+│ lora.rank                            │ 16                                    │
+│ lora.alpha                           │ 16                                    │
+│ lora.dropout                         │ 0.0                                   │
+│ lora.target_modules                  │ to_q, to_k, to_v, to_out.0            │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 1e-05                                 │
+│ optimization.steps                   │ 8000                                  │
+│ optimization.batch_size              │ 1                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ data.num_dataloader_workers          │ 4                                     │
+│ validation.data_root                 │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ validation.interval                  │ 600                                   │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 120                                   │
+│ checkpoints.keep_last_n              │ 2                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ visualization.enabled                │ False                                 │
+│ visualization.interval               │ 2000                                  │
+│ visualization.num_samples            │ 3                                     │
+│ visualization.frame_numbers          │ 25, 50, 75, 100                       │
+│ visualization.num_inference_steps    │ 20                                    │
+│ visualization.dpi                    │ 150                                   │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ cfd, full, 2b, scalar-only, sng_pvc,  │
+│                                      │ 256res, cosine-vae, kl1e6             │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /hppfs/scratch/0D/go76fuz2/windinet/… │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 0] Distributed training enabled with 8        dit_trainer.py:1441
+         processes                                                              
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1447
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:867
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:894
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:898
+INFO     [rank 0] Loading checkpoint from                     dit_trainer.py:915
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_cosine_kl1e6/checkpoints/model_weights_step_02                   
+         160.safetensors                                                        
+INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:922
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_cosine_kl1e6/checkpoints/scalar_embedding_step                   
+         _02160.safetensors                                                     
+INFO     [rank 0] Loaded training state from                  dit_trainer.py:962
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwav                   
+         e_dit_cosine_kl1e6/checkpoints/model_weights_step_02                   
+         160.state.pt: resuming at global_step 2160                             
+2026:09:09-06:45:18:125135 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL2026:09:09-06:45:18:125134 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+
+2026:09:09-06:45:18:125133 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:18:125132 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:18:125129 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:18:125128 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:09:09-06:45:18:125128 |CCL_WARN| value of CCL_ALLREDUCE changed to be ring (default:)
+2026:09:09-06:45:18:125128 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:18:125130 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:09:09-06:45:18:125131 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:389
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1115
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1198
+         /hppfs/scratch/0D/go76fuz2/windinet/dit_preprocesse                    
+         d/finetune_vae_whole_structure_baseline_ep20_256res                    
+         _cosine_kl1e6/val                                                      
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1433
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1159
+         /hppfs/scratch/0D/go76fuz2/windinet/finetune_vae_ou                    
+         tputs_sng_pvc/finetune_vae_whole_structure_baseline                    
+         _ep20_256res_cosine_kl1e6/checkpoints/vae_shockwave                    
+         _best.safetensors (fingerprint aee7528403514c08);                      
+         recorded in latent_provenance.json                                     
+INFO     [rank 0] Starting training...                        dit_trainer.py:410
+INFO     [rank 0] Resuming training at global_step 2160       dit_trainer.py:439
+[train] step=2161 loss=0.088819 lr=8.308e-06
+[train] step=2162 loss=0.103182 lr=8.307e-06
+[train] step=2163 loss=0.110527 lr=8.305e-06
+[train] step=2164 loss=0.050531 lr=8.304e-06
+[train] step=2165 loss=0.058617 lr=8.302e-06
+[train] step=2166 loss=0.085596 lr=8.301e-06
+[train] step=2167 loss=0.067195 lr=8.299e-06
+[train] step=2168 loss=0.050305 lr=8.298e-06
+[train] step=2169 loss=0.078913 lr=8.296e-06
+[train] step=2170 loss=0.125561 lr=8.295e-06
+[train] step=2171 loss=0.063713 lr=8.294e-06
+[train] step=2172 loss=0.061182 lr=8.292e-06
+[train] step=2173 loss=0.209857 lr=8.291e-06
+[train] step=2174 loss=0.059667 lr=8.289e-06
+[train] step=2175 loss=0.060692 lr=8.288e-06
+[train] step=2176 loss=0.060748 lr=8.286e-06
+[train] step=2177 loss=0.069686 lr=8.285e-06
+[train] step=2178 loss=0.111137 lr=8.283e-06
+[train] step=2179 loss=0.062645 lr=8.282e-06
+[train] step=2180 loss=0.078148 lr=8.280e-06
+[train] step=2181 loss=0.070234 lr=8.279e-06
+[train] step=2182 loss=0.152856 lr=8.277e-06
+[train] step=2183 loss=0.110035 lr=8.276e-06
+[train] step=2184 loss=0.066372 lr=8.274e-06
+[train] step=2185 loss=0.054972 lr=8.273e-06
+[train] step=2186 loss=0.050687 lr=8.271e-06
+[train] step=2187 loss=0.073097 lr=8.270e-06
+[train] step=2188 loss=0.084283 lr=8.268e-06
+[train] step=2189 loss=0.079604 lr=8.267e-06
+[train] step=2190 loss=0.130652 lr=8.265e-06
+[train] step=2191 loss=0.114515 lr=8.264e-06
+[train] step=2192 loss=0.046149 lr=8.262e-06
+[train] step=2193 loss=0.099252 lr=8.261e-06
+[train] step=2194 loss=0.080142 lr=8.259e-06
+[train] step=2195 loss=0.061397 lr=8.258e-06
+[train] step=2196 loss=0.090778 lr=8.256e-06
+[train] step=2197 loss=0.085282 lr=8.255e-06
+[train] step=2198 loss=0.043965 lr=8.253e-06
+[train] step=2199 loss=0.065915 lr=8.252e-06
+[train] step=2200 loss=0.064763 lr=8.250e-06
+[train] step=2201 loss=0.066813 lr=8.249e-06
+[train] step=2202 loss=0.090102 lr=8.248e-06
+[train] step=2203 loss=0.165987 lr=8.246e-06
+[train] step=2204 loss=0.070195 lr=8.245e-06
+[train] step=2205 loss=0.087088 lr=8.243e-06
+[train] step=2206 loss=0.078560 lr=8.242e-06
+[train] step=2207 loss=0.099668 lr=8.240e-06
+[train] step=2208 loss=0.079306 lr=8.239e-06
+[train] step=2209 loss=0.079989 lr=8.237e-06
+[train] step=2210 loss=0.115265 lr=8.236e-06
+[train] step=2211 loss=0.071068 lr=8.234e-06
+[train] step=2212 loss=0.106169 lr=8.233e-06
+[train] step=2213 loss=0.082636 lr=8.231e-06
+[train] step=2214 loss=0.088025 lr=8.230e-06
+[train] step=2215 loss=0.066639 lr=8.228e-06
+[train] step=2216 loss=0.054448 lr=8.227e-06
+[train] step=2217 loss=0.075236 lr=8.225e-06
+[train] step=2218 loss=0.084208 lr=8.224e-06
+[train] step=2219 loss=0.061699 lr=8.222e-06
+[train] step=2220 loss=0.057499 lr=8.221e-06
+[train] step=2221 loss=0.074199 lr=8.219e-06
+[train] step=2222 loss=0.094571 lr=8.218e-06
+[train] step=2223 loss=0.101363 lr=8.216e-06
+[train] step=2224 loss=0.077011 lr=8.215e-06
+[train] step=2225 loss=0.077804 lr=8.213e-06
+[train] step=2226 loss=0.076380 lr=8.212e-06
+[train] step=2227 loss=0.088005 lr=8.210e-06
+[train] step=2228 loss=0.065798 lr=8.209e-06
+[train] step=2229 loss=0.081931 lr=8.207e-06
+[train] step=2230 loss=0.100085 lr=8.206e-06
+[train] step=2231 loss=0.073834 lr=8.204e-06
+[train] step=2232 loss=0.080546 lr=8.203e-06
+[train] step=2233 loss=0.087401 lr=8.201e-06
+[train] step=2234 loss=0.105818 lr=8.200e-06
+[train] step=2235 loss=0.069049 lr=8.198e-06
+[train] step=2236 loss=0.070232 lr=8.196e-06
+[train] step=2237 loss=0.103517 lr=8.195e-06
+[train] step=2238 loss=0.045020 lr=8.193e-06
+[train] step=2239 loss=0.060695 lr=8.192e-06
+[train] step=2240 loss=0.050434 lr=8.190e-06
+[train] step=2241 loss=0.090383 lr=8.189e-06
+[train] step=2242 loss=0.100346 lr=8.187e-06
+[train] step=2243 loss=0.093044 lr=8.186e-06
+[train] step=2244 loss=0.105895 lr=8.184e-06
+[train] step=2245 loss=0.140367 lr=8.183e-06
+[train] step=2246 loss=0.102337 lr=8.181e-06
+[train] step=2247 loss=0.065728 lr=8.180e-06
+[train] step=2248 loss=0.060931 lr=8.178e-06
+[train] step=2249 loss=0.037135 lr=8.177e-06
+[train] step=2250 loss=0.077130 lr=8.175e-06
+[train] step=2251 loss=0.182730 lr=8.174e-06
+[train] step=2252 loss=0.071844 lr=8.172e-06
+[train] step=2253 loss=0.094052 lr=8.171e-06
+[train] step=2254 loss=0.078300 lr=8.169e-06
+[train] step=2255 loss=0.098859 lr=8.168e-06
+[train] step=2256 loss=0.040018 lr=8.166e-06
+[train] step=2257 loss=0.068751 lr=8.165e-06
+[train] step=2258 loss=0.085996 lr=8.163e-06
+[train] step=2259 loss=0.064028 lr=8.162e-06
+[train] step=2260 loss=0.094801 lr=8.160e-06
+[train] step=2261 loss=0.061744 lr=8.159e-06
+[train] step=2262 loss=0.081292 lr=8.157e-06
+[train] step=2263 loss=0.078625 lr=8.156e-06
+[train] step=2264 loss=0.073230 lr=8.154e-06
+[train] step=2265 loss=0.079969 lr=8.153e-06
+[train] step=2266 loss=0.061118 lr=8.151e-06
+[train] step=2267 loss=0.092407 lr=8.149e-06
+[train] step=2268 loss=0.123685 lr=8.148e-06
+[train] step=2269 loss=0.079038 lr=8.146e-06
+[train] step=2270 loss=0.054020 lr=8.145e-06
+[train] step=2271 loss=0.083077 lr=8.143e-06
+[train] step=2272 loss=0.082845 lr=8.142e-06
+[train] step=2273 loss=0.066737 lr=8.140e-06
+[train] step=2274 loss=0.080987 lr=8.139e-06
+[train] step=2275 loss=0.111043 lr=8.137e-06
+[train] step=2276 loss=0.094523 lr=8.136e-06
+[train] step=2277 loss=0.056807 lr=8.134e-06
+[train] step=2278 loss=0.146282 lr=8.133e-06
+[train] step=2279 loss=0.044706 lr=8.131e-06
+[train] step=2280 loss=0.084832 lr=8.130e-06
+INFO     [rank 0] Model weights for step 2280 saved in       dit_trainer.py:1288
+         checkpoints/model_weights_step_02280.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 2280     dit_trainer.py:1297
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1385
+         checkpoints/model_weights_step_02280.state.pt                          
+[epoch 19] step=2280 train_loss=0.082780
+[train] step=2281 loss=0.092020 lr=8.128e-06
+[train] step=2282 loss=0.072434 lr=8.127e-06
+[train] step=2283 loss=0.061181 lr=8.125e-06
+[train] step=2284 loss=0.115699 lr=8.123e-06
+[train] step=2285 loss=0.070492 lr=8.122e-06
+[train] step=2286 loss=0.100401 lr=8.120e-06
+[train] step=2287 loss=0.052201 lr=8.119e-06
+[train] step=2288 loss=0.064519 lr=8.117e-06
+[train] step=2289 loss=0.084293 lr=8.116e-06
+[train] step=2290 loss=0.064889 lr=8.114e-06
+[train] step=2291 loss=0.070938 lr=8.113e-06
+[train] step=2292 loss=0.077768 lr=8.111e-06
+[train] step=2293 loss=0.082049 lr=8.110e-06
+[train] step=2294 loss=0.129944 lr=8.108e-06
+[train] step=2295 loss=0.061118 lr=8.107e-06
+[train] step=2296 loss=0.121261 lr=8.105e-06
+[train] step=2297 loss=0.058230 lr=8.104e-06
+[train] step=2298 loss=0.099995 lr=8.102e-06
+[train] step=2299 loss=0.074174 lr=8.100e-06
+[train] step=2300 loss=0.087382 lr=8.099e-06
+[train] step=2301 loss=0.072210 lr=8.097e-06
+[train] step=2302 loss=0.061299 lr=8.096e-06
+[train] step=2303 loss=0.059880 lr=8.094e-06
+[train] step=2304 loss=0.146782 lr=8.093e-06
+[train] step=2305 loss=0.077112 lr=8.091e-06
+[train] step=2306 loss=0.098117 lr=8.090e-06
+[train] step=2307 loss=0.151552 lr=8.088e-06
+[train] step=2308 loss=0.084502 lr=8.087e-06
+[train] step=2309 loss=0.126763 lr=8.085e-06
+[train] step=2310 loss=0.072507 lr=8.083e-06
+[train] step=2311 loss=0.129045 lr=8.082e-06
+[train] step=2312 loss=0.069736 lr=8.080e-06
+[train] step=2313 loss=0.091113 lr=8.079e-06
+[train] step=2314 loss=0.053593 lr=8.077e-06
+[train] step=2315 loss=0.082187 lr=8.076e-06
+[train] step=2316 loss=0.070918 lr=8.074e-06
+[train] step=2317 loss=0.103845 lr=8.073e-06
+[train] step=2318 loss=0.052213 lr=8.071e-06
+[train] step=2319 loss=0.043977 lr=8.070e-06
+[train] step=2320 loss=0.099471 lr=8.068e-06
+[train] step=2321 loss=0.182258 lr=8.066e-06
+[train] step=2322 loss=0.104987 lr=8.065e-06
+[train] step=2323 loss=0.095695 lr=8.063e-06
+[train] step=2324 loss=0.117193 lr=8.062e-06
+[train] step=2325 loss=0.096388 lr=8.060e-06
+[train] step=2326 loss=0.093000 lr=8.059e-06
+[train] step=2327 loss=0.059150 lr=8.057e-06
+[train] step=2328 loss=0.092351 lr=8.056e-06
+[train] step=2329 loss=0.065864 lr=8.054e-06
+[train] step=2330 loss=0.062503 lr=8.053e-06
+[train] step=2331 loss=0.071241 lr=8.051e-06
+[train] step=2332 loss=0.057849 lr=8.049e-06
+[train] step=2333 loss=0.053139 lr=8.048e-06
+[train] step=2334 loss=0.059200 lr=8.046e-06
+[train] step=2335 loss=0.051357 lr=8.045e-06
+[train] step=2336 loss=0.122751 lr=8.043e-06
+[train] step=2337 loss=0.088889 lr=8.042e-06
+[train] step=2338 loss=0.086178 lr=8.040e-06
+[train] step=2339 loss=0.057889 lr=8.038e-06
+[train] step=2340 loss=0.110412 lr=8.037e-06
+[train] step=2341 loss=0.081217 lr=8.035e-06
+[train] step=2342 loss=0.061112 lr=8.034e-06
+[train] step=2343 loss=0.070697 lr=8.032e-06
+[train] step=2344 loss=0.165962 lr=8.031e-06
+[train] step=2345 loss=0.055196 lr=8.029e-06
+[train] step=2346 loss=0.051291 lr=8.028e-06
+[train] step=2347 loss=0.145507 lr=8.026e-06
+[train] step=2348 loss=0.096975 lr=8.024e-06
+[train] step=2349 loss=0.106858 lr=8.023e-06
+[train] step=2350 loss=0.079152 lr=8.021e-06
+[train] step=2351 loss=0.162058 lr=8.020e-06
+[train] step=2352 loss=0.083496 lr=8.018e-06
+[train] step=2353 loss=0.083923 lr=8.017e-06
+[train] step=2354 loss=0.050705 lr=8.015e-06
+[train] step=2355 loss=0.046877 lr=8.014e-06
+[train] step=2356 loss=0.076343 lr=8.012e-06
+[train] step=2357 loss=0.060372 lr=8.010e-06
+[train] step=2358 loss=0.079178 lr=8.009e-06
+[train] step=2359 loss=0.059229 lr=8.007e-06
+[train] step=2360 loss=0.086105 lr=8.006e-06
+[train] step=2361 loss=0.105551 lr=8.004e-06
+[train] step=2362 loss=0.074822 lr=8.003e-06
+[train] step=2363 loss=0.105720 lr=8.001e-06
+[train] step=2364 loss=0.071392 lr=7.999e-06
+[train] step=2365 loss=0.077300 lr=7.998e-06
+[train] step=2366 loss=0.057932 lr=7.996e-06
+[train] step=2367 loss=0.069830 lr=7.995e-06
+[train] step=2368 loss=0.093874 lr=7.993e-06
+[train] step=2369 loss=0.084683 lr=7.992e-06
+[train] step=2370 loss=0.070171 lr=7.990e-06
+[train] step=2371 loss=0.143204 lr=7.988e-06
+[train] step=2372 loss=0.071121 lr=7.987e-06
+[train] step=2373 loss=0.069348 lr=7.985e-06
+[train] step=2374 loss=0.090804 lr=7.984e-06
+[train] step=2375 loss=0.056833 lr=7.982e-06
+[train] step=2376 loss=0.139427 lr=7.981e-06
+[train] step=2377 loss=0.057034 lr=7.979e-06
+[train] step=2378 loss=0.143806 lr=7.977e-06
+[train] step=2379 loss=0.071723 lr=7.976e-06
+[train] step=2380 loss=0.108172 lr=7.974e-06
+[train] step=2381 loss=0.057770 lr=7.973e-06
+[train] step=2382 loss=0.061747 lr=7.971e-06
+[train] step=2383 loss=0.107516 lr=7.969e-06
+[train] step=2384 loss=0.083127 lr=7.968e-06
+[train] step=2385 loss=0.085916 lr=7.966e-06
+[train] step=2386 loss=0.076220 lr=7.965e-06
+[train] step=2387 loss=0.091075 lr=7.963e-06
+[train] step=2388 loss=0.113605 lr=7.962e-06
+[train] step=2389 loss=0.048153 lr=7.960e-06
+[train] step=2390 loss=0.096630 lr=7.958e-06
+[train] step=2391 loss=0.652931 lr=7.957e-06
+[train] step=2392 loss=0.065926 lr=7.955e-06
+[train] step=2393 loss=0.113295 lr=7.954e-06
+[train] step=2394 loss=0.077357 lr=7.952e-06
+[train] step=2395 loss=0.083594 lr=7.951e-06
+[train] step=2396 loss=0.084566 lr=7.949e-06
+[train] step=2397 loss=0.086655 lr=7.947e-06
+[train] step=2398 loss=0.077525 lr=7.946e-06
+[train] step=2399 loss=0.061186 lr=7.944e-06
+[train] step=2400 loss=0.069244 lr=7.943e-06
+[val] step=2400 val_loss=0.086916
+INFO     [rank 0] Model weights for step 2400 saved in       dit_trainer.py:1288
+         checkpoints/model_weights_step_02400.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 2400     dit_trainer.py:1297
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1385
+         checkpoints/model_weights_step_02400.state.pt                          
+INFO     [rank 0] New best checkpoint (step 2400,            dit_trainer.py:1320
+         val_loss=0.086916):                                                    
+         checkpoints/model_weights_best.safetensors                             
+DEBUG    [rank 0] Removed optimizer state for older kept     dit_trainer.py:1413
+         checkpoint:                                                            
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwa                    
+         ve_dit_cosine_kl1e6/checkpoints/model_weights_step_                    
+         02280.state.pt                                                         
+[epoch 20] step=2400 train_loss=0.089923 val_loss=0.086916
+[train] step=2401 loss=0.116905 lr=7.941e-06
+[train] step=2402 loss=0.065185 lr=7.939e-06
+[train] step=2403 loss=0.070233 lr=7.938e-06
+[train] step=2404 loss=0.113844 lr=7.936e-06
+[train] step=2405 loss=0.070903 lr=7.935e-06
+[train] step=2406 loss=0.055971 lr=7.933e-06
+[train] step=2407 loss=0.075119 lr=7.931e-06
+[train] step=2408 loss=0.060377 lr=7.930e-06
+[train] step=2409 loss=0.108484 lr=7.928e-06
+[train] step=2410 loss=0.125838 lr=7.927e-06
+[train] step=2411 loss=0.159961 lr=7.925e-06
+[train] step=2412 loss=0.069170 lr=7.924e-06
+[train] step=2413 loss=0.166372 lr=7.922e-06
+[train] step=2414 loss=0.061045 lr=7.920e-06
+[train] step=2415 loss=0.096070 lr=7.919e-06
+[train] step=2416 loss=0.057225 lr=7.917e-06
+[train] step=2417 loss=0.064229 lr=7.916e-06
+[train] step=2418 loss=0.088473 lr=7.914e-06
+[train] step=2419 loss=0.115717 lr=7.912e-06
+[train] step=2420 loss=0.056751 lr=7.911e-06
+[train] step=2421 loss=0.086423 lr=7.909e-06
+[train] step=2422 loss=0.099877 lr=7.908e-06
+[train] step=2423 loss=0.211484 lr=7.906e-06
+[train] step=2424 loss=0.043692 lr=7.904e-06
+[train] step=2425 loss=0.039994 lr=7.903e-06
+[train] step=2426 loss=0.068595 lr=7.901e-06
+[train] step=2427 loss=0.094715 lr=7.900e-06
+[train] step=2428 loss=0.075589 lr=7.898e-06
+[train] step=2429 loss=0.081302 lr=7.896e-06
+[train] step=2430 loss=0.075287 lr=7.895e-06
+[train] step=2431 loss=0.056008 lr=7.893e-06
+[train] step=2432 loss=0.273508 lr=7.892e-06
+[train] step=2433 loss=0.066112 lr=7.890e-06
+[train] step=2434 loss=0.094291 lr=7.888e-06
+[train] step=2435 loss=0.157909 lr=7.887e-06
+[train] step=2436 loss=0.054740 lr=7.885e-06
+[train] step=2437 loss=0.049215 lr=7.884e-06
+[train] step=2438 loss=0.055621 lr=7.882e-06
+[train] step=2439 loss=0.063492 lr=7.880e-06
+[train] step=2440 loss=0.059003 lr=7.879e-06
+[train] step=2441 loss=0.101187 lr=7.877e-06
+[train] step=2442 loss=0.068231 lr=7.876e-06
+[train] step=2443 loss=0.092032 lr=7.874e-06
+[train] step=2444 loss=0.114039 lr=7.872e-06
+[train] step=2445 loss=0.141243 lr=7.871e-06
+[train] step=2446 loss=0.075039 lr=7.869e-06
+[train] step=2447 loss=0.074535 lr=7.868e-06
+[train] step=2448 loss=0.065263 lr=7.866e-06
+[train] step=2449 loss=0.082785 lr=7.864e-06
+[train] step=2450 loss=0.104715 lr=7.863e-06
+[train] step=2451 loss=0.043559 lr=7.861e-06
+[train] step=2452 loss=0.104337 lr=7.859e-06
+[train] step=2453 loss=0.061675 lr=7.858e-06
+[train] step=2454 loss=0.083270 lr=7.856e-06
+[train] step=2455 loss=0.061181 lr=7.855e-06
+[train] step=2456 loss=0.070498 lr=7.853e-06
+[train] step=2457 loss=0.076018 lr=7.851e-06
+[train] step=2458 loss=0.126635 lr=7.850e-06
+[train] step=2459 loss=0.089221 lr=7.848e-06
+[train] step=2460 loss=0.071320 lr=7.847e-06
+[train] step=2461 loss=0.077480 lr=7.845e-06
+[train] step=2462 loss=0.064943 lr=7.843e-06
+[train] step=2463 loss=0.076234 lr=7.842e-06
+[train] step=2464 loss=0.038179 lr=7.840e-06
+[train] step=2465 loss=0.056360 lr=7.839e-06
+[train] step=2466 loss=0.096599 lr=7.837e-06
+[train] step=2467 loss=0.065741 lr=7.835e-06
+[train] step=2468 loss=0.074854 lr=7.834e-06
+[train] step=2469 loss=0.051395 lr=7.832e-06
+[train] step=2470 loss=0.093203 lr=7.830e-06
+[train] step=2471 loss=0.072945 lr=7.829e-06
+[train] step=2472 loss=0.100686 lr=7.827e-06
+[train] step=2473 loss=0.114438 lr=7.826e-06
+[train] step=2474 loss=0.078056 lr=7.824e-06
+[train] step=2475 loss=0.176898 lr=7.822e-06
+[train] step=2476 loss=0.049225 lr=7.821e-06
+[train] step=2477 loss=0.134514 lr=7.819e-06
+[train] step=2478 loss=0.136483 lr=7.817e-06
+[train] step=2479 loss=0.057581 lr=7.816e-06
+[train] step=2480 loss=0.070155 lr=7.814e-06
+[train] step=2481 loss=0.076867 lr=7.813e-06
+[train] step=2482 loss=0.080603 lr=7.811e-06
+[train] step=2483 loss=0.114367 lr=7.809e-06
+[train] step=2484 loss=0.099429 lr=7.808e-06
+[train] step=2485 loss=0.057857 lr=7.806e-06
+[train] step=2486 loss=0.099735 lr=7.804e-06
+[train] step=2487 loss=0.085716 lr=7.803e-06
+[train] step=2488 loss=0.185979 lr=7.801e-06
+[train] step=2489 loss=0.120210 lr=7.800e-06
+[train] step=2490 loss=0.080881 lr=7.798e-06
+[train] step=2491 loss=0.074334 lr=7.796e-06
+[train] step=2492 loss=0.077854 lr=7.795e-06
+[train] step=2493 loss=0.075487 lr=7.793e-06
+[train] step=2494 loss=0.074717 lr=7.791e-06
+[train] step=2495 loss=0.094695 lr=7.790e-06
+[train] step=2496 loss=0.096817 lr=7.788e-06
+[train] step=2497 loss=0.094508 lr=7.787e-06
+[train] step=2498 loss=0.051196 lr=7.785e-06
+[train] step=2499 loss=0.103434 lr=7.783e-06
+[train] step=2500 loss=0.090371 lr=7.782e-06
+[train] step=2501 loss=0.095963 lr=7.780e-06
+[train] step=2502 loss=0.066384 lr=7.778e-06
+[train] step=2503 loss=0.073030 lr=7.777e-06
+[train] step=2504 loss=0.060455 lr=7.775e-06
+[train] step=2505 loss=0.354524 lr=7.774e-06
+[train] step=2506 loss=0.094896 lr=7.772e-06
+[train] step=2507 loss=0.052096 lr=7.770e-06
+[train] step=2508 loss=0.111527 lr=7.769e-06
+[train] step=2509 loss=0.058156 lr=7.767e-06
+[train] step=2510 loss=0.043014 lr=7.765e-06
+[train] step=2511 loss=0.095636 lr=7.764e-06
+[train] step=2512 loss=0.100129 lr=7.762e-06
+[train] step=2513 loss=0.068386 lr=7.760e-06
+[train] step=2514 loss=0.075538 lr=7.759e-06
+[train] step=2515 loss=0.088109 lr=7.757e-06
+[train] step=2516 loss=0.088484 lr=7.756e-06
+[train] step=2517 loss=0.062411 lr=7.754e-06
+[train] step=2518 loss=0.097253 lr=7.752e-06
+[train] step=2519 loss=0.102286 lr=7.751e-06
+[train] step=2520 loss=0.063224 lr=7.749e-06
+INFO     [rank 0] Model weights for step 2520 saved in       dit_trainer.py:1288
+         checkpoints/model_weights_step_02520.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 2520     dit_trainer.py:1297
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1385
+         checkpoints/model_weights_step_02520.state.pt                          
+DEBUG    [rank 0] Removed old checkpoint:                    dit_trainer.py:1398
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwa                    
+         ve_dit_cosine_kl1e6/checkpoints/model_weights_step_                    
+         02280.safetensors                                                      
+DEBUG    [rank 0] Removed old checkpoint:                    dit_trainer.py:1398
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwa                    
+         ve_dit_cosine_kl1e6/checkpoints/scalar_embedding_st                    
+         ep_02280.safetensors                                                   
+DEBUG    [rank 0] Removed optimizer state for older kept     dit_trainer.py:1413
+         checkpoint:                                                            
+         /hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwa                    
+         ve_dit_cosine_kl1e6/checkpoints/model_weights_step_                    
+         02400.state.pt                                                         
+[epoch 21] step=2520 train_loss=0.089084
+[train] step=2521 loss=0.067781 lr=7.747e-06
+[train] step=2522 loss=0.129228 lr=7.746e-06
+[train] step=2523 loss=0.067988 lr=7.744e-06
+[train] step=2524 loss=0.055129 lr=7.742e-06
+[train] step=2525 loss=0.103070 lr=7.741e-06
+[train] step=2526 loss=0.102677 lr=7.739e-06
+[train] step=2527 loss=0.042454 lr=7.738e-06
+[train] step=2528 loss=0.133279 lr=7.736e-06
+[train] step=2529 loss=0.101343 lr=7.734e-06
+[train] step=2530 loss=0.153177 lr=7.733e-06
+[train] step=2531 loss=0.133554 lr=7.731e-06
+[train] step=2532 loss=0.081668 lr=7.729e-06
+[train] step=2533 loss=0.091731 lr=7.728e-06
+[train] step=2534 loss=0.067969 lr=7.726e-06
+[train] step=2535 loss=0.045555 lr=7.724e-06
+[train] step=2536 loss=0.084918 lr=7.723e-06
+[train] step=2537 loss=0.077184 lr=7.721e-06
+[train] step=2538 loss=0.076131 lr=7.719e-06
+[train] step=2539 loss=0.076972 lr=7.718e-06
+[train] step=2540 loss=0.075270 lr=7.716e-06
+[train] step=2541 loss=0.076600 lr=7.714e-06
+[train] step=2542 loss=0.085423 lr=7.713e-06
+[train] step=2543 loss=0.069786 lr=7.711e-06
+[train] step=2544 loss=0.089049 lr=7.710e-06
+[train] step=2545 loss=0.075613 lr=7.708e-06
+[train] step=2546 loss=0.099558 lr=7.706e-06
+[train] step=2547 loss=0.089902 lr=7.705e-06
+[train] step=2548 loss=0.060832 lr=7.703e-06
+[train] step=2549 loss=0.074108 lr=7.701e-06
+[train] step=2550 loss=0.059003 lr=7.700e-06
+[train] step=2551 loss=0.095904 lr=7.698e-06
+[train] step=2552 loss=0.045249 lr=7.696e-06
+[train] step=2553 loss=0.043229 lr=7.695e-06
+[train] step=2554 loss=0.070947 lr=7.693e-06
+[train] step=2555 loss=0.097499 lr=7.691e-06
+[train] step=2556 loss=0.054184 lr=7.690e-06
+[train] step=2557 loss=0.134437 lr=7.688e-06
+[train] step=2558 loss=0.077154 lr=7.686e-06
+[train] step=2559 loss=0.114573 lr=7.685e-06
+[train] step=2560 loss=0.106259 lr=7.683e-06
+[train] step=2561 loss=0.102684 lr=7.681e-06
+[train] step=2562 loss=0.078286 lr=7.680e-06
+[train] step=2563 loss=0.077443 lr=7.678e-06
+[train] step=2564 loss=0.078439 lr=7.676e-06
+[train] step=2565 loss=0.066476 lr=7.675e-06
+[train] step=2566 loss=0.079531 lr=7.673e-06
+[train] step=2567 loss=0.040604 lr=7.672e-06
+[train] step=2568 loss=0.056369 lr=7.670e-06
+[train] step=2569 loss=0.065787 lr=7.668e-06
+[train] step=2570 loss=0.058727 lr=7.667e-06

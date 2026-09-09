@@ -223,3 +223,65 @@ level_zero backend failed with error: level_zero backend failed with error: leve
 20 (UR_RESULT_ERROR_DEVICE_LOST)
 20 (UR_RESULT_ERROR_DEVICE_LOST)
 20 (UR_RESULT_ERROR_DEVICE_LOST)
+srun: Job step aborted: Waiting up to 4 seconds for job step to finish.
+slurmstepd: error: *** JOB 535066 ON i20r06c03s04 CANCELLED AT 2026-09-09T05:49:32 DUE TO TIME LIMIT ***
+slurmstepd: error: *** STEP 535066.0 ON i20r06c03s04 CANCELLED AT 2026-09-09T05:49:32 DUE TO TIME LIMIT ***
+--- Logging error ---
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 731, in run
+    result = self._invoke_run(role)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 908, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 86, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 4640 got signal: 15
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/logging/__init__.py", line 1100, in emit
+    msg = self.format(record)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/logging/__init__.py", line 943, in format
+    return fmt.format(record)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/_logging/_internal.py", line 937, in format
+    filepath = make_module_path_relative(record.pathname)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/_logging/_internal.py", line 857, in make_module_path_relative
+    abs_path = pathlib.Path(abs_path).resolve()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/pathlib.py", line 1077, in resolve
+    s = self._accessor.realpath(self, strict=strict)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/posixpath.py", line 393, in realpath
+    path, ok = _joinrealpath(filename[:0], filename, strict, {})
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/posixpath.py", line 437, in _joinrealpath
+    st = os.lstat(newpath)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 86, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 4640 got signal: 15
+Call stack:
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/bin/accelerate", line 6, in <module>
+    sys.exit(main())
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1398, in launch_command
+    multi_gpu_launcher(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 982, in run
+    elastic_launch(
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 308, in launch_agent
+    result = agent.run()
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/metrics/api.py", line 134, in wrapper
+    result = f(*args, **kwargs)
+  File "/dss/dsshome1/0D/go76fuz2/.local/share/mamba/envs/windinet/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 739, in run
+    logger.warning("Received %s death signal, shutting down workers", e.sigval)
+Message: 'Received %s death signal, shutting down workers'
+Arguments: (<Signals.SIGTERM: 15>,)
+W0909 05:49:32.364000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4805 closing signal SIGTERM
+W0909 05:49:32.365000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4806 closing signal SIGTERM
+W0909 05:49:32.366000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4807 closing signal SIGTERM
+W0909 05:49:32.366000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4808 closing signal SIGTERM
+W0909 05:49:32.367000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4809 closing signal SIGTERM
+W0909 05:49:32.367000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4810 closing signal SIGTERM
+W0909 05:49:32.367000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4811 closing signal SIGTERM
+W0909 05:49:32.367000 4640 site-packages/torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 4812 closing signal SIGTERM
