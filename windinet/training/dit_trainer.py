@@ -768,8 +768,16 @@ class LtxvTrainer:
             # ranks' micro-batches trigger this), which is a bigger change than
             # a logging-only diagnostic should carry.
             with torch.no_grad():
-                normalized = scalar_embedding.normalize(batch.scalars)
-                fourier_out = scalar_embedding.fourier(normalized)
+                # unwrap_model: scalar_embedding here is whatever the caller passed in
+                # (self._scalar_embedding by default, i.e. DDP-wrapped during training --
+                # see this method's own docstring). .normalize()/.fourier are custom
+                # ScalarEmbedding members, not forward()/__call__, so DDP does not proxy
+                # them -- calling them on the wrapped module raises AttributeError instead
+                # of producing this diagnostic (2026-09-08, job 535066: masked the NaN
+                # root-cause info this block exists to capture).
+                unwrapped = self._accelerator.unwrap_model(scalar_embedding)
+                normalized = unwrapped.normalize(batch.scalars)
+                fourier_out = unwrapped.fourier(normalized)
                 logger.error(
                     f"Scalar embeddings contain NaN or Inf values\n"
                     f"  raw scalars       : {batch.scalars.tolist()}\n"
