@@ -1,0 +1,104 @@
+# VAE finetuning config -- lundquist/128x128 KL-vs-SDS sweep, arm 1/3
+# (kl=0, the reference). Sibling arms: _kl1e7.yaml (arm 2/3, adds
+# loss_weighting.weights.kl: 1.0e-7) and _sds.yaml (arm 3/3, adds the SDS
+# distillation term). This is the 128res/lundquist analogue of the
+# 256res/sng_pvc COSINE-schedule KL sweep (finetune_vae_whole_structure_
+# baseline_ep20_256res_cosine_kl1e5/kl1e6/kl1e7.yaml) -- deliberately COSINE,
+# not wsd, because that's the schedule the broken DiT-rollout results
+# (job 535373/535882/535883, see project_dit_stage2_multicluster memory)
+# were actually measured on; a wsd-schedule VAE here wouldn't be comparable
+# to what we're trying to explain. sng_pvc's own GPU-hour budget ran out
+# before the cosine_lr1e5 control (see that arm's own config) could confirm
+# whether KL regularization or the cosine schedule itself was behind those
+# results -- moving this sweep to lundquist at 128res (cheaper per-epoch) is
+# the substitute while sng_pvc GPU time is unavailable.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep20_256res_cosine_kl1e7.yaml's
+# own no-KL reference (finetune_vae_whole_structure_baseline_ep20_256res_cosine_lr5e5.yaml):
+#   data.data_root / normalization_stats_file: 256x256_ds -> 128x128_ds (lundquist default)
+# Everything else (cosine schedule, peak LR 5e-5, epochs 20, loss weights,
+# inflate_init) UNCHANGED -- this file itself carries no KL/SDS term, same
+# as that reference.
+#
+# Usage:
+#   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_kl0.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "cosine"
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "128res", "kl-sds-sweep"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_kl0"
+clean_output_dir: true

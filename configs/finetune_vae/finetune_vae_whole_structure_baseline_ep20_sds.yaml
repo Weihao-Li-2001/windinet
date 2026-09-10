@@ -1,0 +1,155 @@
+# VAE finetuning config -- lundquist/128x128 KL-vs-SDS sweep, arm 3/3 (SDS,
+# score-distillation). See finetune_vae_whole_structure_baseline_ep20_kl0.yaml
+# (arm 1/3, the reference) for the full sweep rationale. SINGLE VARIABLE vs
+# that file: adds the "sds" loss term (windinet.training.sds_loss.
+# SdsDistillationLoss, see windinet/config.py's SdsLossConfig docstring for
+# the full formula) -- everything else (resolution, cosine schedule, peak
+# LR, adapter, the other four loss weights) UNCHANGED, so all 3 sweep arms
+# stay directly comparable to each other. NOTE: this deliberately diverges
+# from finetune_vae_whole_structure_baseline_ep20_256res_sds.yaml (the
+# sng_pvc/256res SDS arm this is otherwise modeled on, job 535151/535182),
+# which uses "wsd" -- this sweep's own kl0/kl1e7 siblings are cosine (to
+# match the sng_pvc cosine KL sweep the whole thing is trying to explain),
+# so sds is kept cosine too rather than importing wsd from its sng_pvc
+# namesake.
+#
+# ################################################################
+# # BLOCKER -- DO NOT SUBMIT until this is fixed:
+# ################################################################
+# sds.dit_checkpoint below is a PLACEHOLDER PATH, not a file that exists yet.
+# lundquist has no real trained DiT checkpoint of its own -- every DiT run
+# in logs/lundquist/INDEX.tsv (job 22380 and the bs_sweep jobs 22507-22514)
+# used configs/dit/train_dit_lundquist_smoketest.yaml, a 10-step regression
+# test (steps: 10), not a converged model. SDS distillation against that
+# checkpoint would just be noise, not a real signal.
+#
+# You need to COPY a real DiT checkpoint from sng_pvc to lundquist's local
+# disk before this config will run, e.g.:
+#   scp <sng_pvc-login-node>:/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors \
+#       hramachandran@<lundquist-host>:/local/disk/hramachandran/work/wh_work/windinet/dit_checkpoints/
+# (shockwave_dit_ep20_baseline @ step 9360 is still the best real DiT result
+# in the project as of 2026-09-10 -- see project_dit_stage2_multicluster
+# memory / EXPERIMENTS.md. ~2B params bf16 -> expect several GB, check it
+# actually lands before submitting.) Update sds.dit_checkpoint below to
+# wherever it actually ends up if this path doesn't match.
+#
+# WEIGHT (sds: 0.1 below) is an UNTUNED FIRST GUESS carried over from the
+# sng_pvc SDS config, not a swept value -- see that file's own header for the
+# reasoning (roughly same order of magnitude as rmse's weight 1.0, assuming
+# the raw SDS residual lands in the same 0.01-1 range the converged
+# flow-matching loss does -- unconfirmed at 128res).
+#
+# NOTE: this loads a SECOND frozen model (the 2B-parameter DiT transformer)
+# into memory for the whole run and runs an extra full transformer forward
+# pass every train/eval step -- expect materially higher memory and
+# wall-clock than the kl0/kl1e7 siblings; not yet measured on lundquist's
+# A6000s (only measured, informally, on sng_pvc's XPUs so far).
+#
+# Usage (once the checkpoint above is actually in place):
+#   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_sds.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "cosine"
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable vs the ep20_kl0 baseline -- see header. Untuned first
+    # guess, not swept.
+    sds: 0.1
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+# THE other half of the variable above -- see header for the full formula
+# and windinet/config.py's SdsLossConfig for every field's meaning.
+sds:
+  enabled: true
+  model_source: "LTXV_2B_0.9.6_DEV"
+  # PLACEHOLDER -- see the BLOCKER comment at the top of this file. Does not
+  # exist on lundquist yet; must be copied over from sng_pvc before this
+  # config will run. This field does not expand env vars (unlike output_dir),
+  # same convention as every DiT resume config's model.load_checkpoint.
+  dit_checkpoint: "/local/disk/hramachandran/work/wh_work/windinet/dit_checkpoints/shockwave_dit_ep20_baseline_step_09360.safetensors"
+  scalar_conditioning:
+    enabled: true
+    scalar_names: ["gamma"]
+    scalar_ranges:
+      gamma: [1.0, 2.0]
+    embedding_dim: 4096
+    num_tokens_per_scalar: 4
+    fourier_features: 64
+    mlp_hidden_dim: 256
+    dropout: 0.1
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "128res", "kl-sds-sweep", "sds"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_sds"
+clean_output_dir: true

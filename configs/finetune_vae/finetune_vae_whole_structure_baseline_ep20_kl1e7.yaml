@@ -1,0 +1,101 @@
+# VAE finetuning config -- lundquist/128x128 KL-vs-SDS sweep, arm 2/3
+# (kl=1e-7). See finetune_vae_whole_structure_baseline_ep20_kl0.yaml (arm
+# 1/3, the reference) for the full sweep rationale -- this file's only
+# difference from that one is loss_weighting.weights.kl.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep20_kl0.yaml:
+#   loss_weighting.weights.kl: unset (0.0) -> 1.0e-7
+#
+# WHY 1e-7 specifically (not 1e-5/1e-6, both already tried at 256res/sng_pvc):
+# the sng_pvc cosine-schedule KL sweep found a monotonic "stronger KL = worse
+# DiT rollout" trend across 1e-5/1e-6/1e-7, with 1e-7 (the weakest) the least
+# broken of the three but still ~2.5x worse than the KL=0 baseline on DiT
+# rollout vrmse (see logs/sng_pvc/eval_dit_vrmse/535882,535883 and
+# project_dit_stage2_multicluster memory) -- 1e-7 is the sharpest single
+# data point to reproduce at 128res/lundquist against a matched KL=0 control,
+# rather than re-running the full 1e-5/1e-6/1e-7 sweep here.
+#
+# Usage:
+#   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_kl1e7.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "cosine"
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable: unset (0.0) -> 1e-7. Sweep arm 2/3, see header.
+    kl: 1.0e-7
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "128res", "kl-sds-sweep", "kl-divergence"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_kl1e7"
+clean_output_dir: true
