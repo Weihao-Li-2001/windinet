@@ -1,0 +1,402 @@
+job=22755 node=lundquist gpus=0,1
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_kl0
+BASE_CONFIG: configs/dit/train_dit_lundquist_cosine_kl0.yaml
+preprocessed_data_root=dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_kl0 output_dir=dit_outputs/lundquist/dit_cosine_kl0
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ None                                  │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ lora.enabled                         │ False                                 │
+│ lora.rank                            │ 16                                    │
+│ lora.alpha                           │ 16                                    │
+│ lora.dropout                         │ 0.0                                   │
+│ lora.target_modules                  │ to_q, to_k, to_v, to_out.0            │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 1e-05                                 │
+│ optimization.steps                   │ 8000                                  │
+│ optimization.batch_size              │ 4                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ dit_preprocessed/finetune_vae_whole_… │
+│ data.num_dataloader_workers          │ 4                                     │
+│ validation.data_root                 │ dit_preprocessed/finetune_vae_whole_… │
+│ validation.interval                  │ 600                                   │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 120                                   │
+│ checkpoints.keep_last_n              │ 2                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ visualization.enabled                │ True                                  │
+│ visualization.interval               │ 2000                                  │
+│ visualization.num_samples            │ 3                                     │
+│ visualization.frame_numbers          │ 25, 50, 75, 100                       │
+│ visualization.num_inference_steps    │ 20                                    │
+│ visualization.dpi                    │ 150                                   │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ cfd, full, 2b, scalar-only,           │
+│                                      │ lundquist, 128res, cosine-vae, kl0    │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /local/disk/hramachandran/work/wh_wo… │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     [rank 0] Distributed training enabled with 2        dit_trainer.py:1441
+         processes                                                              
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1447
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/scheduler/scheduler_config.json "HTTP/1.1 307                  
+         Temporary Redirect"                                                    
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/scheduler%2Fscheduler_config.json "HTTP/1.1 200                  
+         OK"                                                                    
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/scheduler/scheduler_config.json "HTTP/1.1 307                  
+         Temporary Redirect"                                                    
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/scheduler%2Fscheduler_config.json "HTTP/1.1 200                  
+         OK"                                                                    
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:867
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:894
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:898
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:389
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1115
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1198
+         dit_preprocessed/finetune_vae_whole_structure_basel                    
+         ine_ep20_kl0/val                                                       
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1433
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1159
+         /local/disk/hramachandran/work/wh_work/windinet/fin                    
+         etune_vae_outputs/lundquist/finetune_vae_whole_stru                    
+         cture_baseline_ep20_kl0/checkpoints/vae_shockwave_b                    
+         est.safetensors (fingerprint 48445bef02ac2119);                        
+         recorded in latent_provenance.json                                     
+INFO     [rank 0] Starting training...                        dit_trainer.py:410
+[train] step=1 loss=0.985659 lr=1.000e-05
+[train] step=2 loss=0.929655 lr=1.000e-05
+[train] step=3 loss=0.934166 lr=1.000e-05
+[train] step=4 loss=0.668778 lr=1.000e-05
+[train] step=5 loss=0.790745 lr=1.000e-05
+[train] step=6 loss=0.788818 lr=1.000e-05
+[train] step=7 loss=0.533750 lr=1.000e-05
+[train] step=8 loss=0.612495 lr=1.000e-05
+[train] step=9 loss=0.697377 lr=1.000e-05
+[train] step=10 loss=0.699082 lr=1.000e-05
+[train] step=11 loss=0.842755 lr=1.000e-05
+[train] step=12 loss=0.646907 lr=1.000e-05
+[train] step=13 loss=0.620960 lr=1.000e-05
+[train] step=14 loss=0.835333 lr=1.000e-05
+[train] step=15 loss=0.773653 lr=1.000e-05
+[train] step=16 loss=0.537044 lr=1.000e-05
+[train] step=17 loss=0.602004 lr=1.000e-05
+[train] step=18 loss=0.528338 lr=1.000e-05
+[train] step=19 loss=0.591657 lr=1.000e-05
+[train] step=20 loss=0.483600 lr=1.000e-05
+[train] step=21 loss=0.596111 lr=1.000e-05
+[train] step=22 loss=0.541234 lr=1.000e-05
+[train] step=23 loss=0.706143 lr=1.000e-05
+[train] step=24 loss=0.494776 lr=1.000e-05
+[train] step=25 loss=0.674018 lr=1.000e-05
+[train] step=26 loss=0.475717 lr=1.000e-05
+[train] step=27 loss=0.579250 lr=1.000e-05
+[train] step=28 loss=0.603896 lr=1.000e-05
+[train] step=29 loss=0.871358 lr=1.000e-05
+[train] step=30 loss=0.458819 lr=1.000e-05
+[train] step=31 loss=0.824495 lr=1.000e-05
+[train] step=32 loss=0.693683 lr=1.000e-05
+[train] step=33 loss=0.611897 lr=1.000e-05
+[train] step=34 loss=0.710809 lr=1.000e-05
+[train] step=35 loss=0.623332 lr=1.000e-05
+[train] step=36 loss=0.537131 lr=1.000e-05
+[train] step=37 loss=0.460823 lr=1.000e-05
+[train] step=38 loss=0.615858 lr=9.999e-06
+[train] step=39 loss=0.409542 lr=9.999e-06
+[train] step=40 loss=0.773127 lr=9.999e-06
+[train] step=41 loss=0.444962 lr=9.999e-06
+[train] step=42 loss=0.722367 lr=9.999e-06
+[train] step=43 loss=0.615144 lr=9.999e-06
+[train] step=44 loss=0.734844 lr=9.999e-06
+[train] step=45 loss=0.689560 lr=9.999e-06
+[train] step=46 loss=0.597386 lr=9.999e-06
+[train] step=47 loss=0.545725 lr=9.999e-06
+[train] step=48 loss=0.618921 lr=9.999e-06
+[train] step=49 loss=0.760457 lr=9.999e-06
+[train] step=50 loss=0.539274 lr=9.999e-06
+[train] step=51 loss=0.592653 lr=9.999e-06
+[train] step=52 loss=0.687744 lr=9.999e-06
+[train] step=53 loss=0.552979 lr=9.999e-06
+[train] step=54 loss=0.438405 lr=9.999e-06
+[train] step=55 loss=0.402178 lr=9.999e-06
+[train] step=56 loss=0.599011 lr=9.999e-06
+[train] step=57 loss=0.585437 lr=9.999e-06
+[train] step=58 loss=0.472647 lr=9.999e-06
+[train] step=59 loss=0.516978 lr=9.999e-06
+[train] step=60 loss=0.365905 lr=9.999e-06
+[train] step=61 loss=0.551453 lr=9.999e-06
+[train] step=62 loss=0.531227 lr=9.999e-06
+[train] step=63 loss=0.488932 lr=9.999e-06
+[train] step=64 loss=0.737660 lr=9.998e-06
+[train] step=65 loss=0.415434 lr=9.998e-06
+[train] step=66 loss=0.637330 lr=9.998e-06
+[train] step=67 loss=0.470794 lr=9.998e-06
+[train] step=68 loss=0.625610 lr=9.998e-06
+[train] step=69 loss=0.717421 lr=9.998e-06
+[train] step=70 loss=0.682921 lr=9.998e-06
+[train] step=71 loss=0.614541 lr=9.998e-06
+[train] step=72 loss=0.640937 lr=9.998e-06
+[train] step=73 loss=0.531873 lr=9.998e-06
+[train] step=74 loss=0.434060 lr=9.998e-06
+[train] step=75 loss=0.590982 lr=9.998e-06
+[train] step=76 loss=0.508968 lr=9.998e-06
+[train] step=77 loss=0.614745 lr=9.998e-06
+[train] step=78 loss=0.692252 lr=9.998e-06
+[train] step=79 loss=0.644499 lr=9.998e-06
+[train] step=80 loss=0.827677 lr=9.998e-06
+[train] step=81 loss=0.532033 lr=9.998e-06
+[train] step=82 loss=0.595694 lr=9.997e-06
+[train] step=83 loss=0.476550 lr=9.997e-06
+[train] step=84 loss=0.582396 lr=9.997e-06
+[train] step=85 loss=0.516026 lr=9.997e-06
+[train] step=86 loss=0.471818 lr=9.997e-06
+[train] step=87 loss=0.755808 lr=9.997e-06
+[train] step=88 loss=0.497513 lr=9.997e-06
+[train] step=89 loss=0.625220 lr=9.997e-06
+[train] step=90 loss=0.566068 lr=9.997e-06
+[train] step=91 loss=0.693578 lr=9.997e-06
+[train] step=92 loss=0.539559 lr=9.997e-06
+[train] step=93 loss=0.721276 lr=9.997e-06
+[train] step=94 loss=0.598178 lr=9.997e-06
+[train] step=95 loss=0.494794 lr=9.997e-06
+[train] step=96 loss=0.773910 lr=9.997e-06
+[train] step=97 loss=0.499363 lr=9.996e-06
+[train] step=98 loss=0.698405 lr=9.996e-06
+[train] step=99 loss=0.666198 lr=9.996e-06
+[train] step=100 loss=0.601570 lr=9.996e-06
+[train] step=101 loss=0.514011 lr=9.996e-06
+[train] step=102 loss=0.370842 lr=9.996e-06
+[train] step=103 loss=0.486257 lr=9.996e-06
+[train] step=104 loss=0.627631 lr=9.996e-06
+[train] step=105 loss=0.430219 lr=9.996e-06
+[train] step=106 loss=0.446681 lr=9.996e-06
+[train] step=107 loss=0.695395 lr=9.996e-06
+[train] step=108 loss=0.604108 lr=9.996e-06
+[train] step=109 loss=0.619525 lr=9.996e-06
+[train] step=110 loss=0.614925 lr=9.995e-06
+[train] step=111 loss=0.541830 lr=9.995e-06
+[train] step=112 loss=0.579723 lr=9.995e-06
+[train] step=113 loss=0.613229 lr=9.995e-06
+[train] step=114 loss=0.487877 lr=9.995e-06
+[train] step=115 loss=0.609409 lr=9.995e-06
+[train] step=116 loss=0.543302 lr=9.995e-06
+[train] step=117 loss=0.704857 lr=9.995e-06
+[train] step=118 loss=0.492501 lr=9.995e-06
+[train] step=119 loss=0.543786 lr=9.995e-06
+[train] step=120 loss=0.643223 lr=9.995e-06
+INFO     [rank 0] Model weights for step 120 saved in        dit_trainer.py:1288
+         checkpoints/model_weights_step_00120.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 120      dit_trainer.py:1297
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1385
+         checkpoints/model_weights_step_00120.state.pt                          
+[epoch 1] step=120 train_loss=0.607048
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Training Step  …     Loss: 0.4504 LR: 9.99e-06 Time/Step: 1.56s 0… ETA: --:… │
+╰──────────────────────────────────────────────────────────────────────────────╯[rank0]: Traceback (most recent call last):
+[rank0]:   File "/local/disk/hramachandran/work/wh_work/windinet/scripts/train.py", line 53, in <module>
+[rank0]:     app()
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1152, in __call__
+[rank0]:     raise e
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1135, in __call__
+[rank0]:     return get_command(self)(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/click/core.py", line 1524, in __call__
+[rank0]:     return self.main(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 708, in main
+[rank0]:     return _main(
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/core.py", line 188, in _main
+[rank0]:     rv = self.invoke(ctx)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/click/core.py", line 1308, in invoke
+[rank0]:     return ctx.invoke(self.callback, **ctx.params)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/click/core.py", line 877, in invoke
+[rank0]:     return callback(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/typer/main.py", line 1514, in wrapper
+[rank0]:     return callback(**use_params)
+[rank0]:   File "/local/disk/hramachandran/work/wh_work/windinet/scripts/train.py", line 49, in main
+[rank0]:     trainer.train()
+[rank0]:   File "/local/disk/hramachandran/work/wh_work/windinet/windinet/training/dit_trainer.py", line 471, in train
+[rank0]:     loss = self._training_step(batch)
+[rank0]:   File "/local/disk/hramachandran/work/wh_work/windinet/windinet/training/dit_trainer.py", line 721, in _training_step
+[rank0]:     model_pred = self._transformer(**model_inputs)[0]
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1637, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1464, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/utils/operations.py", line 823, in forward
+[rank0]:     return model_forward(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/utils/operations.py", line 811, in __call__
+[rank0]:     return convert_to_fp32(self.model_forward(*args, **kwargs))
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+[rank0]:     return func(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/diffusers/utils/peft_utils.py", line 315, in wrapper
+[rank0]:     result = forward_fn(self, *args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/diffusers/models/transformers/transformer_ltx.py", line 533, in forward
+[rank0]:     hidden_states = self._gradient_checkpointing_func(
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/diffusers/models/modeling_utils.py", line 305, in _gradient_checkpointing_func
+[rank0]:     return torch.utils.checkpoint.checkpoint(
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/_compile.py", line 51, in inner
+[rank0]:     return disable_fn(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 838, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/utils/checkpoint.py", line 495, in checkpoint
+[rank0]:     ret = function(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/diffusers/models/transformers/transformer_ltx.py", line 362, in forward
+[rank0]:     attn_hidden_states = self.attn1(
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/diffusers/models/transformers/transformer_ltx.py", line 176, in forward
+[rank0]:     return self.processor(self, hidden_states, encoder_hidden_states, attention_mask, image_rotary_emb, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/diffusers/models/transformers/transformer_ltx.py", line 83, in __call__
+[rank0]:     key = attn.to_k(encoder_hidden_states)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 125, in forward
+[rank0]:     return F.linear(input, self.weight, self.bias)
+[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.54 GiB of which 7.88 MiB is free. Including non-PyTorch memory, this process has 47.52 GiB memory in use. Of the allocated memory 45.69 GiB is allocated by PyTorch, and 1.30 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank0]:[W912 06:52:41.353258477 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0912 06:52:43.308917 1088452 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 1088499 closing signal SIGTERM
+E0912 06:52:43.976095 1088452 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 0 (pid: 1088498) of binary: /local/disk/hramachandran/miniconda/envs/windinet/bin/python
+Traceback (most recent call last):
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1415, in <module>
+    main()
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1411, in main
+    launch_command(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1396, in launch_command
+    multi_gpu_launcher(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/train.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-09-12_06:52:43
+  host      : lundquist.maas
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 1088498)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json?filters=%7B%22label%22%3A%7B%22slurm_job_id%3D22755%22%3Atrue%7D%7D": dial unix /var/run/docker.sock: connect: permission denied
