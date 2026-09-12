@@ -1,0 +1,95 @@
+# ShockWaveNet (DiT) training config -- 128res/lundquist analogue of
+# train_dit_sng_pvc_cosine_kl1e7.yaml, paired with the lundquist COSINE
+# KL/SDS sweep's kl=0 arm (finetune_vae_whole_structure_baseline_ep20_kl0,
+# preprocessed 2026-09-11, job 22742 -- see logs/lundquist/INDEX.tsv). This
+# sweep moved to lundquist/128res because sng_pvc's GPU-hour budget ran out
+# before its own cosine_lr1e5 control could confirm whether KL
+# regularization or the cosine schedule itself was behind the broken
+# cosine-schedule DiT-rollout results (job 535373/535882/535883); this arm
+# is the kl=0 reference for that question, sibling to _kl1e7.yaml.
+#
+# steps=8000, LR=1e-5, cosine schedule: same convention as the sng_pvc
+# ep20_baseline/cosine arms, for direct comparability.
+#
+# effective_batch=32 via batch_size=8, gradient_accumulation_steps=2, across
+# lundquist's 2 GPUs (8*2*2=32) -- NOT the smaller batch_size the smoketest
+# config uses. Picked from the 1-GPU DiT throughput sweep (jobs
+# 22507-22514, 2026-08-30, configs/dit/train_dit_lundquist_bs_sweep_bs*.yaml):
+# batch_size=8 ran a full 2h window on one A6000 with no OOM, so it's the
+# already-confirmed-safe choice, and it lands the highest steps/hour of the
+# sizes tested. This matters because lundquist's debug partition has a
+# **hard 12h kill** (see jobs/lundquist/train_dit.sbatch's note) -- at
+# batch_size=8/accum=2 the sweep's measured throughput (~9490 micro-steps/2h
+# at bs8, /2 for accum) extrapolates to well under that, whereas
+# batch_size=2 or 4 (accum=8/4 for the same effective_batch=32) extrapolate
+# to 13-15h and would not fit.
+#
+# Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
+# __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
+#   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
+#       finetune_vae_whole_structure_baseline_ep20_kl0 \
+#       configs/dit/train_dit_lundquist_cosine_kl0.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 8
+  gradient_accumulation_steps: 2
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "cosine-vae", "kl0"]
+
+seed: 42
+output_dir: "dit_outputs/lundquist/dit_cosine_kl0"
