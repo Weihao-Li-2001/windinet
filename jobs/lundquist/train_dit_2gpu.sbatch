@@ -78,7 +78,24 @@ PY
 printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Is)" "${SLURM_JOB_ID}" "${SLURM_JOB_NAME}" \
     "${BASE_CONFIG}" "${PREPROCESSED_NAME}" >> logs/lundquist/INDEX.tsv
 
+# accelerate launch defaults --main_process_port to 29500 for every job --
+# fine for one job at a time, but lundquist is a single physical host with
+# no per-job GPU isolation, so two concurrent accelerate launches both bind
+# 29500 and the second one dies at rendezvous (EADDRINUSE, jobs 22754/22756).
+# Bind a free port per job the same way jobs/sng_pvc/train_dit.sbatch does,
+# so concurrent lundquist jobs no longer collide on this.
+MAIN_PROCESS_PORT=$("${PYTHON}" - <<'PY'
+import socket
+s = socket.socket()
+s.bind(('', 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+echo "MAIN_PROCESS_PORT: ${MAIN_PROCESS_PORT}"
+
 "${PYTHON}" -m accelerate.commands.launch \
     --num_processes 2 \
     --mixed_precision bf16 \
+    --main_process_port "${MAIN_PROCESS_PORT}" \
     scripts/train.py "${RUN_CONFIG}"
