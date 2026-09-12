@@ -1,0 +1,101 @@
+# ShockWaveNet (DiT) training config -- doubled-horizon rerun of
+# train_dit_lundquist_cosine_kl0.yaml (steps 8000 -> 16000), same
+# finetune_vae_whole_structure_baseline_ep20_kl0 latents. Separate
+# output_dir (dit_cosine_kl0_16k, not dit_cosine_kl0) so this does NOT
+# reuse/overwrite the completed 8000-step run's checkpoints -- dit_trainer.py
+# only resumes when model.load_checkpoint is set (see its _load_checkpoint),
+# so a fresh run pointed at the same output_dir would start from step 0
+# there and, with checkpoints.keep_last_n=2, eventually prune the existing
+# step_08033 checkpoint out from under the earlier result.
+#
+# Why: job 22757's dit_vrmse_metrics.csv (in dit_outputs/lundquist/
+# dit_cosine_kl0/) showed pixel_vrmse still falling through step 6000-8000
+# (0.4507 -> 0.4371) but essentially flat by the final partial-epoch step
+# 8033 (0.4371 -> 0.4393, within noise) -- this run is a full independent
+# cosine anneal over a longer horizon to see whether that flattening was a
+# genuine plateau or just the tail of an 8000-step schedule (LR was already
+# down to ~1e-8 by step 8033, same eta_min as here, so this is NOT a
+# continuation of that decayed schedule -- a from-scratch run gets a cosine
+# curve authored for the full 16000 steps instead of being crammed into the
+# last few percent of an 8000-step one).
+#
+# WALL-CLOCK WARNING: job 22757 measured ~0.36 steps/s (366 min / 8033
+# steps) on this same config at bs4/accum4/2-GPU. 16000 steps at that rate
+# is ~740 min (~12.3h) -- past lundquist debug partition's 12h hard kill
+# (see train_dit_lundquist_cosine_kl0.yaml's own note on this). Submit with
+# `sbatch --time=12:00:00 ...` (the partition max) and expect a time-limit
+# kill close to the end; checkpoints.interval=120/keep_last_n=2 below keep a
+# recent checkpoint on disk to resume from -- point a follow-up run's
+# `model.load_checkpoint` at the latest
+# dit_outputs/lundquist/dit_cosine_kl0_16k/checkpoints/model_weights_step_*.safetensors
+# to finish the remaining steps.
+#
+# Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
+# __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
+#   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
+#       finetune_vae_whole_structure_baseline_ep20_kl0 \
+#       configs/dit/train_dit_lundquist_cosine_kl0_16k.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 16000
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "cosine-vae", "kl0", "16k-steps"]
+
+seed: 42
+output_dir: "dit_outputs/lundquist/dit_cosine_kl0_16k"
