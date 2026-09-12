@@ -1327,7 +1327,7 @@ class LtxvTrainer:
         return saved_weights_path
 
     @staticmethod
-    def _cast_optimizer_state(obj, dtype: torch.dtype):
+    def _cast_optimizer_state(obj, dtype: torch.dtype, device: str | None = None):
         """Recursively cast float tensors inside an optimizer state_dict.
 
         AdamW's per-param state is ``{"step": tensor, "exp_avg": tensor, "exp_avg_sq":
@@ -1337,17 +1337,40 @@ class LtxvTrainer:
         fp32 tensor too (confirmed: ``torch.optim.AdamW`` state, not an int) and
         drives bias-correction (1 - beta**step) -- bf16 rounds e.g. 9720 to 9728,
         a silent, exact-integer-counter corruption for zero storage benefit, so it
-        is explicitly excluded rather than caught by the general float-tensor check.
+        is explicitly excluded from dtype casting (still moved to ``device`` below).
+
+        ``device`` (2026-09-12): jobs 22753/22755 OOM'd on lundquist right at
+        the first checkpoint save. Root cause: ``self._optimizer.state_dict()``
+        returns the SAME live fp32 exp_avg/exp_avg_sq tensors the optimizer
+        trains with (no copy), and casting them one dict-comprehension pass
+        with no device change builds a whole second bf16 copy (~half the fp32
+        size, ~7.7GB for this 1.92B-param transformer) that is GPU-resident
+        *simultaneously* with the still-live fp32 originals until the whole
+        state_dict finishes casting -- a multi-GB transient spike on top of an
+        already near-full 48GB card, independent of batch_size (confirmed:
+        the spike recurred identically at batch_size=8 and =4). Passing
+        device="cpu" from the SAVE path moves each tensor off the GPU as it's
+        cast, one at a time, so the transient is bounded by a single
+        parameter's tensor rather than the whole optimizer state. The LOAD
+        path (_load_resume_state) already reads via
+        ``torch.load(..., map_location="cpu")`` so passing device there is a
+        harmless no-op.
         """
         if isinstance(obj, torch.Tensor):
-            return obj.to(dtype) if obj.is_floating_point() else obj
+            if obj.is_floating_point():
+                return obj.to(device=device, dtype=dtype) if device is not None else obj.to(dtype)
+            return obj.to(device=device) if device is not None else obj
         if isinstance(obj, dict):
             return {
-                k: (v if k == "step" else LtxvTrainer._cast_optimizer_state(v, dtype))
+                k: (
+                    LtxvTrainer._cast_optimizer_state(v, dtype, device)
+                    if k != "step"
+                    else (v.to(device=device) if device is not None and isinstance(v, torch.Tensor) else v)
+                )
                 for k, v in obj.items()
             }
         if isinstance(obj, list):
-            return [LtxvTrainer._cast_optimizer_state(v, dtype) for v in obj]
+            return [LtxvTrainer._cast_optimizer_state(v, dtype, device) for v in obj]
         return obj
 
     def _save_training_state(self, state_path: Path) -> None:
@@ -1366,6 +1389,12 @@ class LtxvTrainer:
         for Adam's already-smoothed moment estimates (the same reasoning
         8-bit-Adam-style techniques rely on) -- _load_resume_state upcasts
         back to fp32 before handing it to the optimizer.
+
+        Cast with device="cpu" (2026-09-12 fix, see _cast_optimizer_state's
+        own docstring) so the bf16 copy is built off-GPU, one tensor at a
+        time, instead of briefly doubling up with the still-live fp32
+        original on the GPU -- that transient doubling is what OOM'd jobs
+        22753/22755 at this exact call, at both batch_size=8 and =4.
         """
         import numpy as np
 
@@ -1377,7 +1406,9 @@ class LtxvTrainer:
         }
         state = {
             "global_step": self._global_step,
-            "optimizer": self._cast_optimizer_state(self._optimizer.state_dict(), torch.bfloat16),
+            "optimizer": self._cast_optimizer_state(
+                self._optimizer.state_dict(), torch.bfloat16, device="cpu"
+            ),
             "scheduler": self._lr_scheduler.state_dict() if self._lr_scheduler is not None else None,
             "rng": rng,
         }
