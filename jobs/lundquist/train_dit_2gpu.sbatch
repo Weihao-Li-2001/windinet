@@ -38,6 +38,14 @@ cd /local/disk/hramachandran/work/wh_work/windinet
 # LTX base weights ship with the repo (pretrained/hub), not ~/.cache/huggingface.
 export HF_HUB_CACHE="${PWD}/pretrained/hub"
 
+# Jobs 22753/22755 OOM'd with ~1.3-1.5GiB "reserved but unallocated" on a
+# near-full 48GB A6000 -- PyTorch's own OOM message points at allocator
+# fragmentation (accumulating over ~120 steps of gradient-checkpointing
+# recompute buffers) as a contributing factor, on top of the GPU-contention
+# root cause of those two incidents (see run_kl_sweep_sequential.sh). Cheap,
+# harmless mitigation either way.
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+
 if [[ -z "${1:-}" ]]; then
     echo "error: PREPROCESSED_NAME is required -- the <name> preprocess_dit_data.sbatch wrote to" >&2
     echo "  usage: sbatch jobs/lundquist/train_dit_2gpu.sbatch <PREPROCESSED_NAME> [BASE_CONFIG]" >&2
