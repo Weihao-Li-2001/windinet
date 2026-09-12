@@ -258,3 +258,12 @@ logs/latent_shift_comparison.csv
 # get them (rsync from another checkout, or let the loader re-download).
 pretrained/*
 !pretrained/README.md
+
+# dit_outputs/{cluster}/ 目录本身是tracked的(config/epoch_log/provenance);
+# 每步的可视化帧和vrmse曲线图不track,可以从checkpoint/metrics重新生成
+dit_outputs/lundquist/**/visualizations/
+dit_outputs/lundquist/**/dit_vrmse_curve.png
+dit_outputs/sng_pvc/**/visualizations/
+dit_outputs/sng_pvc/**/dit_vrmse_curve.png
+dit_outputs/lrz_ai/**/visualizations/
+dit_outputs/lrz_ai/**/dit_vrmse_curve.png
