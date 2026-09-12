@@ -1,0 +1,84 @@
+# ShockWaveNet (DiT) training config -- 128res/lundquist analogue of
+# train_dit_sng_pvc_cosine_kl1e7.yaml, paired with the lundquist COSINE
+# KL/SDS sweep's kl=1e-7 arm (finetune_vae_whole_structure_baseline_ep20_
+# kl1e7, preprocessed 2026-09-11, job 22743 -- see logs/lundquist/INDEX.tsv).
+# Sibling to _kl0.yaml (the kl=0 reference for this same sweep); see that
+# config's header for the full rationale (why this moved to lundquist/
+# 128res, the sng_pvc cosine-schedule DiT-rollout question it's meant to
+# help answer).
+#
+# Identical to train_dit_lundquist_cosine_kl0.yaml (steps=8000, LR=1e-5,
+# effective_batch=32 via batch_size=8/accum=2 across 2 GPUs -- see that
+# config's header for why this batch_size, chosen from the 22507-22514
+# throughput sweep to fit lundquist's 12h partition kill) except
+# data/output_dir/tags pointing at the kl1e7 arm's own preprocessed data.
+#
+# Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
+# __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
+#   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
+#       finetune_vae_whole_structure_baseline_ep20_kl1e7 \
+#       configs/dit/train_dit_lundquist_cosine_kl1e7.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 8
+  gradient_accumulation_steps: 2
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "cosine-vae", "kl1e7"]
+
+seed: 42
+output_dir: "dit_outputs/lundquist/dit_cosine_kl1e7"
