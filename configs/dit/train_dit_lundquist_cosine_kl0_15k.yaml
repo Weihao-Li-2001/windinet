@@ -1,7 +1,7 @@
-# ShockWaveNet (DiT) training config -- doubled-horizon rerun of
-# train_dit_lundquist_cosine_kl0.yaml (steps 8000 -> 16000), same
+# ShockWaveNet (DiT) training config -- longer-horizon rerun of
+# train_dit_lundquist_cosine_kl0.yaml (steps 8000 -> 15000), same
 # finetune_vae_whole_structure_baseline_ep20_kl0 latents. Separate
-# output_dir (dit_cosine_kl0_16k, not dit_cosine_kl0) so this does NOT
+# output_dir (dit_cosine_kl0_15k, not dit_cosine_kl0) so this does NOT
 # reuse/overwrite the completed 8000-step run's checkpoints -- dit_trainer.py
 # only resumes when model.load_checkpoint is set (see its _load_checkpoint),
 # so a fresh run pointed at the same output_dir would start from step 0
@@ -16,25 +16,28 @@
 # genuine plateau or just the tail of an 8000-step schedule (LR was already
 # down to ~1e-8 by step 8033, same eta_min as here, so this is NOT a
 # continuation of that decayed schedule -- a from-scratch run gets a cosine
-# curve authored for the full 16000 steps instead of being crammed into the
+# curve authored for the full 15000 steps instead of being crammed into the
 # last few percent of an 8000-step one).
 #
-# WALL-CLOCK WARNING: job 22757 measured ~0.36 steps/s (366 min / 8033
-# steps) on this same config at bs4/accum4/2-GPU. 16000 steps at that rate
-# is ~740 min (~12.3h) -- past lundquist debug partition's 12h hard kill
-# (see train_dit_lundquist_cosine_kl0.yaml's own note on this). Submit with
-# `sbatch --time=12:00:00 ...` (the partition max) and expect a time-limit
-# kill close to the end; checkpoints.interval=120/keep_last_n=2 below keep a
-# recent checkpoint on disk to resume from -- point a follow-up run's
+# 15000 (not 16000): job 22757 measured ~0.36 steps/s (366 min / 8033 steps)
+# on this same config at bs4/accum4/2-GPU. 16000 steps at that rate is
+# ~740 min (~12.3h), past lundquist debug partition's 12h hard kill (see
+# train_dit_lundquist_cosine_kl0.yaml's own note on this); 15000 steps is
+# ~694 min (~11.6h), fitting inside it with ~25min margin -- picked so this
+# run has a real shot at finishing in one shot instead of needing a
+# time-limit-kill + resume. Submit with `sbatch --time=12:00:00 ...` (the
+# partition max) regardless, in case the measured rate doesn't hold exactly;
+# checkpoints.interval=120/keep_last_n=2 below keep a recent checkpoint on
+# disk to resume from if it does get killed -- point a follow-up run's
 # `model.load_checkpoint` at the latest
-# dit_outputs/lundquist/dit_cosine_kl0_16k/checkpoints/model_weights_step_*.safetensors
+# dit_outputs/lundquist/dit_cosine_kl0_15k/checkpoints/model_weights_step_*.safetensors
 # to finish the remaining steps.
 #
 # Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
 # __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
 #   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
 #       finetune_vae_whole_structure_baseline_ep20_kl0 \
-#       configs/dit/train_dit_lundquist_cosine_kl0_16k.yaml
+#       configs/dit/train_dit_lundquist_cosine_kl0_15k.yaml
 
 model:
   model_source: "LTXV_2B_0.9.6_DEV"
@@ -57,7 +60,7 @@ scalar_conditioning:
 
 optimization:
   learning_rate: 1e-5
-  steps: 16000
+  steps: 15000
   batch_size: 4
   gradient_accumulation_steps: 4
   max_grad_norm: 1.0
@@ -95,7 +98,7 @@ visualization:
 wandb:
   enabled: false
   project: "shockwavenet"
-  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "cosine-vae", "kl0", "16k-steps"]
+  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "cosine-vae", "kl0", "15k-steps"]
 
 seed: 42
-output_dir: "dit_outputs/lundquist/dit_cosine_kl0_16k"
+output_dir: "dit_outputs/lundquist/dit_cosine_kl0_15k"
