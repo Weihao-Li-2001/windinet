@@ -1,47 +1,35 @@
 # VAE finetuning config -- lundquist/128x128 SDS weight-sweep arm, lower
-# bracket (w=0.01). SINGLE VARIABLE vs
-# finetune_vae_whole_structure_baseline_ep20_sds.yaml (the w=0.1 arm, an
-# untuned first guess): loss_weighting.weights.sds only, 0.1 -> 0.01 (10x
-# weaker). Everything else (resolution, cosine schedule, peak LR, adapter,
-# dit critic checkpoint, the other four loss weights) UNCHANGED, so this
-# stays directly comparable to the w=0.1 arm and to its w=1.0 sibling
-# (finetune_vae_whole_structure_baseline_ep20_sds_w1.yaml). See that w=0.1
-# file's header for the kl0/kl1e7/sds sweep this is a part of.
+# bracket (w=0.01), against the UNTRAINED critic (same critic choice as
+# finetune_vae_whole_structure_baseline_ep20_sds_untrained.yaml, the w=0.1
+# arm that actually finished on lundquist -- job 22759). SINGLE VARIABLE vs
+# that file: loss_weighting.weights.sds only, 0.1 -> 0.01 (10x weaker).
+# Everything else (resolution, cosine schedule, peak LR, adapter,
+# untrained_dit=true, the other four loss weights) UNCHANGED, so this stays
+# directly comparable to the w=0.1 arm and to its w=1.0 sibling
+# (finetune_vae_whole_structure_baseline_ep20_sds_w1.yaml).
 #
-# WHAT THIS TESTS: see the sng_pvc w=0.01 twin,
-# finetune_vae_whole_structure_baseline_ep20_256res_sds_w0p01.yaml, for the
-# full sweep rationale (bracketing the untuned w=0.1 guess by one decade
-# each way, mirroring the kl1e5/kl1e6/kl1e7 sweep's log spacing, since SDS is
-# a task-aligned distillation signal rather than a generic prior/entropy
-# regularizer like KL and so is NOT assumed to follow the same
-# monotonic-worse-with-strength trend the KL family showed). This arm is the
+# WHY untrained_dit, not the trained-critic checkpoint: see
+# windinet.config.SdsLossConfig's docstring -- a DiT already finetuned on
+# THIS project's own VAE latents is, by construction, a critic tuned to that
+# VAE's own quirks, so using it to reshape a new VAE risks just reproducing
+# the old latent space's statistics rather than testing against a
+# task-independent prior. The stock/untrained transformer avoids that
+# circularity. This is the deliberate choice for this sweep -- do NOT swap
+# in sds.dit_checkpoint here.
+#
+# WHAT THIS TESTS: see the w=1.0 sibling's header for the full sweep
+# rationale (bracketing the untuned w=0.1 guess by one decade each way,
+# mirroring the kl1e5/kl1e6/kl1e7 sweep's log spacing). This arm is the
 # weak-SDS end: close to the plain kl0 baseline's behavior, useful to check
-# whether w=0.1's gain survives at 10x less pressure or needs most of that
+# whether w=0.1's effect survives at 10x less pressure or needs most of that
 # weight to show up at all.
 #
-# ################################################################
-# # BLOCKER -- DO NOT SUBMIT until this is fixed (same blocker as the w=0.1
-# # arm; check whether it's already been resolved before assuming it hasn't):
-# ################################################################
-# sds.dit_checkpoint below is a PLACEHOLDER PATH, not a file confirmed to
-# exist on lundquist. lundquist has no real trained DiT checkpoint of its
-# own -- every DiT run in logs/lundquist/INDEX.tsv predating this file used
-# either the 10-step smoketest config or the in-progress cosine_kl0/kl1e7
-# arms (not a converged general-purpose baseline). SDS distillation needs a
-# real, converged critic -- `ls` the path below on lundquist first; if it's
-# not there, copy it from sng_pvc, e.g.:
-#   scp <sng_pvc-login-node>:/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors \
-#       hramachandran@<lundquist-host>:/local/disk/hramachandran/work/wh_work/windinet/dit_checkpoints/
-# (see the w=0.1 arm's own header for why this exact checkpoint/step was
-# chosen.) Update sds.dit_checkpoint below if it lands somewhere else.
+# NOTE: needs NO local DiT checkpoint file on lundquist -- untrained_dit=true
+# loads the stock pretrained transformer via load_transformer(model_source),
+# same as every other config's model.model_source. No scp/BLOCKER step
+# required (unlike the trained-critic sweep arms).
 #
-# NOTE: this loads a SECOND frozen model (the 2B-parameter DiT transformer)
-# into memory for the whole run and runs an extra full transformer forward
-# pass every train/eval step -- same memory/wall-clock cost profile as the
-# w=0.1 arm (the weight only scales the loss term, not the extra forward
-# pass itself); not yet measured on lundquist's A6000s.
-#
-# Usage (once the checkpoint above is actually in place):
+# Usage:
 #   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch \
 #       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_sds_w0p01.yaml
 
@@ -89,8 +77,8 @@ loss_weighting:
     h1: 50.0
     ssim: 0.15
     mlw: 0.0
-    # THE variable vs the w=0.1 arm -- see header. Lower bracket, 10x weaker
-    # than the untuned first guess.
+    # THE variable vs the w=0.1 untrained-critic arm -- see header. Lower
+    # bracket, 10x weaker than the untuned first guess.
     sds: 0.01
 
 loss:
@@ -100,15 +88,12 @@ loss:
   mlw_beta: 10.0
   mlw_eps: 1.0e-6
 
-# THE other half of the variable above -- see header for the full formula
+# THE other half of the variable above -- see header for the full rationale
 # and windinet/config.py's SdsLossConfig for every field's meaning.
 sds:
   enabled: true
+  untrained_dit: true
   model_source: "LTXV_2B_0.9.6_DEV"
-  # PLACEHOLDER -- see the BLOCKER comment at the top of this file. Same
-  # checkpoint the w=0.1 arm points at; confirm it exists on lundquist before
-  # submitting.
-  dit_checkpoint: "/local/disk/hramachandran/work/wh_work/windinet/dit_checkpoints/shockwave_dit_ep20_baseline_step_09360.safetensors"
   scalar_conditioning:
     enabled: true
     scalar_names: ["gamma"]
@@ -143,7 +128,7 @@ checkpoints:
 wandb:
   enabled: false
   project: "windinet"
-  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "128res", "kl-sds-sweep", "sds", "sds-weight-sweep", "sds-w0p01"]
+  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "128res", "kl-sds-sweep", "sds", "untrained-critic", "sds-weight-sweep", "sds-w0p01"]
 
 seed: 42
 output_dir: "finetune_vae_whole_structure_baseline_ep20_sds_w0p01"
