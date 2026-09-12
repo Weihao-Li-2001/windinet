@@ -8,14 +8,24 @@
 # help answer).
 #
 # Identical to train_dit_lundquist_cosine_kl0.yaml (steps=8000, LR=1e-5,
-# effective_batch=32 via batch_size=8/accum=2 across 2 GPUs -- see that
-# config's header for why this batch_size, chosen from the 22507-22514
-# throughput sweep to fit lundquist's 12h partition kill) except
+# effective_batch=32 via batch_size=4/accum=4 -- CORRECTED 2026-09-12, see
+# that config's header for the full postmortem: batch_size=8 OOM'd job
+# 22753 right at the edge of A6000's 48GB once DDP + a resident AdamW
+# optimizer state were actually in the picture, something the 1-GPU
+# throughput sweep this was originally sized from never exercised) except
 # data/output_dir/tags pointing at the kl1e7 arm's own preprocessed data.
+#
+# GOTCHA (2026-09-12): don't submit this and _kl0.yaml back-to-back -- job
+# 22754 (this arm's first attempt) died at rendezvous (EADDRINUSE on port
+# 29500) because it landed on the same node/GPUs as the kl0 job submitted
+# in the same breath. Chain it instead, e.g.
+# `sbatch --dependency=afterany:<kl0-jobid> ...`, so it only starts once
+# the kl0 job has actually exited.
 #
 # Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
 # __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
-#   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
+#   sbatch --time=12:00:00 --dependency=afterany:<kl0-jobid> \
+#       jobs/lundquist/train_dit_2gpu.sbatch \
 #       finetune_vae_whole_structure_baseline_ep20_kl1e7 \
 #       configs/dit/train_dit_lundquist_cosine_kl1e7.yaml
 
@@ -41,8 +51,8 @@ scalar_conditioning:
 optimization:
   learning_rate: 1e-5
   steps: 8000
-  batch_size: 8
-  gradient_accumulation_steps: 2
+  batch_size: 4
+  gradient_accumulation_steps: 4
   max_grad_norm: 1.0
   optimizer_type: "adamw"
   scheduler_type: "cosine"

@@ -11,18 +11,39 @@
 # steps=8000, LR=1e-5, cosine schedule: same convention as the sng_pvc
 # ep20_baseline/cosine arms, for direct comparability.
 #
-# effective_batch=32 via batch_size=8, gradient_accumulation_steps=2, across
-# lundquist's 2 GPUs (8*2*2=32) -- NOT the smaller batch_size the smoketest
-# config uses. Picked from the 1-GPU DiT throughput sweep (jobs
-# 22507-22514, 2026-08-30, configs/dit/train_dit_lundquist_bs_sweep_bs*.yaml):
-# batch_size=8 ran a full 2h window on one A6000 with no OOM, so it's the
-# already-confirmed-safe choice, and it lands the highest steps/hour of the
-# sizes tested. This matters because lundquist's debug partition has a
-# **hard 12h kill** (see jobs/lundquist/train_dit.sbatch's note) -- at
-# batch_size=8/accum=2 the sweep's measured throughput (~9490 micro-steps/2h
-# at bs8, /2 for accum) extrapolates to well under that, whereas
-# batch_size=2 or 4 (accum=8/4 for the same effective_batch=32) extrapolate
-# to 13-15h and would not fit.
+# effective_batch=32 via batch_size=4, gradient_accumulation_steps=4, across
+# lundquist's 2 GPUs (4*4*2=32).
+#
+# CORRECTED 2026-09-12 after job 22753 OOM'd at batch_size=8/accum=2 (step
+# 120, "Tried to allocate 28.00 MiB ... 47.52/47.54 GiB in use" -- right on
+# the edge). That choice extrapolated batch_size=8's safety from the 1-GPU
+# throughput sweep (jobs 22507-22514, 2026-08-30), which never wrapped the
+# model in DDP or ran with a real AdamW optimizer state resident for more
+# than a few steps -- both add fixed per-GPU memory this 2B-param model
+# apparently cannot spare on a 48GB A6000. In hindsight this ignored the
+# codebase's own precedent: even lrz_ai's 80GB H100 at 256res (pricier than
+# this 128res data) only risks batch_size=2 (train_dit_lrz_ai.yaml's own
+# comment calls it "NOT a confirmed-safe combination"), and sng_pvc's
+# 128GB/tile XPUs still use batch_size=1. batch_size=4 was comfortably
+# non-crashing in the same 1-GPU sweep (no near-OOM signal, unlike bs8's
+# razor-thin margin), so it's the safer pick here.
+#
+# Wall-clock: lundquist's debug partition has a **hard 12h kill** (see
+# jobs/lundquist/train_dit.sbatch's note). The bs4/1-GPU sweep measured
+# ~4863 micro-steps/2h; at accum=4 that extrapolates to ~13h for 8000
+# optimizer steps -- close enough to the ceiling that a time-limit kill and
+# one resume (checkpoints.interval=120, keep_last_n=2 below) may be needed
+# to finish; see [[project_dit_stage2_multicluster]]'s resume-config
+# playbook if so.
+#
+# GOTCHA (2026-09-12): job 22754 (the kl1e7 sibling) died separately at
+# rendezvous (EADDRINUSE on port 29500) because it was submitted at the same
+# instant as this arm and landed on the same node/GPUs (both jobs logged
+# `gpus=0,1`) -- lundquist's debug partition does not appear to give
+# multi-GPU jobs exclusive GPU isolation the way sng_pvc/lrz_ai's do.
+# Submit this arm and its kl1e7 sibling ONE AT A TIME, not back-to-back --
+# e.g. chain the second with `--dependency=afterany:<this-jobid>` so Slurm
+# won't start it until this one has actually exited.
 #
 # Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
 # __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
@@ -52,8 +73,8 @@ scalar_conditioning:
 optimization:
   learning_rate: 1e-5
   steps: 8000
-  batch_size: 8
-  gradient_accumulation_steps: 2
+  batch_size: 4
+  gradient_accumulation_steps: 4
   max_grad_norm: 1.0
   optimizer_type: "adamw"
   scheduler_type: "cosine"
