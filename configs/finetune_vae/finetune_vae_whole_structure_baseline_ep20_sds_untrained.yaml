@@ -1,0 +1,134 @@
+# VAE finetuning config -- lundquist/128x128 KL-vs-SDS sweep, arm 4 (SDS
+# against an UNTRAINED critic). See finetune_vae_whole_structure_baseline_
+# ep20_kl0.yaml (arm 1/3, the reference) for the full sweep rationale and
+# finetune_vae_whole_structure_baseline_ep20_sds.yaml (arm 3/3, the
+# trained-critic SDS arm) for the SDS term itself.
+#
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep20_sds.yaml:
+#   sds.dit_checkpoint (shockwave_dit_ep20_baseline, a DiT already finetuned
+#   on THIS project's own VAE latents) -> sds.untrained_dit: true (the stock
+#   pretrained LTXV-2B transformer, never finetuned on shockwave latents at
+#   all, + a freshly random-initialized ScalarEmbedding since LTX-Video has
+#   no pretrained notion of gamma conditioning). See
+#   windinet.config.SdsLossConfig's docstring for why these are different
+#   hypotheses: the trained-critic arm risks circularity (a DiT tuned to a
+#   specific VAE's latent quirks reshaping that same VAE), whereas this arm
+#   tests against a task-independent prior. Everything else (resolution,
+#   cosine schedule, peak LR, adapter, the other four loss weights, sds
+#   weight 0.1) UNCHANGED, so this stays directly comparable to the other
+#   sweep arms.
+#
+# NOTE: unlike the trained-critic SDS arm, this one needs NO local DiT
+# checkpoint file on lundquist at all -- untrained_dit=true loads the stock
+# pretrained transformer via load_transformer(model_source), same as every
+# other config's model.model_source. No scp/BLOCKER step required.
+#
+# NOTE: this still loads a SECOND frozen model (the 2B-parameter DiT
+# transformer) into memory for the whole run and runs an extra full
+# transformer forward pass every train/eval step -- same memory/wall-clock
+# cost as the trained-critic SDS arm (not yet measured on lundquist's A6000s).
+#
+# Usage:
+#   sbatch jobs/lundquist/finetune_vae_2gpu.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_sds_untrained.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "/local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_128_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "cosine"
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable vs the ep20_kl0 baseline -- see header. Untuned first
+    # guess, not swept (same value as the trained-critic sds arm).
+    sds: 0.1
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+# THE other half of the variable above -- see header for the full rationale
+# and windinet/config.py's SdsLossConfig for every field's meaning.
+sds:
+  enabled: true
+  untrained_dit: true
+  model_source: "LTXV_2B_0.9.6_DEV"
+  scalar_conditioning:
+    enabled: true
+    scalar_names: ["gamma"]
+    scalar_ranges:
+      gamma: [1.0, 2.0]
+    embedding_dim: 4096
+    num_tokens_per_scalar: 4
+    fourier_features: 64
+    mlp_hidden_dim: 256
+    dropout: 0.1
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "cosine", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "128res", "kl-sds-sweep", "sds", "untrained-critic"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_sds_untrained"
+clean_output_dir: true

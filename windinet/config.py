@@ -724,6 +724,15 @@ class SdsLossConfig(ConfigBaseModel):
     the downstream DiT needs -- a concrete instance of the "latent shift"
     concern in latent_space_shift_measure.md.
 
+    v_phi (the frozen critic) is either an already-finetuned-on-this-project's
+    -own-latents DiT checkpoint (dit_checkpoint) or the stock pretrained
+    transformer with no shockwave finetuning at all (untrained_dit=true) --
+    see those two fields' docstrings. The latter avoids a circularity the
+    former has: a DiT trained to denoise a specific VAE's latents is, by
+    construction, a critic tuned to that VAE's own quirks, so using it to
+    reshape a new VAE's latents risks just reproducing the old latent
+    space's statistics rather than testing against a task-independent prior.
+
     w(sigma) is fixed at 1.0 (uniform), not a tunable schedule:
     LtxvTrainer._compute_loss (windinet/training/dit_trainer.py) uses the
     same unweighted masked-MSE for the DiT's own flow-matching loss, so this
@@ -765,11 +774,22 @@ class SdsLossConfig(ConfigBaseModel):
         default=None,
         description="Path to the exact model_weights_step_NNNNN.safetensors (or "
         "model_weights_best.safetensors) of an already-trained DiT run to distill from. "
-        "Required when enabled=true. The sibling scalar_embedding_*.safetensors is derived "
-        "automatically by substituting 'model_weights_' -> 'scalar_embedding_' (same "
-        "convention jobs/sng_pvc/eval_dit_vrmse.sbatch and LtxvTrainer._find_scalar_checkpoint "
-        "already use) -- it must exist; unlike eval_dit_vrmse.py's --untrained_dit control, "
-        "this loss has no meaningful fallback to a freshly-initialized ScalarEmbedding.",
+        "Required when enabled=true and untrained_dit=false. The sibling "
+        "scalar_embedding_*.safetensors is derived automatically by substituting "
+        "'model_weights_' -> 'scalar_embedding_' (same convention "
+        "jobs/sng_pvc/eval_dit_vrmse.sbatch and LtxvTrainer._find_scalar_checkpoint already "
+        "use) -- it must exist. Ignored when untrained_dit=true.",
+    )
+    untrained_dit: bool = Field(
+        default=False,
+        description="Distill from the stock pretrained transformer (config.model_source) "
+        "as-is, with no windinet DiT finetuning applied -- the SDS-loss analog of "
+        "eval_dit_vrmse.py's --untrained_dit control. Since LTX-Video has no pretrained "
+        "notion of gamma conditioning, ScalarEmbedding is left at its fresh random "
+        "initialization rather than loaded from a checkpoint. Mutually exclusive with "
+        "dit_checkpoint: this is for distilling from the original, never-finetuned-on-"
+        "shockwave-latents DiT (a fixed, task-independent critic), as opposed to the "
+        "already-finetuned-on-this-project's-own-latents checkpoint dit_checkpoint points at.",
     )
     scalar_conditioning: ScalarConditioningConfig = Field(
         default_factory=lambda: ScalarConditioningConfig(
@@ -799,8 +819,10 @@ class SdsLossConfig(ConfigBaseModel):
 
     @model_validator(mode="after")
     def validate_dit_checkpoint_when_enabled(self):
-        if self.enabled and not self.dit_checkpoint:
-            raise ValueError("sds.enabled=true requires sds.dit_checkpoint to be set")
+        if self.enabled and self.untrained_dit and self.dit_checkpoint:
+            raise ValueError("sds.untrained_dit=true and sds.dit_checkpoint are mutually exclusive")
+        if self.enabled and not self.untrained_dit and not self.dit_checkpoint:
+            raise ValueError("sds.enabled=true requires sds.dit_checkpoint (or sds.untrained_dit=true)")
         return self
 
 

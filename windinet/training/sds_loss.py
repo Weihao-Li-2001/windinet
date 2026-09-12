@@ -45,34 +45,46 @@ class SdsDistillationLoss:
     def __init__(self, config: SdsLossConfig, device: torch.device) -> None:
         self._config = config
 
-        dit_checkpoint = Path(config.dit_checkpoint)
-        if not dit_checkpoint.is_file():
-            raise FileNotFoundError(f"sds.dit_checkpoint not found: {dit_checkpoint}")
-
         transformer = load_transformer(config.model_source, dtype=torch.float32)
-        transformer.load_state_dict(load_file(dit_checkpoint))
+        scalar_embedding = ScalarEmbedding(config.scalar_conditioning)
+
+        if config.untrained_dit:
+            # Stock pretrained transformer, no shockwave finetuning -- LTX-Video has no
+            # pretrained notion of gamma conditioning, so ScalarEmbedding is left at its
+            # fresh random init rather than loaded (mirrors eval_dit_vrmse.py's
+            # --untrained_dit control).
+            logger.info(
+                "SDS distillation loss: untrained_dit=true -- using stock pretrained "
+                f"{config.model_source} transformer + a freshly random-initialized "
+                "ScalarEmbedding as the frozen critic"
+            )
+        else:
+            dit_checkpoint = Path(config.dit_checkpoint)
+            if not dit_checkpoint.is_file():
+                raise FileNotFoundError(f"sds.dit_checkpoint not found: {dit_checkpoint}")
+            transformer.load_state_dict(load_file(dit_checkpoint))
+
+            scalar_checkpoint = _find_scalar_checkpoint(dit_checkpoint)
+            if scalar_checkpoint is None:
+                raise FileNotFoundError(
+                    f"No sibling scalar_embedding_*.safetensors found next to {dit_checkpoint} -- "
+                    "the SDS loss needs the exact ScalarEmbedding the frozen DiT was trained with "
+                    "(set sds.untrained_dit=true instead if a freshly-initialized one is intended)."
+                )
+            scalar_embedding.load_state_dict(load_file(scalar_checkpoint))
+
+            logger.info(
+                f"SDS distillation loss: loaded frozen DiT from {dit_checkpoint} "
+                f"(+ scalar embedding {scalar_checkpoint})"
+            )
+
         transformer.requires_grad_(False)
         transformer.eval()
         self._transformer = transformer.to(device)
 
-        scalar_checkpoint = _find_scalar_checkpoint(dit_checkpoint)
-        if scalar_checkpoint is None:
-            raise FileNotFoundError(
-                f"No sibling scalar_embedding_*.safetensors found next to {dit_checkpoint} -- "
-                "the SDS loss needs the exact ScalarEmbedding the frozen DiT was trained with; "
-                "unlike eval_dit_vrmse.py's --untrained_dit control it has no meaningful "
-                "fallback to a freshly-initialized one."
-            )
-        scalar_embedding = ScalarEmbedding(config.scalar_conditioning)
-        scalar_embedding.load_state_dict(load_file(scalar_checkpoint))
         scalar_embedding.requires_grad_(False)
         scalar_embedding.eval()
         self._scalar_embedding = scalar_embedding.to(device)
-
-        logger.info(
-            f"SDS distillation loss: loaded frozen DiT from {dit_checkpoint} "
-            f"(+ scalar embedding {scalar_checkpoint})"
-        )
 
         sampler_cls = SAMPLERS[config.timestep_sampling_mode]
         self._timestep_sampler = sampler_cls(**config.timestep_sampling_params)
