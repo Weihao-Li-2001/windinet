@@ -1,0 +1,142 @@
+# VAE finetuning config -- SDS weight-sweep arm, upper bracket (w=1.0).
+# SINGLE VARIABLE vs finetune_vae_whole_structure_baseline_ep20_256res_sds.yaml
+# (the w=0.1 arm, an untuned first guess): loss_weighting.weights.sds only,
+# 0.1 -> 1.0 (10x). Everything else (resolution, schedule, adapter, dit
+# critic checkpoint, the other four loss weights) UNCHANGED, so this stays
+# directly comparable to the w=0.1 arm and to its w=0.01 sibling
+# (finetune_vae_whole_structure_baseline_ep20_256res_sds_w0p01.yaml).
+#
+# WHAT THIS TESTS: the w=0.1 SDS arm is currently the best real DiT result
+# in the project (5.9x vae-only floor, beating ep20_baseline's 6.5-6.7x --
+# see project_dit_stage2_multicluster notes), but that weight was never
+# swept, just a first guess. The KL family showed a monotonic
+# "stronger regularization = worse DiT rollout" trend, but SDS is a
+# task-aligned signal (distilling the actual DiT's own denoising behavior),
+# not a generic prior/entropy regularizer like KL -- so it is NOT assumed
+# the same monotonic-worse-with-strength relationship holds here. This arm
+# (w=1.0) and its w=0.01 sibling bracket w=0.1 by one decade each way,
+# mirroring the log-spacing already used for the kl1e5/kl1e6/kl1e7 sweep, to
+# find out whether the w=0.1 result sits near a sweet spot, or whether more
+# SDS pressure keeps helping (until it eventually costs too much
+# reconstruction fidelity, the same way strong KL did).
+#
+# CHECK BEFORE SUBMITTING: sds.dit_checkpoint below is the same
+# shockwave_dit_ep20_baseline critic checkpoint the w=0.1 arm used --
+# CONFIRM it still exists on whichever cluster this launches on (`ls` it)
+# before submitting.
+#
+# NOTE: this loads a SECOND frozen model (the 2B-parameter DiT transformer,
+# on top of the VAE already being finetuned) into memory for the whole run
+# and runs an extra full transformer forward pass every train/eval step --
+# same memory/wall-clock cost profile as the w=0.1 arm.
+#
+# Usage (sng_pvc, mirroring the w=0.1 arm's own launch):
+#   sbatch jobs/sng_pvc/finetune_vae.sbatch \
+#       configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_sds_w1.yaml \
+#       "${SCRATCH}/windinet/euler_mq_dataset/256x256_ds/train.h5"
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"
+  inflate_init: "zeros"
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  # Placeholder -- overridden at launch by the job script's DATA_DIR argument.
+  data_root: "/dss/dssfs02/pn82ku/pn82ku-dss-0000/neptuna_stuff/datasets/Euler_MQ/data/256x256_ds/train.h5"
+  normalization_stats_file: "configs/finetune_vae/euler_mq_256_only_train.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null
+  eval_sims: 675
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5
+  min_learning_rate: 1e-6
+  scheduler_type: "wsd"
+  stable_fraction: 0.7
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  strategy: "fixed"
+  weights:
+    rmse: 1.0
+    h1: 50.0
+    ssim: 0.15
+    mlw: 0.0
+    # THE variable vs the w=0.1 arm -- see header. Upper bracket, 10x the
+    # untuned first guess.
+    sds: 1.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+# THE other half of the variable above -- see header for the full formula
+# and windinet/config.py's SdsLossConfig for every field's meaning.
+sds:
+  enabled: true
+  model_source: "LTXV_2B_0.9.6_DEV"
+  # Same critic checkpoint as the w=0.1 arm -- see that file's own header for
+  # provenance (model_weights_best.safetensors did not exist for this run;
+  # this is the confirmed-existing step-09360 checkpoint instead).
+  dit_checkpoint: "/hppfs/scratch/0D/go76fuz2/windinet/outputs/shockwave_dit_ep20_baseline/checkpoints/model_weights_step_09360.safetensors"
+  scalar_conditioning:
+    enabled: true
+    scalar_names: ["gamma"]
+    scalar_ranges:
+      gamma: [1.0, 2.0]
+    embedding_dim: 4096
+    num_tokens_per_scalar: 4
+    fourier_features: 64
+    mlp_hidden_dim: 256
+    dropout: 0.1
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "windinet"
+  tags: ["vae", "inflate", "zeros-init", "wsd", "20ep", "lr1x", "shockwave-cfd", "whole-structure-baseline", "256res", "sds", "sds-weight-sweep", "sds-w1"]
+
+seed: 42
+output_dir: "finetune_vae_whole_structure_baseline_ep20_256res_sds_w1"
+clean_output_dir: true

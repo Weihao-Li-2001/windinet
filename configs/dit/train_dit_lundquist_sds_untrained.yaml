@@ -1,0 +1,97 @@
+# ShockWaveNet (DiT) training config -- 128res/lundquist DiT arm paired with
+# the untrained-critic SDS VAE arm
+# (finetune_vae_whole_structure_baseline_ep20_sds_untrained, VAE finetune job
+# 22759, preprocessed 2026-09-12 job 22768 -- 4500/4500 samples encoded, 0
+# skipped, see logs/lundquist/INDEX.tsv). Sibling to
+# train_dit_lundquist_cosine_kl0.yaml / train_dit_lundquist_cosine_kl1e7.yaml
+# in the same lundquist/128res sweep -- SINGLE VARIABLE vs those two is the
+# VAE checkpoint this was preprocessed from (untrained_dit=true SDS
+# regularization instead of KL), everything else (steps, LR, schedule,
+# batch_size/accum, scalar conditioning) UNCHANGED for direct comparability.
+#
+# This is the untrained-critic ablation, not the trained-critic SDS arm that
+# produced the project's best real DiT result so far (5.9x floor, sng_pvc/
+# 256res, see project_dit_stage2_multicluster notes) -- it tests whether SDS
+# distillation against a stock/randomly-initialized frozen DiT (no
+# shockwave finetuning at all) still helps, isolating "does SDS help because
+# it distills THIS PROJECT's specific DiT behavior" from "does SDS help
+# merely because denoising-with-a-transformer is itself a useful auxiliary
+# signal regardless of what that transformer actually learned."
+#
+# steps=8000, LR=1e-5, cosine schedule, batch_size=4/accum=4 (effective
+# batch 32): identical to the kl0/kl1e7 siblings' settings and rationale
+# (see train_dit_lundquist_cosine_kl0.yaml's header for the batch_size=4
+# OOM history and the GOTCHA about lundquist's single-host/no-GPU-isolation
+# concurrent-submission failure mode -- check `squeue` before submitting
+# this alongside another lundquist 2-GPU job, or chain with
+# `--dependency=afterany:<other-jobid>`).
+#
+# Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
+# __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
+#   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
+#       finetune_vae_whole_structure_baseline_ep20_sds_untrained \
+#       configs/dit/train_dit_lundquist_sds_untrained.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "sds-vae", "sds-untrained-critic"]
+
+seed: 42
+output_dir: "dit_outputs/lundquist/dit_sds_untrained"
