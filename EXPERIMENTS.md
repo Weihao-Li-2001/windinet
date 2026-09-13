@@ -27,7 +27,7 @@ because it's current, or moved verbatim into one of the two files above.
 - [Fixed setup](#fixed-setup)
 - [Weight provenance](#weight-provenance)
   - [DiT (stage 2) -- weight provenance](#dit-stage-2----weight-provenance)
-  - [DiT (stage 2) -- progress since VAE wrap-up](#dit-stage-2----progress-since-vae-wrap-up-updated-2026-08-29)
+  - [DiT (stage 2) -- progress since VAE wrap-up](#dit-stage-2----progress-since-vae-wrap-up-updated-2026-09-13)
 - [Established](#established)
 - [NOT established (previously treated as if it were)](#not-established-previously-treated-as-if-it-were)
 - [Open questions, in priority order](#open-questions-in-priority-order)
@@ -340,7 +340,7 @@ anywhere else in `dit_trainer.py`. Training runs entirely on the precomputed
 latents from `preprocess_dataset.py` (encoded with the real finetuned inflate
 VAE); this unused stock VAE just costs some CPU RAM at startup.
 
-### DiT (stage 2) -- progress since VAE wrap-up (updated 2026-08-29)
+### DiT (stage 2) -- progress since VAE wrap-up (updated 2026-09-13)
 
 Pipeline per cluster: `preprocess_dit_data.*` (VAE-encode the 256res dataset
 to latents with a finetuned VAE checkpoint) -> `train_dit*.*` (train the DiT
@@ -386,53 +386,212 @@ not assumed):
    of every other arm's 10000 steps. The one real run on this config
    (job 5762646) had already reached step 6099 -- i.e. `6099x64=390,336`
    samples, already past the `10000x32=320,000`-sample budget every other
-   arm targets at step 10000 -- before the mismatch was even noticed. See
-   "Open decisions" below.
+   arm targets at step 10000 -- before the mismatch was even noticed.
 
    **Resolved (2026-09-03):** the 2026-08-30 partial fix (raising
    `batch_size` 1->2 and dropping `accum` 16->8) only reduced serial
    micro-steps per optimizer step -- effective batch stayed at `2x8x4=64`,
    still double every other arm's 32 (the file's own comments flagged this
    as still-stale at the time). `gradient_accumulation_steps` dropped to 4
-   (`2x4x4=32`) to actually fix it -- option (b) below, restarting this arm
-   from step 0 rather than resuming job 5762646's checkpoint.
+   (`2x4x4=32`) to actually fix it, restarting this arm from step 0 rather
+   than resuming job 5762646's checkpoint (of the three options once
+   considered here, this is the one taken: a clean restart under the
+   corrected schedule rather than accepting the data-budget asymmetry or
+   truncating the anneal early).
+5. **lundquist: checkpoint-save GPU memory spike in `dit_trainer.py`
+   (found + fixed 2026-09-12).** Jobs 22753/22755 both OOM'd at the exact
+   same step (120 = the first `checkpoints.interval` boundary), regardless
+   of `batch_size` (8 vs 4) -- initially misdiagnosed as GPU contention from
+   overlapping concurrent submissions (fixed defensively anyway: commit
+   `c950914` chains multi-job lundquist submissions with
+   `--dependency=afterany` instead of relying on a human checking `squeue`
+   first), but the real cause was `_cast_optimizer_state`
+   (`windinet/training/dit_trainer.py`) calling `self._optimizer.state_dict()`
+   (returns the *live* fp32 `exp_avg`/`exp_avg_sq` tensors, no copy) and then
+   building a second bf16 copy (~7.7GB for the 1.92B-param transformer) that
+   briefly coexisted on-GPU with the still-live fp32 originals -- a
+   multi-GB transient spike at *every* checkpoint save, independent of
+   batch_size or concurrent jobs. Fixed in commit `ff09017`: the save path
+   now passes `device="cpu"` so each tensor moves off-GPU as it's cast, one
+   at a time. Same class of bug could in principle recur on lrz_ai/sng_pvc
+   if they ever hit a similarly tight memory budget, but neither has so far.
 
-**Per-arm status (as of 2026-08-29, sng_pvc jobs just submitted, outcomes
-not yet known):**
+**Per-arm status (updated 2026-09-12, with real sng_pvc eval numbers --
+see [Weight provenance](#dit-stage-2----weight-provenance) note above for
+where checkpoints/evals actually live: `logs/sng_pvc/eval_dit_vrmse/<job>/
+vrmse_summary.json`):**
 
-| Cluster | Arm (VAE checkpoint) | Encode | DiT training | Best result so far |
+**sng_pvc, all arms VAE-encoded from `finetune_vae_whole_structure_baseline_
+ep20_256res*` checkpoints (256res), full eval_dit_vrmse read-out
+(vae_only_vrmse = reconstruction floor, vae_dit_vrmse = full rollout, ratio
+= how much worse the DiT rollout is than the VAE could do alone):**
+
+| Arm | Eval job (n) | vae_only vrmse | vae+dit vrmse | ratio to floor |
 |---|---|---|---|---|
-| lrz_ai | baseline (ep30) | done (job 5759865) | 3 attempts: 2GPU pre-fix crash (5761635), 4GPU post-fix -> step 6099/10000, time-limit killed (5762646), 2GPU post-fix **restarted from scratch** (not the prepared resume config) -> step 5259/10000, time-limit killed (5764225) | val_loss 0.273693 @ step 6000 (job 5762646, best on disk) |
-| lrz_ai | kl1e5 (ep30) | done (job 5759867) | pre-fix crash only (5761636) -- **never retried since the DDP fix** | none (crashed before step 1) |
-| lrz_ai | kl1e6 (ep30) | done (job 5759866) | pre-fix crash only (5761637) -- **never retried since the DDP fix** | none |
-| lrz_ai | anchor_kl1e7 (ep30) | done (job 5759868) | pre-fix crash only (5761638) -- **never retried since the DDP fix** | none |
-| sng_pvc | baseline (ep30) | done (job 529547) | 4 attempts, all crashed on the HF-cache bug (529590/604/606/635); resubmitted 2026-08-29 after the fix | pending |
-| sng_pvc | ep20 plain baseline | done (job 529637) | needed a new config (`train_dit_sng_pvc_ep20_baseline.yaml`, added 2026-08-29 -- no pre-existing sng_pvc DiT config covered this arm without colliding `output_dir` with the ep30 baseline); submitted 2026-08-29 | pending |
-| sng_pvc | ep20 kl1e5 | done (job 529638) | submitted 2026-08-29 | pending |
-| sng_pvc | ep20 anchor_kl1e7 | done (job 529639) | submitted 2026-08-29 | pending |
-| sng_pvc | ep20 kl1e6 | **not encoded** | -- | -- |
+| **SDS** (`shockwave_dit_sds`, step 8033) | 536316 (675) | 0.0621 | **0.3662** | **5.9x -- current best** |
+| ep20_baseline (`shockwave_dit_ep20_baseline`, step 9360) | 534493-495 (50 each) | 0.0660 | 0.388-0.405 | 5.9-6.1x |
+| anchor_kl1e7 (`shockwave_dit_anchor_kl1e7`, step 9480) | 529881 (50) | 0.0693 | 1.037 | 15.0x |
+| cosine_kl1e7 (weakest KL) | 535883 (675) | 0.0578 | 1.085 | 18.8x |
+| cosine_kl1e6 | 535882 (675) | 0.0590 | 1.130 | 19.2x |
+| cosine_kl1e5 (strongest KL) | 535373 (675) | 0.0620 | 1.329 | 21.4x |
+| untrained-DiT control, on ep20_baseline VAE (stock pretrained transformer + random ScalarEmbedding, `--untrained_dit`) | 535070 (675) | 0.0598 | 1.355 | 22.7x |
+| untrained-DiT + never-finetuned VAE (double floor) | 535069 (675) | 0.472 | 2.921 | 6.2x (but off a much worse floor) |
 
-**Open decisions (need a call, not just a bug fix):**
+**Headline result (2026-09-11): SDS beats every other arm, including the
+plain no-regularization baseline.** `shockwave_dit_sds` was trained on
+latents from `finetune_vae_whole_structure_baseline_ep20_256res_sds`, a VAE
+finetuned with `windinet.training.sds_loss.SdsDistillationLoss` (PhD-advisor
+idea, 2026-09-08) -- distilling the *frozen, already-trained*
+`shockwave_dit_ep20_baseline` checkpoint's flow-matching velocity into the
+VAE encoder during VAE finetuning (`sds.dit_checkpoint`, see
+`configs/finetune_vae/finetune_vae_whole_structure_baseline_ep20_256res_sds.yaml`
+and `windinet.config.SdsLossConfig`'s docstring for the exact loss). Its
+`vae_only_vrmse` is unchanged from the other ep20 arms (~0.06) -- SDS did
+not hurt pixel reconstruction -- but produced the latent space with both
+the lowest absolute `vae_dit_vrmse` and the best ratio-to-floor of anything
+tried. This is the strongest lead so far on the "latent shift" problem: KL
+regularization at any weight tested (1e-5/1e-6/1e-7) made the DiT's job
+*harder*, monotonically with KL strength, while directly optimizing the
+encoder for DiT-denoisability made it easier.
 
-1. **lrz_ai 4-GPU effective-batch mismatch (#4 above).** Three options: (a)
-   accept the 2x-data asymmetry and just note it when comparing arms, (b)
-   fix `gradient_accumulation_steps` to 8 (restores effective_batch=32,
-   matches everything else) and treat the existing step-6099 progress as
-   belonging to a different, no-longer-comparable schedule -- i.e. restart
-   this arm from step 0, (c) keep the run as-is but stop it at step 5000
-   instead of 10000 for data-budget parity -- at the cost of an incomplete
-   cosine LR anneal (schedule is authored for a 10000-step horizon; stopping
-   at 5000 leaves LR mid-decay, typically worse final quality than a full
-   anneal). Not resolved as of 2026-08-29.
-2. **lrz_ai kl1e5/kl1e6/anchor_kl1e7 arms need resubmitting** with the
-   post-fix code -- they never got a real attempt, only the pre-`8b961b2`
-   crash.
-3. **Is "ep20 plain baseline" a real arm or just a leftover control?** It
-   was preprocessed alongside the ep20 KL/anchor sweep but has no obvious
-   role in a KL-weight comparison (there's already an ep30 plain baseline).
-   Confirm intent before spending a full sng_pvc DiT run on it.
-4. **sng_pvc kl1e6 was never encoded** -- unclear if that arm was dropped
-   intentionally or just not gotten to yet.
+**Second SDS variant (untrained critic) run and confirmed real, not a
+normalization artifact (2026-09-13, lundquist, 128res).** `sds.untrained_dit=true`
+(commit `e0b5315`/`024b3f1`, config
+`finetune_vae_whole_structure_baseline_ep20_sds_untrained.yaml`) distills
+from the *stock pretrained* transformer instead of the task-tuned
+`shockwave_dit_ep20_baseline` critic, to check whether the SDS win above
+depends on the critic being tuned to this project's own latents (a
+circularity risk) or holds against a task-independent prior too. Full
+675-sample `eval_dit_vrmse` on lundquist's 128res cosine-schedule sweep
+(all three arms VAE-encoded from their own `finetune_vae_whole_structure_
+baseline_ep20_{kl0,kl1e7,sds_untrained}` checkpoints):
+
+| Arm | Eval job | vae_only vrmse | vae+dit vrmse | ratio to floor |
+|---|---|---|---|---|
+| **sds_untrained** | 22776 | 0.0894 | **0.3934** | **4.40x -- best on lundquist** |
+| kl0 (no KL, plain baseline) | 22764 | 0.0864 | 0.4216 | 4.88x |
+| kl1e7 (weakest KL) | 22775 | 0.0865 | 1.0879 | 12.58x |
+
+`sds_untrained` beats the plain no-regularization baseline on BOTH latent
+(`latent_vrmse_mean` 0.083 vs kl0's 0.617, ~7.4x better) and pixel space
+(0.393 vs 0.422) -- confirming the sng_pvc trained-critic result's
+qualitative pattern (SDS beats plain baseline; KL always hurts) also holds
+with a task-independent, never-finetuned critic. Margin over baseline is
+real but much smaller in pixel space (~7%) than the raw latent numbers
+suggest -- see the scale-artifact check below for why, and the open
+question this raises about closing that gap.
+
+**Scale-artifact check (`scripts/diagnose_latent_scale.py`, jobs 22774/22777):**
+before trusting the ~7.4x latent_vrmse gap above, checked whether it was a
+normalization artifact -- `vrms_loss` divides by the TARGET's own per-sample
+variance, so a target that's internally flatter/simpler (lower variance)
+looks "easier" even without the DiT actually predicting it more accurately
+in absolute terms. Measured directly: kl0's target latent std is 1.150
+(job 22774) vs sds_untrained's 0.839 (job 22777) -- some real shrinkage
+(~27%), but nowhere near enough to explain the gap. The RAW (unnormalized)
+`latent_rmse_mean` is 0.7128 for kl0 vs 0.0707 for sds_untrained -- a
+genuine ~10x absolute-error difference independent of any normalization
+choice. Cross-normalizing sds_untrained's raw error against kl0's (larger)
+target std gives `cross_normalized_vrmse=0.0615`, still tiny -- if the
+latent-space win were a normalization artifact, judging it by kl0's own
+yardstick should have erased most of the advantage; it didn't. **Verdict:
+the latent-space improvement is real, not a scale artifact** -- which
+sharpens rather than resolves the puzzle above (why doesn't a real ~10x
+latent-space win produce more than a ~7% pixel-space win -- see the new
+open question below).
+
+**The worst-5 latent channels overlap heavily between the KL arms**
+(channels 107, 88, 109, 120 appear in both kl1e6's and kl1e7's worst lists)
+-- suggests specific latent channels are structurally hard to predict
+regardless of KL strength, worth a targeted look independent of the
+KL-vs-SDS question.
+
+**lrz_ai: stalled since 2026-08-28, no action since the 2026-09-03 fix.**
+The effective-batch mismatch (#4 above) was fixed in
+`configs/dit/train_dit_lrz_ai.yaml` (commit `6d5b7f2`) and `train_dit_4gpu.job`'s
+`--time` recalibrated to 12h, but **no new job has been submitted against
+the fixed config** -- `logs/lrz_ai/INDEX.tsv`'s last DiT-training row is
+still the pre-fix job 5764225. The kl1e5/kl1e6/anchor_kl1e7 arms have never
+had a real post-DDP-fix attempt either (only the pre-`8b961b2` crash).
+**Resubmitting all 4 lrz_ai arms under the fixed config is the single
+highest-value pending action on that cluster.**
+
+**512x512 VAE (Experiment 6, `finetune_vae_whole_structure_baseline_ep20_512res.yaml`):
+status unconfirmed, likely still incomplete.** Job 5767882 (2026-09-01) hit
+an effective-batch doubling bug on lrz_ai's 4-GPU launcher (same class of
+bug as lrz_ai's DiT config, #4 above); commit `18bf672` ("Fix 512res VAE
+4-GPU effective-batch doubling; split run into 2 segments") fixed it and
+added `finetune_vae_whole_structure_baseline_ep20_512res_resume.yaml`, but
+`logs/lrz_ai/INDEX.tsv` shows no resume submission recorded and no
+`finetune_vae_outputs/*/*_512res*` directory exists in this checkout --
+**confirm whether the resume job actually ran before reporting this
+resolution-scaling question as answered.**
+
+**lundquist: only started real DiT training 2026-09-12, three bugs deep
+before a clean run landed** -- batch_size sizing (don't extrapolate from
+the solo-process throughput sweep; matched to the other clusters' own
+precedent instead, `batch_size=4`/`accum=4`), the sequential-submission
+dependency fix, and the checkpoint-save memory spike (bug #5 above, the
+actual root cause of both OOMs). A 128res cosine KL sweep (kl0/kl1e7 arms)
+plus the untrained-critic SDS arm is the first real production attempt
+there; full-eval results are in the SDS write-up above (`sds_untrained`
+best at 4.40x-to-floor, kl1e7 worst at 12.58x, kl0 in between at 4.88x).
+
+**`cosine_kl0_15k` resume in progress (2026-09-13).** Job 22767 was killed
+by the debug partition's 8h limit at step 10416/15000 (submitted without
+the `--time=12:00:00` override its own config's header called for --
+plain operator error, not a code bug). `configs/dit/train_dit_lundquist_
+cosine_kl0_15k_resume.yaml` points `model.load_checkpoint` at the run's
+`checkpoints/` directory (picks the newest step automatically) to continue
+the SAME cosine schedule rather than restart it; resubmitted as job 22773
+with `--time=12:00:00`, currently past step 10900 and climbing normally.
+
+**lundquist SDS weight sweep (`sds_w1`/`sds_w0p01`, VAE finetuning only,
+in progress) -- see also the sng_pvc weight-sweep note.** Both use the
+untrained critic. `val_vrmse` at their latest committed epoch: `sds_w1`
+(weight 1.0, done, 20 epochs) 0.0997; `sds_w0p01` (weight 0.01, epoch
+13/20 so far) ~0.096; for reference, `sds_untrained` itself (weight 0.1)
+converged to 0.0893 and the plain no-SDS baseline (`kl0`) to 0.0863 --
+**all four numbers sit within a narrow 0.086-0.100 band**, i.e. VAE
+reconstruction quality is NOT strongly sensitive to SDS weight in the
+0.01-1.0 range tested (an earlier reading of this sweep, since retracted,
+mis-read `val_total_loss` -- which DOES scale with weight, since it's the
+weighted sum including the SDS term itself -- as `val_vrmse`; the actual
+reconstruction-quality column barely moves). Neither `sds_w1` nor
+`sds_w0p01` has been preprocessed/trained/evaluated as a DiT arm yet --
+open, see below.
+
+**Still-open bookkeeping questions**, carried over from 2026-08-29,
+unresolved:
+1. **Is "ep20 plain baseline" (sng_pvc) a real arm or a leftover control?**
+   It has no obvious role in the KL-weight comparison (there's already an
+   ep30 plain baseline) -- turned out to matter a lot in retrospect (it's
+   the SDS distillation target and the runner-up result), so treat it as
+   load-bearing rather than pruning it.
+2. **sng_pvc kl1e6 (ep20/256res arm) was never encoded** -- unclear if
+   dropped intentionally; low priority now that the cosine-schedule kl1e6
+   arm (a different config) has a real result above.
+3. **Why does a real ~10x latent-space accuracy win only produce a ~7%
+   pixel-space win (`sds_untrained` vs `kl0`, 2026-09-13)?** Confirmed real
+   (not a normalization artifact, see the scale-artifact check above), so
+   the gap must be explained some other way. `vae_only_vrmse` is nearly
+   identical between the two arms (0.086 vs 0.089), and error-composition
+   arithmetic (treating vrmse like an L2 norm, `vae_dit^2 ~= vae_only^2 +
+   forecast^2`) puts the DiT-forecast-attributable pixel error at ~0.41
+   (kl0) vs ~0.38 (sds_untrained) -- the VAE's own reconstruction floor is a
+   small fraction of the total either way, so the floor isn't what's
+   swallowing the win. Two candidate mechanisms, not yet distinguished: (a)
+   the decoder is locally sensitive/high-Lipschitz around the data
+   manifold, so even a much smaller residual latent error still gets
+   amplified on decode; (b) shockwave/compressible-flow dynamics are
+   chaotic enough that any nonzero rollout deviation compounds over the
+   sequence, so aggregate (whole-sequence) latent accuracy doesn't
+   translate linearly into aggregate pixel accuracy -- late frames could be
+   dominating the pixel_vrmse average regardless of how good early frames
+   are. Cheapest next diagnostic: a per-frame (not just per-channel)
+   vrmse breakdown -- if error is flat across frames, favors (a); if it
+   grows with frame index, favors (b). Neither `eval_dit_vrmse.py` nor the
+   training-time visualization currently reports this breakdown.
 
 ## Established
 
