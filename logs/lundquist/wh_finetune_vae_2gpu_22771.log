@@ -543,3 +543,167 @@ epoch 15 step 1670  loss=0.047902  lr=1.27e-05  [rmse=0.0160 h1=0.0004 ssim=0.04
 epoch 15 step 1680  loss=0.044818  lr=1.24e-05  [rmse=0.0138 h1=0.0003 ssim=0.0356 mlw=0.0000]
 epoch 15 step 1690  loss=0.046216  lr=1.21e-05  [rmse=0.0204 h1=0.0006 ssim=0.0641 mlw=0.0000]
 epoch 15 step 1700  loss=0.045651  lr=1.19e-05  [rmse=0.0128 h1=0.0003 ssim=0.0489 mlw=0.0000]
+epoch 15 step 1710  loss=0.044824  lr=1.16e-05  [rmse=0.0156 h1=0.0003 ssim=0.0456 mlw=0.0000]
+epoch 15 step 1720  loss=0.045307  lr=1.13e-05  [rmse=0.0146 h1=0.0003 ssim=0.0432 mlw=0.0000]
+epoch 15 step 1730  loss=0.045474  lr=1.10e-05  [rmse=0.0147 h1=0.0004 ssim=0.0417 mlw=0.0000]
+epoch 15 step 1740  loss=0.045664  lr=1.07e-05  [rmse=0.0109 h1=0.0002 ssim=0.0316 mlw=0.0000]
+epoch 15 step 1750  loss=0.046337  lr=1.04e-05  [rmse=0.0150 h1=0.0003 ssim=0.0520 mlw=0.0000]
+epoch 15 step 1760  loss=0.045920  lr=1.01e-05  [rmse=0.0119 h1=0.0002 ssim=0.0455 mlw=0.0000]
+epoch 15 step 1770  loss=0.045949  lr=9.87e-06  [rmse=0.0109 h1=0.0002 ssim=0.0404 mlw=0.0000]
+epoch 15 step 1780  loss=0.045842  lr=9.60e-06  [rmse=0.0157 h1=0.0004 ssim=0.0476 mlw=0.0000]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:975
+         ssim=0.1500, mlw=0.0000, sds=0.0100                                    
+INFO     [rank 0] Epoch 15: train_loss=0.045504              vae_trainer.py:1014
+         val_loss=0.045335  val_VRMSE=0.088814  lr=9.47e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,      vae_trainer.py:1040
+         metrics/loss_curves.png                                                
+INFO     [rank 0] New best checkpoint (epoch 15,             vae_trainer.py:1353
+         val_vrmse=0.088814):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 15 timing: train=1222.3s eval=85.4s  vae_trainer.py:1074
+         viz=0.0s ckpt=44.6s total=1353.3s                                      
+epoch 16 step 1790  loss=0.047752  lr=9.33e-06  [rmse=0.0159 h1=0.0004 ssim=0.0428 mlw=0.0000]
+epoch 16 step 1800  loss=0.045365  lr=9.07e-06  [rmse=0.0139 h1=0.0003 ssim=0.0440 mlw=0.0000]
+epoch 16 step 1810  loss=0.045400  lr=8.81e-06  [rmse=0.0209 h1=0.0006 ssim=0.0678 mlw=0.0000]
+epoch 16 step 1820  loss=0.044652  lr=8.55e-06  [rmse=0.0137 h1=0.0003 ssim=0.0436 mlw=0.0000]
+epoch 16 step 1830  loss=0.045054  lr=8.30e-06  [rmse=0.0189 h1=0.0005 ssim=0.0536 mlw=0.0000]
+epoch 16 step 1840  loss=0.045318  lr=8.05e-06  [rmse=0.0124 h1=0.0002 ssim=0.0304 mlw=0.0000]
+epoch 16 step 1850  loss=0.045946  lr=7.81e-06  [rmse=0.0166 h1=0.0004 ssim=0.0522 mlw=0.0000]
+epoch 16 step 1860  loss=0.045936  lr=7.56e-06  [rmse=0.0124 h1=0.0002 ssim=0.0420 mlw=0.0000]
+epoch 16 step 1870  loss=0.045949  lr=7.32e-06  [rmse=0.0158 h1=0.0004 ssim=0.0548 mlw=0.0000]
+epoch 16 step 1880  loss=0.045492  lr=7.09e-06  [rmse=0.0096 h1=0.0001 ssim=0.0329 mlw=0.0000]
+epoch 16 step 1890  loss=0.045725  lr=6.86e-06  [rmse=0.0144 h1=0.0003 ssim=0.0451 mlw=0.0000]
+epoch 16 step 1900  loss=0.045923  lr=6.63e-06  [rmse=0.0166 h1=0.0004 ssim=0.0477 mlw=0.0000]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:975
+         ssim=0.1500, mlw=0.0000, sds=0.0100                                    
+INFO     [rank 0] Epoch 16: train_loss=0.045967              vae_trainer.py:1014
+         val_loss=0.044911  val_VRMSE=0.087235  lr=6.54e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,      vae_trainer.py:1040
+         metrics/loss_curves.png                                                
+INFO     [rank 0] Saved 12 validation reconstruction PNGs    vae_trainer.py:1254
+         for epoch 16                                                           
+INFO     [rank 0] New best checkpoint (epoch 16,             vae_trainer.py:1353
+         val_vrmse=0.087235):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 16 timing: train=1221.5s eval=85.5s  vae_trainer.py:1074
+         viz=16.1s ckpt=45.3s total=1369.4s                                     
+epoch 17 step 1910  loss=0.047895  lr=6.41e-06  [rmse=0.0162 h1=0.0004 ssim=0.0463 mlw=0.0000]
+epoch 17 step 1920  loss=0.046832  lr=6.19e-06  [rmse=0.0104 h1=0.0002 ssim=0.0335 mlw=0.0000]
+epoch 17 step 1930  loss=0.046274  lr=5.97e-06  [rmse=0.0131 h1=0.0003 ssim=0.0435 mlw=0.0000]
+epoch 17 step 1940  loss=0.044859  lr=5.76e-06  [rmse=0.0125 h1=0.0002 ssim=0.0407 mlw=0.0000]
+epoch 17 step 1950  loss=0.045172  lr=5.56e-06  [rmse=0.0134 h1=0.0003 ssim=0.0447 mlw=0.0000]
+epoch 17 step 1960  loss=0.045231  lr=5.35e-06  [rmse=0.0162 h1=0.0004 ssim=0.0481 mlw=0.0000]
+epoch 17 step 1970  loss=0.044897  lr=5.15e-06  [rmse=0.0151 h1=0.0003 ssim=0.0510 mlw=0.0000]
+epoch 17 step 1980  loss=0.045093  lr=4.96e-06  [rmse=0.0173 h1=0.0004 ssim=0.0510 mlw=0.0000]
+epoch 17 step 1990  loss=0.044863  lr=4.77e-06  [rmse=0.0178 h1=0.0005 ssim=0.0495 mlw=0.0000]
+epoch 17 step 2000  loss=0.044713  lr=4.58e-06  [rmse=0.0145 h1=0.0003 ssim=0.0501 mlw=0.0000]
+epoch 17 step 2010  loss=0.044946  lr=4.40e-06  [rmse=0.0119 h1=0.0002 ssim=0.0346 mlw=0.0000]
+epoch 17 step 2020  loss=0.044975  lr=4.22e-06  [rmse=0.0137 h1=0.0003 ssim=0.0407 mlw=0.0000]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:975
+         ssim=0.1500, mlw=0.0000, sds=0.0100                                    
+INFO     [rank 0] Epoch 17: train_loss=0.045026              vae_trainer.py:1014
+         val_loss=0.044901  val_VRMSE=0.086860  lr=4.17e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,      vae_trainer.py:1040
+         metrics/loss_curves.png                                                
+INFO     [rank 0] New best checkpoint (epoch 17,             vae_trainer.py:1353
+         val_vrmse=0.086860):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 17 timing: train=1222.8s eval=85.3s  vae_trainer.py:1074
+         viz=0.0s ckpt=44.7s total=1353.6s                                      
+epoch 18 step 2030  loss=0.049483  lr=4.05e-06  [rmse=0.0155 h1=0.0004 ssim=0.0447 mlw=0.0000]
+epoch 18 step 2040  loss=0.046997  lr=3.88e-06  [rmse=0.0133 h1=0.0003 ssim=0.0400 mlw=0.0000]
+epoch 18 step 2050  loss=0.046553  lr=3.72e-06  [rmse=0.0133 h1=0.0003 ssim=0.0385 mlw=0.0000]
+epoch 18 step 2060  loss=0.046406  lr=3.56e-06  [rmse=0.0159 h1=0.0004 ssim=0.0587 mlw=0.0000]
+epoch 18 step 2070  loss=0.046222  lr=3.40e-06  [rmse=0.0162 h1=0.0004 ssim=0.0489 mlw=0.0000]
+epoch 18 step 2080  loss=0.045465  lr=3.25e-06  [rmse=0.0126 h1=0.0002 ssim=0.0405 mlw=0.0000]
+epoch 18 step 2090  loss=0.045521  lr=3.11e-06  [rmse=0.0119 h1=0.0002 ssim=0.0403 mlw=0.0000]
+epoch 18 step 2100  loss=0.045752  lr=2.97e-06  [rmse=0.0169 h1=0.0004 ssim=0.0483 mlw=0.0000]
+epoch 18 step 2110  loss=0.045742  lr=2.83e-06  [rmse=0.0149 h1=0.0003 ssim=0.0508 mlw=0.0000]
+epoch 18 step 2120  loss=0.045891  lr=2.70e-06  [rmse=0.0136 h1=0.0003 ssim=0.0360 mlw=0.0000]
+epoch 18 step 2130  loss=0.046036  lr=2.57e-06  [rmse=0.0142 h1=0.0003 ssim=0.0479 mlw=0.0000]
+epoch 18 step 2140  loss=0.045800  lr=2.45e-06  [rmse=0.0127 h1=0.0002 ssim=0.0405 mlw=0.0000]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:975
+         ssim=0.1500, mlw=0.0000, sds=0.0100                                    
+INFO     [rank 0] Epoch 18: train_loss=0.045813              vae_trainer.py:1014
+         val_loss=0.044654  val_VRMSE=0.086639  lr=2.43e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,      vae_trainer.py:1040
+         metrics/loss_curves.png                                                
+INFO     [rank 0] New best checkpoint (epoch 18,             vae_trainer.py:1353
+         val_vrmse=0.086639):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 18 timing: train=1222.1s eval=85.9s  vae_trainer.py:1074
+         viz=0.0s ckpt=45.8s total=1354.5s                                      
+epoch 19 step 2150  loss=0.044511  lr=2.33e-06  [rmse=0.0136 h1=0.0003 ssim=0.0434 mlw=0.0000]
+epoch 19 step 2160  loss=0.045236  lr=2.22e-06  [rmse=0.0098 h1=0.0001 ssim=0.0342 mlw=0.0000]
+epoch 19 step 2170  loss=0.045831  lr=2.11e-06  [rmse=0.0125 h1=0.0002 ssim=0.0342 mlw=0.0000]
+epoch 19 step 2180  loss=0.046134  lr=2.01e-06  [rmse=0.0133 h1=0.0003 ssim=0.0422 mlw=0.0000]
+epoch 19 step 2190  loss=0.045480  lr=1.91e-06  [rmse=0.0134 h1=0.0003 ssim=0.0444 mlw=0.0000]
+epoch 19 step 2200  loss=0.045427  lr=1.82e-06  [rmse=0.0140 h1=0.0003 ssim=0.0446 mlw=0.0000]
+epoch 19 step 2210  loss=0.045112  lr=1.73e-06  [rmse=0.0122 h1=0.0002 ssim=0.0358 mlw=0.0000]
+epoch 19 step 2220  loss=0.045194  lr=1.65e-06  [rmse=0.0142 h1=0.0003 ssim=0.0501 mlw=0.0000]
+epoch 19 step 2230  loss=0.044624  lr=1.57e-06  [rmse=0.0125 h1=0.0002 ssim=0.0357 mlw=0.0000]
+epoch 19 step 2240  loss=0.044817  lr=1.50e-06  [rmse=0.0092 h1=0.0001 ssim=0.0305 mlw=0.0000]
+epoch 19 step 2250  loss=0.044795  lr=1.43e-06  [rmse=0.0166 h1=0.0004 ssim=0.0452 mlw=0.0000]
+epoch 19 step 2260  loss=0.044780  lr=1.37e-06  [rmse=0.0114 h1=0.0002 ssim=0.0367 mlw=0.0000]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:975
+         ssim=0.1500, mlw=0.0000, sds=0.0100                                    
+INFO     [rank 0] Epoch 19: train_loss=0.044794              vae_trainer.py:1014
+         val_loss=0.044922  val_VRMSE=0.086530  lr=1.36e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,      vae_trainer.py:1040
+         metrics/loss_curves.png                                                
+INFO     [rank 0] New best checkpoint (epoch 19,             vae_trainer.py:1353
+         val_vrmse=0.086530):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 19 timing: train=1222.1s eval=85.8s  vae_trainer.py:1074
+         viz=0.0s ckpt=44.6s total=1353.3s                                      
+epoch 20 step 2270  loss=0.044856  lr=1.31e-06  [rmse=0.0183 h1=0.0005 ssim=0.0529 mlw=0.0000]
+epoch 20 step 2280  loss=0.044525  lr=1.25e-06  [rmse=0.0121 h1=0.0002 ssim=0.0371 mlw=0.0000]
+epoch 20 step 2290  loss=0.046688  lr=1.21e-06  [rmse=0.0133 h1=0.0003 ssim=0.0438 mlw=0.0000]
+epoch 20 step 2300  loss=0.046054  lr=1.16e-06  [rmse=0.0145 h1=0.0003 ssim=0.0485 mlw=0.0000]
+epoch 20 step 2310  loss=0.046148  lr=1.12e-06  [rmse=0.0120 h1=0.0002 ssim=0.0370 mlw=0.0000]
+epoch 20 step 2320  loss=0.046166  lr=1.09e-06  [rmse=0.0195 h1=0.0006 ssim=0.0577 mlw=0.0000]
+epoch 20 step 2330  loss=0.045576  lr=1.06e-06  [rmse=0.0135 h1=0.0003 ssim=0.0404 mlw=0.0000]
+epoch 20 step 2340  loss=0.045626  lr=1.04e-06  [rmse=0.0142 h1=0.0003 ssim=0.0398 mlw=0.0000]
+epoch 20 step 2350  loss=0.045421  lr=1.02e-06  [rmse=0.0118 h1=0.0002 ssim=0.0407 mlw=0.0000]
+epoch 20 step 2360  loss=0.045285  lr=1.01e-06  [rmse=0.0184 h1=0.0005 ssim=0.0554 mlw=0.0000]
+epoch 20 step 2370  loss=0.045538  lr=1.00e-06  [rmse=0.0137 h1=0.0003 ssim=0.0471 mlw=0.0000]
+epoch 20 step 2380  loss=0.045190  lr=1.00e-06  [rmse=0.0119 h1=0.0002 ssim=0.0452 mlw=0.0000]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:975
+         ssim=0.1500, mlw=0.0000, sds=0.0100                                    
+INFO     [rank 0] Epoch 20: train_loss=0.045190              vae_trainer.py:1014
+         val_loss=0.044859  val_VRMSE=0.086470  lr=1.00e-06                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,      vae_trainer.py:1040
+         metrics/loss_curves.png                                                
+INFO     [rank 0] Saved 12 validation reconstruction PNGs    vae_trainer.py:1254
+         for epoch 20                                                           
+INFO     [rank 0] New best checkpoint (epoch 20,             vae_trainer.py:1353
+         val_vrmse=0.086470):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 20 timing: train=1222.4s eval=86.1s  vae_trainer.py:1074
+         viz=16.4s ckpt=46.0s total=1371.6s                                     
+╭──────────────────────────────────────────────────────────────────────────────╮
+╰──────────────────────────────────────────────────────────────────────────────╯INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Best epoch: 20 (val_vrmse=0.086470)        vae_trainer.py:1092
+INFO     [rank 0] Run finished: removed                      vae_trainer.py:1110
+         ['vae_shockwave_last.safetensors',                                     
+         'vae_shockwave_last.state.pt'] (kept only                              
+         vae_shockwave_best.safetensors)                                        
+
+Training complete. Checkpoint: 
+/local/disk/hramachandran/work/wh_work/windinet/finetune_vae_outputs/lundquist/f
+inetune_vae_whole_structure_baseline_ep20_sds_w0p01/checkpoints/vae_shockwave_be
+st.safetensors
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json?filters=%7B%22label%22%3A%7B%22slurm_job_id%3D22771%22%3Atrue%7D%7D": dial unix /var/run/docker.sock: connect: permission denied
