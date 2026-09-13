@@ -470,3 +470,27 @@ epoch 12 step 1350  loss=0.047840  lr=2.34e-05  [rmse=0.0145 h1=0.0002 ssim=0.05
 epoch 12 step 1360  loss=0.047700  lr=2.30e-05  [rmse=0.0181 h1=0.0004 ssim=0.0625 mlw=0.0000]
 epoch 12 step 1370  loss=0.048810  lr=2.27e-05  [rmse=0.0137 h1=0.0002 ssim=0.0458 mlw=0.0000]
 epoch 12 step 1380  loss=0.048949  lr=2.23e-05  [rmse=0.0205 h1=0.0005 ssim=0.0487 mlw=0.0000]
+epoch 12 step 1390  loss=0.049060  lr=2.20e-05  [rmse=0.0182 h1=0.0004 ssim=0.0538 mlw=0.0000]
+epoch 12 step 1400  loss=0.049013  lr=2.16e-05  [rmse=0.0163 h1=0.0003 ssim=0.0478 mlw=0.0000]
+epoch 12 step 1410  loss=0.049211  lr=2.13e-05  [rmse=0.0165 h1=0.0003 ssim=0.0553 mlw=0.0000]
+epoch 12 step 1420  loss=0.048969  lr=2.09e-05  [rmse=0.0147 h1=0.0003 ssim=0.0516 mlw=0.0000]
+INFO     [rank 0] Loss weights: rmse=1.0000, h1=50.0000,      vae_trainer.py:975
+         ssim=0.1500, mlw=0.0000, sds=0.0100                                    
+INFO     [rank 0] Epoch 12: train_loss=0.049353              vae_trainer.py:1014
+         val_loss=0.047089  val_VRMSE=0.093992  lr=2.07e-05                     
+INFO     [rank 0] Metrics updated: metrics/metrics.csv,      vae_trainer.py:1040
+         metrics/loss_curves.png                                                
+INFO     [rank 0] Saved 12 validation reconstruction PNGs    vae_trainer.py:1254
+         for epoch 12                                                           
+INFO     [rank 0] New best checkpoint (epoch 12,             vae_trainer.py:1353
+         val_vrmse=0.093992):                                                   
+         checkpoints/vae_shockwave_best.safetensors                             
+INFO     [rank 0] Training state saved:                      vae_trainer.py:1429
+         checkpoints/vae_shockwave_last.state.pt                                
+INFO     [rank 0] Epoch 12 timing: train=1223.8s eval=85.7s  vae_trainer.py:1074
+         viz=16.3s ckpt=46.1s total=1372.5s                                     
+epoch 13 step 1430  loss=0.043511  lr=2.06e-05  [rmse=0.0118 h1=0.0002 ssim=0.0381 mlw=0.0000]
+epoch 13 step 1440  loss=0.044893  lr=2.02e-05  [rmse=0.0127 h1=0.0002 ssim=0.0424 mlw=0.0000]
+epoch 13 step 1450  loss=0.049375  lr=1.99e-05  [rmse=0.0183 h1=0.0004 ssim=0.0545 mlw=0.0000]
+epoch 13 step 1460  loss=0.049257  lr=1.96e-05  [rmse=0.0140 h1=0.0002 ssim=0.0451 mlw=0.0000]
+epoch 13 step 1470  loss=0.048375  lr=1.92e-05  [rmse=0.0100 h1=0.0001 ssim=0.0324 mlw=0.0000]
