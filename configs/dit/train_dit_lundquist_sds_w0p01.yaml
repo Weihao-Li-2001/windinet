@@ -1,0 +1,104 @@
+# ShockWaveNet (DiT) training config -- 128res/lundquist DiT arm paired with
+# the untrained-critic SDS VAE weight-sweep arm at weight=0.01
+# (finetune_vae_whole_structure_baseline_ep20_sds_w0p01, VAE finetune done
+# 2026-09-13, 20/20 epochs, val_vrmse 0.08647 -- essentially identical to the
+# plain no-SDS baseline's 0.0863, the closest-to-baseline reconstruction of
+# any SDS weight tested). Sibling to train_dit_lundquist_sds_untrained.yaml
+# (weight=0.1) and train_dit_lundquist_sds_w1.yaml (weight=1.0) -- SINGLE
+# VARIABLE vs those two is the VAE checkpoint's sds.weight, everything else
+# (steps, LR, schedule, batch_size/accum, scalar conditioning) UNCHANGED for
+# direct comparability. Completes the 3-point SDS weight dose-response curve
+# (0.01 / 0.1 / 1.0) on DiT-denoisability -- sds_w1's own first checkpoint
+# (step 2000) showed an even MORE extreme latent-vs-pixel disconnect than
+# sds_untrained (latent_vrmse 0.039, best of any arm so far, but
+# pixel_vrmse 0.630, worst of any arm so far at that step) -- this arm
+# checks whether the disconnect shrinks (or the DiT-denoisability win
+# disappears entirely) at the opposite end of the weight range.
+#
+# NOT YET PREPROCESSED as of 2026-09-13 -- run
+# jobs/lundquist/preprocess_dit_data.sbatch first:
+#   VAE_CHECKPOINT=finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep20_sds_w0p01/checkpoints/vae_shockwave_best.safetensors \
+#     EVAL_SIMS=675 SPLIT_SEED=42 \
+#     sbatch jobs/lundquist/preprocess_dit_data.sbatch
+# (EVAL_SIMS=675/SPLIT_SEED=42 matches every other lundquist 128res arm's
+# held-out split -- OUTPUT_NAME defaults to the VAE run directory's own
+# name, landing at dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_sds_w0p01,
+# which is what __PREPROCESSED_ROOT__ below expects.)
+#
+# steps=8000, LR=1e-5, cosine schedule, batch_size=4/accum=4 (effective
+# batch 32): identical to the sds_w1/sds_untrained/kl0/kl1e7 siblings'
+# settings (see train_dit_lundquist_cosine_kl0.yaml's header for the
+# batch_size=4 OOM history and the GOTCHA about lundquist's single-host/
+# no-GPU-isolation concurrent-submission failure mode -- check `squeue`
+# before submitting this alongside another lundquist 2-GPU job, or chain
+# with `--dependency=afterany:<other-jobid>`).
+#
+# Launched by jobs/lundquist/train_dit_2gpu.sbatch, which substitutes
+# __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
+#   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
+#       finetune_vae_whole_structure_baseline_ep20_sds_w0p01 \
+#       configs/dit/train_dit_lundquist_sds_w0p01.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "sds-vae", "sds-untrained-critic", "sds-w0p01"]
+
+seed: 42
+output_dir: "dit_outputs/lundquist/dit_sds_w0p01"

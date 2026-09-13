@@ -537,29 +537,65 @@ plus the untrained-critic SDS arm is the first real production attempt
 there; full-eval results are in the SDS write-up above (`sds_untrained`
 best at 4.40x-to-floor, kl1e7 worst at 12.58x, kl0 in between at 4.88x).
 
-**`cosine_kl0_15k` resume in progress (2026-09-13).** Job 22767 was killed
-by the debug partition's 8h limit at step 10416/15000 (submitted without
-the `--time=12:00:00` override its own config's header called for --
-plain operator error, not a code bug). `configs/dit/train_dit_lundquist_
-cosine_kl0_15k_resume.yaml` points `model.load_checkpoint` at the run's
-`checkpoints/` directory (picks the newest step automatically) to continue
-the SAME cosine schedule rather than restart it; resubmitted as job 22773
-with `--time=12:00:00`, currently past step 10900 and climbing normally.
+**`cosine_kl0_15k` resume COMPLETE (2026-09-13, job 22773) -- resolves the
+question this run was launched to answer.** Job 22767 was killed by the
+debug partition's 8h limit at step 10416/15000 (submitted without the
+`--time=12:00:00` override its own config's header called for -- plain
+operator error, not a code bug); `configs/dit/train_dit_lundquist_
+cosine_kl0_15k_resume.yaml`'s `model.load_checkpoint` resumed the SAME
+cosine schedule (not a restart) as job 22773, which finished at step
+15019. Full curve:
 
-**lundquist SDS weight sweep (`sds_w1`/`sds_w0p01`, VAE finetuning only,
-in progress) -- see also the sng_pvc weight-sweep note.** Both use the
-untrained critic. `val_vrmse` at their latest committed epoch: `sds_w1`
-(weight 1.0, done, 20 epochs) 0.0997; `sds_w0p01` (weight 0.01, epoch
-13/20 so far) ~0.096; for reference, `sds_untrained` itself (weight 0.1)
-converged to 0.0893 and the plain no-SDS baseline (`kl0`) to 0.0863 --
-**all four numbers sit within a narrow 0.086-0.100 band**, i.e. VAE
-reconstruction quality is NOT strongly sensitive to SDS weight in the
-0.01-1.0 range tested (an earlier reading of this sweep, since retracted,
-mis-read `val_total_loss` -- which DOES scale with weight, since it's the
-weighted sum including the SDS term itself -- as `val_vrmse`; the actual
-reconstruction-quality column barely moves). Neither `sds_w1` nor
-`sds_w0p01` has been preprocessed/trained/evaluated as a DiT arm yet --
-open, see below.
+| step | latent_vrmse | pixel_vrmse |
+|---|---|---|
+| 8000 | 0.6159 | 0.4193 |
+| 10000 | 0.6125 | 0.4159 |
+| 12000 | 0.6040 | **0.4070 -- best on the curve** |
+| 14000 | 0.6060 | 0.4093 |
+| 15019 (final) | 0.6067 | 0.4094 |
+
+vs. the 8000-step `kl0` sibling's own final numbers (0.6446/0.4393): the
+15k run IS meaningfully better (-5.9% latent, -6.8% pixel), so the
+flattening this run was designed to test was NOT purely an artifact of an
+8000-step schedule ending too early -- confirming real. But the curve
+above shows essentially ALL of that gain lands by step 12000; 12000->15019
+(3000 more steps) doesn't help further and pixel_vrmse even ticks up
+slightly (0.4070->0.4094). **The real plateau for this arm is ~12000
+steps, not 8000 or 15000** -- a future no-KL/cosine run on this data
+should budget for ~12k rather than either extreme.
+
+**lundquist SDS weight sweep -- both VAEs now trained, `sds_w1` DiT arm
+started, `sds_w0p01` DiT arm queued (2026-09-13).** Final `val_vrmse` for
+all four points now available: `sds_w0p01` (weight 0.01) 0.08647 --
+essentially identical to the plain no-SDS baseline's 0.0863; `sds_untrained`
+(weight 0.1) 0.0893; `sds_w1` (weight 1.0) 0.0997 -- **all four sit within
+a narrow 0.086-0.100 band**, confirming VAE reconstruction quality is NOT
+strongly sensitive to SDS weight in the 0.01-1.0 range tested (an earlier
+reading of this sweep, since retracted, mis-read `val_total_loss` -- which
+DOES scale with weight, since it's the weighted sum including the SDS term
+itself -- as `val_vrmse`).
+
+`sds_w1` preprocessed (job 22778, 4500/4500 encoded) and DiT training
+started (job 22780, `configs/dit/train_dit_lundquist_sds_w1.yaml`) -- only
+one checkpoint in so far (step 2000): `latent_vrmse=0.0390` (better than
+`sds_untrained`'s own step-2000 value of 0.0897 -- best latent number of
+any arm at any checkpoint so far) but `pixel_vrmse=0.6301` (WORSE than
+every other arm's step-2000 value: `kl0` 0.5322, `kl1e7` 0.5501,
+`sds_untrained` 0.5448). **The latent-vs-pixel disconnect gets MORE
+extreme at 10x the distillation weight, not less** -- consistent with (not
+proof of) the decoder-saturation reading of the frame-drift diagnostic
+below: pushing the encoder's latents harder toward "critic-friendly" may
+move them further from what the decoder has actually learned to decode
+well, independent of raw distance-to-ground-truth. Early days (step
+2000/8000) -- watch later checkpoints before drawing a firm conclusion.
+
+`sds_w0p01`'s own VAE finished (val_vrmse 0.08647, above) but has not yet
+been preprocessed or trained as a DiT arm -- `configs/dit/
+train_dit_lundquist_sds_w0p01.yaml` is written and ready
+(`preprocess_dit_data.sbatch` then `train_dit_2gpu.sbatch`, same pattern as
+`sds_w1`). Completing this third point gives a real 3-value SDS-weight
+dose-response curve (0.01 / 0.1 / 1.0) on DiT-denoisability, not just on
+VAE reconstruction.
 
 **Decided (2026-09-13): NOT building a lundquist kl1e5/kl1e6/anchor_kl1e7
 sweep.** lundquist has no VAE-finetune configs for these arms at all yet --
@@ -607,6 +643,41 @@ unresolved:
    vrmse breakdown -- if error is flat across frames, favors (a); if it
    grows with frame index, favors (b). Neither `eval_dit_vrmse.py` nor the
    training-time visualization currently reports this breakdown.
+
+   **Frame-drift diagnostic run (2026-09-13, job 22779, `scripts/
+   diagnose_frame_drift.py`, `sds_untrained`, n=20, 101 frames) -- neither
+   (a) nor (b) cleanly confirmed; points at a third mechanism.**
+   first-quarter-vs-last-quarter-of-rollout ratios: `vae_only_per_frame`
+   (pure decode, no DiT) 0.58x -- gets EASIER over time, not harder (early
+   frames, right as the shock forms, have sharper features and are
+   apparently harder to reconstruct than the smoother later frames -- a
+   property of the decoder/data, unrelated to the DiT). `latent_per_frame`
+   (DiT's own forecast accuracy) 1.44x -- real growth, some genuine
+   compounding rollout drift. `vae_dit_per_frame` (the actual end-to-end
+   pixel error) only 1.07x -- nearly flat, NOT tracking the latent curve's
+   44% growth. Neither hypothesis fits cleanly (pure (a) predicts flat
+   latent + growing pixel; pure (b) predicts both growing together) --
+   what the data actually shows is a 44% swing in latent accuracy
+   (comparing the rollout's easiest quarter to its hardest) producing only
+   a 7% swing in decoded pixel accuracy. **Reframed conclusion: the
+   decode(latent_error) -> pixel_error mapping itself looks sharply
+   sublinear/saturating** -- established WITHIN one arm/decoder by varying
+   only frame position, which rules out cross-arm confounds (different
+   VAE, different training run) that muddied the original kl0-vs-sds_untrained
+   comparison. If this saturation is real and general, it implies pushing
+   DiT latent accuracy further (via SDS or anything else) has strongly
+   diminishing pixel-space returns past some point -- possibly relevant to
+   why `sds_w1` (10x the distillation weight, see below) shows an EVEN
+   more extreme latent-good/pixel-bad split than `sds_untrained` rather
+   than a better-balanced one. Candidate fix, not yet tried: fine-tune the
+   VAE decoder against the DiT's own actual rollout latents (which it has
+   never seen -- it's only ever been trained to decode the encoder's clean
+   posterior-mean latents) instead of assuming decode behaves linearly
+   near small perturbations of the true latent -- an exposure-bias-style
+   mismatch between what the decoder was trained on and what it actually
+   has to decode at DiT-inference time. Not yet run on `kl0` for
+   comparison (would show whether this saturation slope is universal to
+   this decoder architecture or specific to the SDS-shaped latent space).
 
 ## Established
 
