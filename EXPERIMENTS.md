@@ -561,6 +561,21 @@ reconstruction-quality column barely moves). Neither `sds_w1` nor
 `sds_w0p01` has been preprocessed/trained/evaluated as a DiT arm yet --
 open, see below.
 
+**Decided (2026-09-13): NOT building a lundquist kl1e5/kl1e6/anchor_kl1e7
+sweep.** lundquist has no VAE-finetune configs for these arms at all yet --
+unlike the SDS weight sweep or lrz_ai's KL arms (already encoded, just
+waiting on a DiT resubmit), this would mean authoring new VAE finetune
+configs from scratch, then encoding, then training -- a materially bigger
+lift than the other pending items. Not worth it: KL regularization has now
+been tested at every weight tried, on two clusters/resolutions
+(sng_pvc/256res: kl1e5/kl1e6/kl1e7 all worse than plain baseline,
+monotonically with strength; lundquist/128res: kl1e7 alone -- the WEAKEST
+weight in the whole ledger -- already lands at 12.58x-to-floor, ~2.6x worse
+than lundquist's own plain baseline), and every data point so far points
+the same direction. Extending the sweep to more weights on a third
+resolution would need a strong reason to expect a different qualitative
+result, and there isn't one.
+
 **Still-open bookkeeping questions**, carried over from 2026-08-29,
 unresolved:
 1. **Is "ep20 plain baseline" (sng_pvc) a real arm or a leftover control?**
