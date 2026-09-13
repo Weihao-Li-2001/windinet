@@ -40,9 +40,15 @@ Two phases:
      their real ground truth, for --epochs passes over the cached set.
 
 Before/after check: the SAME rollout + decode pipeline is also run on
---num_eval_samples VAL-split sims (disjoint from the finetuning set) both
-BEFORE and AFTER decoder finetuning, reporting vae_dit pixel vrmse for
-each -- directly shows whether this closed any of the gap.
+--num_eval_samples VAL-split sims (disjoint from the finetuning set, and
+seeded identically to eval_dit_vrmse.py's own val rollout so this is a
+directly comparable same-sample-count slice, not an unrelated noise draw)
+BEFORE finetuning and after EVERY epoch -- never used for a gradient
+update, only this check. The decoder state from whichever epoch had the
+best val pixel vrmse (possibly epoch 0 itself, if no epoch ever beat the
+starting point) is what actually gets saved, not whatever the LAST epoch
+happened to land on -- with only num_rollout_samples training pairs and no
+other regularization, later-epoch overfitting to them is a real risk.
 
 Usage: same checkpoint/config args as eval_dit_vrmse.py / diagnose_latent_scale.py.
     python scripts/finetune_decoder_on_rollout.py configs/dit/inference_dit.yaml \\
@@ -307,8 +313,15 @@ def main():
     # --- Phase 1: cache DiT rollouts (frozen, no_grad, one-time cost) ---
     train_pairs = build_dataset(dataset, train_ids, pipe, scalar_emb, scalar_cfg, stats, device, cfg,
                                  seed_base=cfg.get("seed", 42), label="train")
+    # Same seed_base convention as eval_dit_vrmse.py's own val rollout (seed + i,
+    # no offset) -- val_ids here are that script's own first --num_eval_samples,
+    # so this reproduces (up to sampling floating-point nondeterminism) the
+    # same predicted latents eval_dit_vrmse.py would compute for those ids,
+    # making this script's "before" number directly comparable to a
+    # same-sample-count slice of the established eval_dit_vrmse.py results
+    # instead of using an unrelated noise draw.
     val_pairs = build_dataset(dataset, val_ids, pipe, scalar_emb, scalar_cfg, stats, device, cfg,
-                               seed_base=cfg.get("seed", 42) + 100000, label="val")
+                               seed_base=cfg.get("seed", 42), label="val")
 
     # --- Decoder to fp32 for stable small-scale finetuning (rollout above
     # stays bf16/frozen; only the decoder we're about to train switches). ---
@@ -326,6 +339,11 @@ def main():
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     history = []
+    best_val_vrmse = pixel_vrmse_before
+    best_epoch = 0
+    best_decoder_sd = {k: v.detach().cpu().clone() for k, v in decoder.state_dict().items()}
+    print(f"Epoch 0 (pre-finetune) is the initial best (val pixel vrmse = {best_val_vrmse:.5f})")
+
     for epoch in range(1, args.epochs + 1):
         random.shuffle(train_pairs)
         epoch_losses = {"rmse": 0.0, "h1": 0.0, "ssim": 0.0, "vrms": 0.0, "total": 0.0}
@@ -375,14 +393,36 @@ def main():
 
         for k in epoch_losses:
             epoch_losses[k] /= n_batches
-        history.append({"epoch": epoch, **epoch_losses})
+
+        # Per-epoch validation -- val_pairs are NEVER used for a gradient
+        # update, only for this check, so this stays a true held-out signal.
+        decoder.eval()
+        val_vrmse_epoch = eval_pixel_vrmse(pipe.vae, val_pairs, args.default_temb)
+        decoder.train()
+        improved = val_vrmse_epoch < best_val_vrmse
+        if improved:
+            best_val_vrmse, best_epoch = val_vrmse_epoch, epoch
+            best_decoder_sd = {k: v.detach().cpu().clone() for k, v in decoder.state_dict().items()}
+
+        history.append({"epoch": epoch, **epoch_losses, "val_pixel_vrmse": val_vrmse_epoch})
         print(f"epoch {epoch}/{args.epochs}  total={epoch_losses['total']:.5f}  "
               f"rmse={epoch_losses['rmse']:.5f}  h1={epoch_losses['h1']:.5f}  "
-              f"ssim={epoch_losses['ssim']:.5f}  train_vrms={epoch_losses['vrms']:.5f}")
+              f"ssim={epoch_losses['ssim']:.5f}  train_vrms={epoch_losses['vrms']:.5f}  "
+              f"val_pixel_vrmse={val_vrmse_epoch:.5f}{'  <- best so far' if improved else ''}")
 
+    # Restore the best-val-epoch weights (possibly epoch 0 / pre-finetune, if
+    # no epoch ever beat the starting point) rather than blindly keeping
+    # whatever the LAST epoch happened to land on -- with only
+    # num_rollout_samples training pairs and no other regularization, later
+    # epochs overfitting to them is a real risk, not a hypothetical one.
+    decoder.load_state_dict(best_decoder_sd)
     decoder.eval()
-    pixel_vrmse_after = eval_pixel_vrmse(pipe.vae, val_pairs, args.default_temb)
-    print(f"\nAFTER decoder finetune:  val pixel vrmse = {pixel_vrmse_after:.5f} (n={len(val_pairs)})")
+    print(f"\nRestored best epoch: {best_epoch} (val pixel vrmse = {best_val_vrmse:.5f}, "
+          f"vs. epoch {args.epochs}'s {history[-1]['val_pixel_vrmse']:.5f})")
+
+    pixel_vrmse_after = best_val_vrmse
+    print(f"\nBEFORE decoder finetune: val pixel vrmse = {pixel_vrmse_before:.5f} (n={len(val_pairs)})")
+    print(f"AFTER  decoder finetune: val pixel vrmse = {pixel_vrmse_after:.5f} (n={len(val_pairs)}, epoch {best_epoch})")
     print(f"Delta: {pixel_vrmse_after - pixel_vrmse_before:+.5f} "
           f"({(pixel_vrmse_after - pixel_vrmse_before) / pixel_vrmse_before * 100:+.1f}%)")
 
@@ -390,8 +430,7 @@ def main():
     with safe_open(str(vae_ckpt), framework="pt", device="cpu") as f:
         orig_metadata = dict(f.metadata() or {})
         tensors = {k: f.get_tensor(k) for k in f.keys() if not k.startswith("decoder.")}
-    new_decoder_sd = decoder.to(dtype=torch.float32).state_dict()
-    tensors.update({f"decoder.{k}": v.detach().cpu().contiguous() for k, v in new_decoder_sd.items()})
+    tensors.update({f"decoder.{k}": v.contiguous() for k, v in best_decoder_sd.items()})
     out_ckpt = args.out_dir / "vae_shockwave_decoder_ft.safetensors"
     save_file(tensors, out_ckpt, metadata=orig_metadata)
     print(f"\nSaved decoder-finetuned checkpoint (same format/metadata, drop-in compatible): {out_ckpt}")
@@ -402,6 +441,7 @@ def main():
         "num_rollout_samples": len(train_pairs),
         "num_eval_samples": len(val_pairs),
         "epochs": args.epochs,
+        "best_epoch": best_epoch,
         "learning_rate": args.learning_rate,
         "pixel_vrmse_before": pixel_vrmse_before,
         "pixel_vrmse_after": pixel_vrmse_after,
