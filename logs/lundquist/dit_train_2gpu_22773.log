@@ -1,0 +1,380 @@
+job=22773 node=lundquist gpus=0,1
+PREPROCESSED_NAME: finetune_vae_whole_structure_baseline_ep20_kl0
+BASE_CONFIG: configs/dit/train_dit_lundquist_cosine_kl0_15k_resume.yaml
+preprocessed_data_root=dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_kl0 output_dir=dit_outputs/lundquist/dit_cosine_kl0_15k
+MAIN_PROCESS_PORT: 45153
+                             Training Configuration                             
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter                            ┃ Value                                 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ model.model_source                   │ LTXV_2B_0.9.6_DEV                     │
+│ model.load_checkpoint                │ dit_outputs/lundquist/dit_cosine_kl0… │
+│ conditioning.first_frame_conditioni… │ 1.0                                   │
+│ lora.enabled                         │ False                                 │
+│ lora.rank                            │ 16                                    │
+│ lora.alpha                           │ 16                                    │
+│ lora.dropout                         │ 0.0                                   │
+│ lora.target_modules                  │ to_q, to_k, to_v, to_out.0            │
+│ scalar_conditioning.enabled          │ True                                  │
+│ scalar_conditioning.scalar_names     │ gamma                                 │
+│ scalar_conditioning.scalar_ranges    │ {'gamma': (1.0, 2.0)}                 │
+│ scalar_conditioning.embedding_dim    │ 4096                                  │
+│ scalar_conditioning.num_tokens_per_… │ 4                                     │
+│ scalar_conditioning.fourier_features │ 64                                    │
+│ scalar_conditioning.mlp_hidden_dim   │ 256                                   │
+│ scalar_conditioning.dropout          │ 0.1                                   │
+│ optimization.learning_rate           │ 1e-05                                 │
+│ optimization.steps                   │ 15000                                 │
+│ optimization.batch_size              │ 4                                     │
+│ optimization.gradient_accumulation_… │ 4                                     │
+│ optimization.max_grad_norm           │ 1.0                                   │
+│ optimization.optimizer_type          │ adamw                                 │
+│ optimization.scheduler_type          │ cosine                                │
+│ optimization.scheduler_params        │ {'eta_min': 1e-08}                    │
+│ optimization.enable_gradient_checkp… │ True                                  │
+│ acceleration.mixed_precision_mode    │ bf16                                  │
+│ acceleration.compile_with_inductor   │ False                                 │
+│ acceleration.compilation_mode        │ reduce-overhead                       │
+│ data.preprocessed_data_root          │ dit_preprocessed/finetune_vae_whole_… │
+│ data.num_dataloader_workers          │ 4                                     │
+│ validation.data_root                 │ dit_preprocessed/finetune_vae_whole_… │
+│ validation.interval                  │ 600                                   │
+│ validation.max_samples               │ 0                                     │
+│ checkpoints.interval                 │ 120                                   │
+│ checkpoints.keep_last_n              │ 2                                     │
+│ checkpoints.save_best_only           │ False                                 │
+│ checkpoints.best_metric              │ val_total_loss                        │
+│ checkpoints.save_last_state          │ True                                  │
+│ checkpoints.save_epochs              │                                       │
+│ flow_matching.timestep_sampling_mode │ shifted_logit_normal                  │
+│ flow_matching.timestep_sampling_par… │ {}                                    │
+│ visualization.enabled                │ True                                  │
+│ visualization.interval               │ 2000                                  │
+│ visualization.num_samples            │ 3                                     │
+│ visualization.frame_numbers          │ 25, 50, 75, 100                       │
+│ visualization.num_inference_steps    │ 20                                    │
+│ visualization.dpi                    │ 150                                   │
+│ wandb.enabled                        │ False                                 │
+│ wandb.project                        │ shockwavenet                          │
+│ wandb.entity                         │ None                                  │
+│ wandb.tags                           │ cfd, full, 2b, scalar-only,           │
+│                                      │ lundquist, 128res, cosine-vae, kl0,   │
+│                                      │ 15k-st...                             │
+│ seed                                 │ 42                                    │
+│ output_dir                           │ /local/disk/hramachandran/work/wh_wo… │
+│ resume_weights_only                  │ False                                 │
+└──────────────────────────────────────┴───────────────────────────────────────┘
+INFO     [rank 0] Distributed training enabled with 2        dit_trainer.py:1472
+         processes                                                              
+INFO     [rank 0] Global batch size: 32                      dit_trainer.py:1478
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/scheduler/scheduler_config.json "HTTP/1.1 307                  
+         Temporary Redirect"                                                    
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/scheduler/scheduler_config.json "HTTP/1.1 307                  
+         Temporary Redirect"                                                    
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/scheduler%2Fscheduler_config.json "HTTP/1.1 200                  
+         OK"                                                                    
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/scheduler%2Fscheduler_config.json "HTTP/1.1 200                  
+         OK"                                                                    
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     [rank 1] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 0] HTTP Request: HEAD                             _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
+INFO     [rank 0] Initializing scalar embeddings for:         dit_trainer.py:867
+         ['gamma']                                                              
+DEBUG    [rank 0] Scalar embedding params: 4,310,528          dit_trainer.py:894
+DEBUG    [rank 0] Total trainable params count: 1,927,696,000 dit_trainer.py:898
+INFO     [rank 0] Loading checkpoint from                     dit_trainer.py:915
+         dit_outputs/lundquist/dit_cosine_kl0_15k/checkpoints                   
+         /model_weights_step_10320.safetensors                                  
+INFO     [rank 0] Loading scalar embedding from               dit_trainer.py:922
+         dit_outputs/lundquist/dit_cosine_kl0_15k/checkpoints                   
+         /scalar_embedding_step_10320.safetensors                               
+INFO     [rank 0] Loaded training state from                  dit_trainer.py:962
+         dit_outputs/lundquist/dit_cosine_kl0_15k/checkpoints                   
+         /model_weights_step_10320.state.pt: resuming at                        
+         global_step 10320                                                      
+DEBUG    [rank 0] Process 0 using seed: 42                    dit_trainer.py:389
+DEBUG    [rank 0] Loaded dataset with 3,825 samples from     dit_trainer.py:1115
+         sources: ['latents', 'scalars']                                        
+INFO     [rank 0] Validation split: 675 samples from         dit_trainer.py:1198
+         dit_preprocessed/finetune_vae_whole_structure_basel                    
+         ine_ep20_kl0/val                                                       
+INFO     [rank 0] Training configuration saved to:           dit_trainer.py:1464
+         training_config.yaml                                                   
+INFO     [rank 0] Training on latents from VAE               dit_trainer.py:1159
+         /local/disk/hramachandran/work/wh_work/windinet/fin                    
+         etune_vae_outputs/lundquist/finetune_vae_whole_stru                    
+         cture_baseline_ep20_kl0/checkpoints/vae_shockwave_b                    
+         est.safetensors (fingerprint 48445bef02ac2119);                        
+         recorded in latent_provenance.json                                     
+INFO     [rank 0] Starting training...                        dit_trainer.py:410
+INFO     [rank 0] Resuming training at global_step 10320      dit_trainer.py:439
+[train] step=10321 loss=0.271611 lr=2.223e-06
+[train] step=10322 loss=0.433227 lr=2.223e-06
+[train] step=10323 loss=0.402232 lr=2.222e-06
+[train] step=10324 loss=0.256172 lr=2.221e-06
+[train] step=10325 loss=0.357129 lr=2.220e-06
+[train] step=10326 loss=0.409007 lr=2.219e-06
+[train] step=10327 loss=0.346579 lr=2.218e-06
+[train] step=10328 loss=0.331130 lr=2.217e-06
+[train] step=10329 loss=0.256465 lr=2.216e-06
+[train] step=10330 loss=0.470098 lr=2.216e-06
+[train] step=10331 loss=0.312008 lr=2.215e-06
+[train] step=10332 loss=0.296140 lr=2.214e-06
+[train] step=10333 loss=0.470876 lr=2.213e-06
+[train] step=10334 loss=0.297043 lr=2.212e-06
+[train] step=10335 loss=0.294548 lr=2.211e-06
+[train] step=10336 loss=0.446903 lr=2.210e-06
+[train] step=10337 loss=0.407724 lr=2.210e-06
+[train] step=10338 loss=0.263986 lr=2.209e-06
+[train] step=10339 loss=0.361870 lr=2.208e-06
+[train] step=10340 loss=0.440107 lr=2.207e-06
+[train] step=10341 loss=0.314744 lr=2.206e-06
+[train] step=10342 loss=0.488356 lr=2.205e-06
+[train] step=10343 loss=0.521730 lr=2.204e-06
+[train] step=10344 loss=0.281318 lr=2.203e-06
+[train] step=10345 loss=0.397436 lr=2.203e-06
+[train] step=10346 loss=0.318342 lr=2.202e-06
+[train] step=10347 loss=0.210081 lr=2.201e-06
+[train] step=10348 loss=0.335250 lr=2.200e-06
+[train] step=10349 loss=0.287998 lr=2.199e-06
+[train] step=10350 loss=0.427815 lr=2.198e-06
+[train] step=10351 loss=0.352133 lr=2.197e-06
+[train] step=10352 loss=0.241500 lr=2.197e-06
+[train] step=10353 loss=0.256108 lr=2.196e-06
+[train] step=10354 loss=0.384174 lr=2.195e-06
+[train] step=10355 loss=0.340554 lr=2.194e-06
+[train] step=10356 loss=0.404532 lr=2.193e-06
+[train] step=10357 loss=0.347507 lr=2.192e-06
+[train] step=10358 loss=0.323369 lr=2.191e-06
+[train] step=10359 loss=0.274590 lr=2.190e-06
+[train] step=10360 loss=0.305236 lr=2.190e-06
+[train] step=10361 loss=0.329678 lr=2.189e-06
+[train] step=10362 loss=0.279988 lr=2.188e-06
+[train] step=10363 loss=0.258023 lr=2.187e-06
+[train] step=10364 loss=0.299654 lr=2.186e-06
+[train] step=10365 loss=0.309957 lr=2.185e-06
+[train] step=10366 loss=0.291761 lr=2.184e-06
+[train] step=10367 loss=0.464379 lr=2.184e-06
+[train] step=10368 loss=0.324293 lr=2.183e-06
+[train] step=10369 loss=0.342201 lr=2.182e-06
+[train] step=10370 loss=0.289529 lr=2.181e-06
+[train] step=10371 loss=0.346065 lr=2.180e-06
+[train] step=10372 loss=0.355425 lr=2.179e-06
+[train] step=10373 loss=0.261875 lr=2.178e-06
+[train] step=10374 loss=0.500989 lr=2.178e-06
+[train] step=10375 loss=0.251207 lr=2.177e-06
+[train] step=10376 loss=0.470424 lr=2.176e-06
+[train] step=10377 loss=0.266703 lr=2.175e-06
+[train] step=10378 loss=0.340731 lr=2.174e-06
+[train] step=10379 loss=0.340188 lr=2.173e-06
+[train] step=10380 loss=0.241277 lr=2.172e-06
+[train] step=10381 loss=0.355143 lr=2.171e-06
+[train] step=10382 loss=0.285943 lr=2.171e-06
+[train] step=10383 loss=0.251396 lr=2.170e-06
+[train] step=10384 loss=0.329489 lr=2.169e-06
+[train] step=10385 loss=0.275338 lr=2.168e-06
+[train] step=10386 loss=0.286120 lr=2.167e-06
+[train] step=10387 loss=0.341559 lr=2.166e-06
+[train] step=10388 loss=0.339183 lr=2.165e-06
+[train] step=10389 loss=0.333469 lr=2.165e-06
+[train] step=10390 loss=0.434802 lr=2.164e-06
+[train] step=10391 loss=0.393600 lr=2.163e-06
+[train] step=10392 loss=0.225181 lr=2.162e-06
+[train] step=10393 loss=0.395234 lr=2.161e-06
+[train] step=10394 loss=0.210804 lr=2.160e-06
+[train] step=10395 loss=0.417556 lr=2.159e-06
+[train] step=10396 loss=0.391635 lr=2.159e-06
+[train] step=10397 loss=0.372673 lr=2.158e-06
+[train] step=10398 loss=0.332358 lr=2.157e-06
+[train] step=10399 loss=0.346511 lr=2.156e-06
+[train] step=10400 loss=0.442238 lr=2.155e-06
+[train] step=10401 loss=0.328155 lr=2.154e-06
+[train] step=10402 loss=0.372124 lr=2.153e-06
+[train] step=10403 loss=0.317708 lr=2.153e-06
+[train] step=10404 loss=0.291946 lr=2.152e-06
+[train] step=10405 loss=0.274952 lr=2.151e-06
+[train] step=10406 loss=0.426971 lr=2.150e-06
+[train] step=10407 loss=0.312759 lr=2.149e-06
+[train] step=10408 loss=0.204769 lr=2.148e-06
+[train] step=10409 loss=0.294040 lr=2.147e-06
+[train] step=10410 loss=0.381165 lr=2.147e-06
+[train] step=10411 loss=0.380083 lr=2.146e-06
+[train] step=10412 loss=0.267605 lr=2.145e-06
+[train] step=10413 loss=0.287258 lr=2.144e-06
+[train] step=10414 loss=0.368704 lr=2.143e-06
+[train] step=10415 loss=0.184932 lr=2.142e-06
+[train] step=10416 loss=0.399114 lr=2.141e-06
+[train] step=10417 loss=0.288147 lr=2.141e-06
+[train] step=10418 loss=0.326657 lr=2.140e-06
+[train] step=10419 loss=0.338480 lr=2.139e-06
+[train] step=10420 loss=0.217269 lr=2.138e-06
+[train] step=10421 loss=0.341247 lr=2.137e-06
+[train] step=10422 loss=0.417124 lr=2.136e-06
+[train] step=10423 loss=0.356534 lr=2.135e-06
+[train] step=10424 loss=0.250610 lr=2.135e-06
+[train] step=10425 loss=0.470148 lr=2.134e-06
+[train] step=10426 loss=0.355938 lr=2.133e-06
+[train] step=10427 loss=0.305907 lr=2.132e-06
+[train] step=10428 loss=0.395803 lr=2.131e-06
+[train] step=10429 loss=0.276579 lr=2.130e-06
+[train] step=10430 loss=0.383116 lr=2.129e-06
+[train] step=10431 loss=0.217489 lr=2.129e-06
+[train] step=10432 loss=0.402391 lr=2.128e-06
+[train] step=10433 loss=0.279050 lr=2.127e-06
+[train] step=10434 loss=0.424133 lr=2.126e-06
+[train] step=10435 loss=0.386418 lr=2.125e-06
+[train] step=10436 loss=0.480408 lr=2.124e-06
+[train] step=10437 loss=0.295672 lr=2.123e-06
+[train] step=10438 loss=0.181065 lr=2.123e-06
+[train] step=10439 loss=0.344487 lr=2.122e-06
+[train] step=10440 loss=0.312559 lr=2.121e-06
+INFO     [rank 0] Model weights for step 10440 saved in      dit_trainer.py:1288
+         checkpoints/model_weights_step_10440.safetensors                       
+INFO     [rank 0] Scalar embedding weights for step 10440    dit_trainer.py:1297
+         saved                                                                  
+INFO     [rank 0] Training state saved:                      dit_trainer.py:1416
+         checkpoints/model_weights_step_10440.state.pt                          
+[epoch 87] step=10440 train_loss=0.336884
+[train] step=10441 loss=0.285935 lr=2.120e-06
+[train] step=10442 loss=0.443644 lr=2.119e-06
+[train] step=10443 loss=0.491503 lr=2.118e-06
+[train] step=10444 loss=0.226065 lr=2.117e-06
+[train] step=10445 loss=0.428405 lr=2.117e-06
+[train] step=10446 loss=0.410914 lr=2.116e-06
+[train] step=10447 loss=0.290952 lr=2.115e-06
+[train] step=10448 loss=0.378219 lr=2.114e-06
+[train] step=10449 loss=0.326343 lr=2.113e-06
+[train] step=10450 loss=0.284219 lr=2.112e-06
+[train] step=10451 loss=0.208783 lr=2.111e-06
+[train] step=10452 loss=0.278458 lr=2.111e-06
+[train] step=10453 loss=0.259574 lr=2.110e-06
+[train] step=10454 loss=0.269068 lr=2.109e-06
+[train] step=10455 loss=0.320949 lr=2.108e-06
+[train] step=10456 loss=0.322995 lr=2.107e-06
+[train] step=10457 loss=0.388462 lr=2.106e-06
+[train] step=10458 loss=0.333747 lr=2.106e-06
+[train] step=10459 loss=0.206809 lr=2.105e-06
+[train] step=10460 loss=0.193014 lr=2.104e-06
+[train] step=10461 loss=0.362322 lr=2.103e-06
+[train] step=10462 loss=0.250069 lr=2.102e-06
+[train] step=10463 loss=0.356479 lr=2.101e-06
+[train] step=10464 loss=0.260775 lr=2.100e-06
+[train] step=10465 loss=0.416212 lr=2.100e-06
+[train] step=10466 loss=0.331172 lr=2.099e-06
+[train] step=10467 loss=0.324285 lr=2.098e-06
+[train] step=10468 loss=0.281777 lr=2.097e-06
+[train] step=10469 loss=0.423990 lr=2.096e-06
+[train] step=10470 loss=0.255657 lr=2.095e-06
+[train] step=10471 loss=0.331530 lr=2.094e-06
+[train] step=10472 loss=0.441661 lr=2.094e-06
+[train] step=10473 loss=0.247923 lr=2.093e-06
+[train] step=10474 loss=0.272522 lr=2.092e-06
+[train] step=10475 loss=0.266516 lr=2.091e-06
+[train] step=10476 loss=0.233402 lr=2.090e-06
+[train] step=10477 loss=0.266014 lr=2.089e-06
+[train] step=10478 loss=0.263766 lr=2.089e-06
+[train] step=10479 loss=0.296463 lr=2.088e-06
+[train] step=10480 loss=0.280809 lr=2.087e-06
+[train] step=10481 loss=0.366007 lr=2.086e-06
+[train] step=10482 loss=0.250163 lr=2.085e-06
+[train] step=10483 loss=0.234392 lr=2.084e-06
+[train] step=10484 loss=0.280072 lr=2.083e-06
+[train] step=10485 loss=0.292822 lr=2.083e-06
+[train] step=10486 loss=0.418111 lr=2.082e-06
+[train] step=10487 loss=0.248559 lr=2.081e-06
+[train] step=10488 loss=0.400209 lr=2.080e-06
+[train] step=10489 loss=0.421963 lr=2.079e-06
+[train] step=10490 loss=0.251418 lr=2.078e-06
+[train] step=10491 loss=0.416501 lr=2.077e-06
+[train] step=10492 loss=0.227148 lr=2.077e-06
+[train] step=10493 loss=0.251572 lr=2.076e-06
+[train] step=10494 loss=0.233097 lr=2.075e-06
+[train] step=10495 loss=0.354443 lr=2.074e-06
+[train] step=10496 loss=0.371582 lr=2.073e-06
+[train] step=10497 loss=0.464450 lr=2.072e-06
+[train] step=10498 loss=0.397314 lr=2.072e-06
+[train] step=10499 loss=0.342047 lr=2.071e-06
+[train] step=10500 loss=0.264335 lr=2.070e-06
+[train] step=10501 loss=0.371906 lr=2.069e-06
+[train] step=10502 loss=0.354190 lr=2.068e-06
+[train] step=10503 loss=0.338655 lr=2.067e-06
+[train] step=10504 loss=0.340862 lr=2.066e-06
+[train] step=10505 loss=0.360524 lr=2.066e-06
+[train] step=10506 loss=0.397899 lr=2.065e-06
+[train] step=10507 loss=0.368004 lr=2.064e-06
+[train] step=10508 loss=0.493555 lr=2.063e-06
+[train] step=10509 loss=0.303677 lr=2.062e-06
+[train] step=10510 loss=0.288808 lr=2.061e-06
+[train] step=10511 loss=0.414052 lr=2.061e-06
+[train] step=10512 loss=0.397848 lr=2.060e-06
+[train] step=10513 loss=0.328787 lr=2.059e-06
+[train] step=10514 loss=0.354842 lr=2.058e-06
+[train] step=10515 loss=0.182999 lr=2.057e-06
+[train] step=10516 loss=0.321212 lr=2.056e-06
+[train] step=10517 loss=0.407623 lr=2.055e-06
+[train] step=10518 loss=0.396802 lr=2.055e-06
+[train] step=10519 loss=0.242153 lr=2.054e-06
+[train] step=10520 loss=0.350229 lr=2.053e-06
+[train] step=10521 loss=0.230187 lr=2.052e-06
+[train] step=10522 loss=0.228677 lr=2.051e-06

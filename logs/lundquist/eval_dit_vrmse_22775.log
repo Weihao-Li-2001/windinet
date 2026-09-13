@@ -1,0 +1,52 @@
+job=22775 node=lundquist gpus=0
+PREPROCESSED_DATA_ROOT: dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_kl1e7
+DIT_CHECKPOINT: dit_outputs/lundquist/dit_cosine_kl1e7/checkpoints/model_weights_step_08033.safetensors
+VAE_CHECKPOINT: finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep20_kl1e7/checkpoints/vae_shockwave_best.safetensors
+NORMALIZATION: finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep20_kl1e7/training_config.yaml
+NUM_SAMPLES: 675
+NUM_INFERENCE_STEPS: <config default>
+OUT_DIR: logs/lundquist/eval_dit_vrmse/22775
+SCALAR_CHECKPOINT: dit_outputs/lundquist/dit_cosine_kl1e7/checkpoints/scalar_embedding_step_08033.safetensors
+/local/disk/hramachandran/miniconda/envs/windinet/lib/python3.10/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Held-out split: 675 sims (seed=42) from dit_preprocessed/finetune_vae_whole_structure_baseline_ep20_kl1e7/split_manifest.json
+h5: /local/disk/hramachandran/work/wh_work/windinet/euler_mq_dataset/128x128_ds/train.h5
+Evaluating 675 sim(s)
+Visualizing 3 sample(s) spanning the gamma range: ['0000_gamma1.1299999952', '2159_gamma1.3650000095', '4498_gamma1.7599999905']
+Normalization from finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep20_kl1e7/training_config.yaml: clip=5.0
+Latent space verified: fingerprint 1426634e1acbe5f8 matches the DiT's training latents
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/vae/config.json "HTTP/1.1 307 Temporary                        
+         Redirect"                                                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/vae%2Fconfig.json "HTTP/1.1 200 OK"                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/e58e28c39631af4d1468ee57a853764e11c1d37e/vae/diffusi                
+         on_pytorch_model.safetensors.index.json "HTTP/1.1 404                  
+         Not Found"                                                             
+[windinet] loaded inflated VAE checkpoint: /local/disk/hramachandran/work/wh_work/windinet/finetune_vae_outputs/lundquist/finetune_vae_whole_structure_baseline_ep20_kl1e7/checkpoints/vae_shockwave_best.safetensors (epoch=20, step=2380)
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/scheduler/scheduler_config.json "HTTP/1.1 307                  
+         Temporary Redirect"                                                    
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/scheduler%2Fscheduler_config.json "HTTP/1.1 200                  
+         OK"                                                                    
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video/resolve/mai                
+         n/ltxv-2b-0.9.6-dev-04-25.safetensors "HTTP/1.1 302                    
+         Found"                                                                 
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/Lightricks/LTX-Video-0.9.5/resol                
+         ve/main/transformer/config.json "HTTP/1.1 307 Temporary                
+         Redirect"                                                              
+INFO     HTTP Request: HEAD                                      _client.py:1025
+         https://huggingface.co/api/resolve-cache/models/Lightri                
+         cks/LTX-Video-0.9.5/e58e28c39631af4d1468ee57a853764e11c                
+         1d37e/transformer%2Fconfig.json "HTTP/1.1 200 OK"                      
