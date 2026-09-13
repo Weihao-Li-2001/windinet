@@ -1,0 +1,98 @@
+# Resume of train_dit_lundquist_cosine_kl0_15k.yaml -- job 22767 was killed
+# by lundquist debug partition's 8h time limit (job submitted without the
+# `--time=12:00:00` override its own header comment called for) at step
+# 10416/15000, ~0.36 steps/s (matches job 22757's rate on this same
+# config). checkpoints.interval=120/keep_last_n=2 there means the last
+# checkpoint on disk is the most recent multiple of 120 at or before
+# 10416 (10320, unless a later one landed before the kill) --
+# model.load_checkpoint below points at the checkpoints/ DIRECTORY rather
+# than a specific step file so dit_trainer.py's _find_checkpoint() picks
+# whichever is actually newest on disk (max by parsed step number, not
+# filesystem order -- see dit_trainer.py's _find_checkpoint), instead of
+# hardcoding a step number that might be off by one interval.
+#
+# Everything else is IDENTICAL to train_dit_lundquist_cosine_kl0_15k.yaml,
+# same output_dir (resume in place, not a new run) -- the sibling
+# '<stem>.state.pt' next to the loaded checkpoint restores
+# optimizer/scheduler/global_step/RNG automatically (see ModelConfig
+# .load_checkpoint's docstring), so optimization.steps stays 15000 and the
+# ORIGINAL cosine schedule continues from wherever it left off --
+# resume_weights_only is intentionally left at its default (false): setting
+# it true would restart the LR schedule instead of continuing it, which is
+# NOT what we want here (this is a true continuation of a killed run, not a
+# warm restart with a different schedule).
+#
+# Remaining steps ~4680 (15000-10320) at ~0.36 steps/s is ~3.6h -- well
+# inside a 12h budget even with model-load overhead, but request the
+# partition's 12h max anyway (same margin reasoning as the original config)
+# rather than risk a second time-limit kill this close to the finish line.
+#
+# Launched the same way as the original run, by jobs/lundquist/train_dit_2gpu.sbatch,
+# which substitutes __PREPROCESSED_ROOT__ for dit_preprocessed/<PREPROCESSED_NAME>:
+#   sbatch --time=12:00:00 jobs/lundquist/train_dit_2gpu.sbatch \
+#       finetune_vae_whole_structure_baseline_ep20_kl0 \
+#       configs/dit/train_dit_lundquist_cosine_kl0_15k_resume.yaml
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: "dit_outputs/lundquist/dit_cosine_kl0_15k/checkpoints"
+
+conditioning:
+  first_frame_conditioning_p: 1.0
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 15000
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  optimizer_type: "adamw"
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "__PREPROCESSED_ROOT__"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "__PREPROCESSED_ROOT__/val"
+  interval: 600
+  max_samples: 0
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: true
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwavenet"
+  tags: ["cfd", "full", "2b", "scalar-only", "lundquist", "128res", "cosine-vae", "kl0", "15k-steps", "resume"]
+
+seed: 42
+output_dir: "dit_outputs/lundquist/dit_cosine_kl0_15k"
